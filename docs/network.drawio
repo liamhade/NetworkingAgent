@@ -1,0 +1,82 @@
+<mxfile host="65bd71144e">
+    <diagram id="g8YxXSTlaDmjd78O-Qj6" name="Page-1">
+        <mxGraphModel dx="1766" dy="699" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-1" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;aspect=fixed;" value="me" vertex="1">
+                    <mxGeometry height="60" width="60" x="110" y="290" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="company: Dover" vertex="1">
+                    <mxGeometry height="60" width="120" x="240" y="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="home: New York" vertex="1">
+                    <mxGeometry height="60" width="120" x="240" y="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="school: Uchicago" vertex="1">
+                    <mxGeometry height="60" width="120" x="240" y="145" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="current role: Software Engineer" vertex="1">
+                    <mxGeometry height="60" width="120" x="240" y="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="hobbys: guitar" vertex="1">
+                    <mxGeometry height="60" width="120" x="240" y="450" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-13" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;aspect=fixed;" value="Bob" vertex="1">
+                    <mxGeometry height="60" width="60" x="700" y="260" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="professional_interests: software, robotics, biotech" vertex="1">
+                    <mxGeometry height="60" width="120" x="240" y="300" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-15" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="company: Dover" vertex="1">
+                    <mxGeometry height="60" width="120" x="520" y="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-16" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="home: New York" vertex="1">
+                    <mxGeometry height="60" width="120" x="520" y="380" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-18" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="school: Uchicago" vertex="1">
+                    <mxGeometry height="60" width="120" x="520" y="145" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-19" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="current role: Software Engineer" vertex="1">
+                    <mxGeometry height="60" width="120" x="520" y="220" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-20" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="hobbys: guitar" vertex="1">
+                    <mxGeometry height="60" width="120" x="520" y="450" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-21" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="professional_interests: software, robotics, biotech" vertex="1">
+                    <mxGeometry height="60" width="120" x="520" y="300" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-22" parent="1" style="ellipse;whiteSpace=wrap;html=1;shapeInside=1;aspect=fixed;" value="Alice" vertex="1">
+                    <mxGeometry height="60" width="60" x="520" y="780" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-23" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="company: Dover" vertex="1">
+                    <mxGeometry height="60" width="120" x="340" y="590" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-24" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="home: New York" vertex="1">
+                    <mxGeometry height="60" width="120" x="340" y="900" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-26" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="school: Uchicago" vertex="1">
+                    <mxGeometry height="60" width="120" x="340" y="665" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-27" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="current role: Software Engineer" vertex="1">
+                    <mxGeometry height="60" width="120" x="340" y="740" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-28" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="hobbys: guitar" vertex="1">
+                    <mxGeometry height="60" width="120" x="340" y="970" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-29" parent="1" style="rounded=1;whiteSpace=wrap;html=1;roundedPerimeter=1;" value="professional_interests: software, robotics, biotech" vertex="1">
+                    <mxGeometry height="60" width="120" x="340" y="820" as="geometry"/>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-30" edge="1" parent="1" style="shape=flexArrow;endArrow=classic;html=1;" value="">
+                    <mxGeometry height="50" relative="1" width="50" as="geometry">
+                        <mxPoint x="-50" y="340" as="sourcePoint"/>
+                        <mxPoint x="70" y="330" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="8x0WezQeFW58HiOz1QiE-31" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Person Object&amp;nbsp;" vertex="1">
+                    <mxGeometry height="30" width="60" x="-230" y="280" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
