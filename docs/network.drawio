@@ -74,7 +74,7 @@
                     </mxGeometry>
                 </mxCell>
                 <mxCell id="8x0WezQeFW58HiOz1QiE-31" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Person Object&amp;nbsp;" vertex="1">
-                    <mxGeometry height="30" width="60" x="-230" y="280" as="geometry"/>
+                    <mxGeometry height="30" width="60" x="-120" y="320" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
