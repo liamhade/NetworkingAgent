@@ -1,1 +1,0 @@
-For now, I only plan to work with the `Google SERP` API and the BuiltInNYC API. In the future, when I expand support, the first thing will be to create an API for this site: `https://www.conservationjobboard.com/`.
