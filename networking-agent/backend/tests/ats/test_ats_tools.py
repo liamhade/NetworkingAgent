@@ -65,6 +65,7 @@ def board_api(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
     monkeypatch.setattr(ats_base, "get_json", get_json)
     monkeypatch.setattr("ats.greenhouse.get_json", get_json)
+    monkeypatch.setattr("ats.lever.get_json", get_json)
     return responses
 
 
@@ -140,3 +141,56 @@ def test_ats_jobs_errors_are_raised(board_api: dict[str, Any]) -> None:
     board_api[f"{API}/nope/jobs"] = RuntimeError("404 Client Error")
     with pytest.raises(RuntimeError, match="404"):
         tools.ats_jobs("greenhouse", "nope", "data analyst")
+
+
+# --- Lever ---------------------------------------------------------------------------
+
+LEVER_API = "https://api.lever.co/v0/postings"
+
+
+def test_ats_boards_on_lever(google: FakeGoogle, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "ATS_RESOLVE_LINKS", 3)
+    monkeypatch.setitem(
+        RESOLVED, "https://www.google.com/goto?url=LLL5", "https://jobs.lever.co/deltalabs"
+    )
+    boards = tools.ats_boards("lever", "data analyst", "New York, NY")
+    assert google.queries == [
+        'site:jobs.lever.co OR site:jobs.eu.lever.co "data analyst" "New York"'
+    ]
+    assert google.resolved == ["https://www.google.com/goto?url=LLL5"]
+    assert google.cacheable is True
+    assert boards == [
+        {
+            "provider": "lever",
+            "slug": "spotify",
+            "job_ids": ["2a55d6c9-c564-443a-be3e-a3851db5a93b"],
+        },
+        {"provider": "lever", "slug": "plaid", "job_ids": []},
+        {
+            "provider": "lever",
+            "slug": "euroco",
+            "job_ids": ["0b5e7d1c-3f2a-4c8e-9d61-5a7b8c9d0e1f"],
+        },
+        {"provider": "lever", "slug": "deltalabs", "job_ids": []},
+    ]
+
+
+def test_ats_jobs_on_lever(board_api: dict[str, Any]) -> None:
+    board_api[f"{LEVER_API}/spotify"] = json.loads(
+        (FIXTURES / "lever_postings.json").read_text(encoding="utf-8")
+    )
+    assert tools.ats_jobs("lever", "spotify", "engineer", "London") == [
+        {
+            "title": "Backend Engineer - Data Platform",
+            "url": "https://jobs.lever.co/spotify/186b763a-2a61-4563-8813-ff6b40c9c8a7",
+            "company": "Spotify",
+            "company_url": "https://jobs.lever.co/spotify",
+            "location": "Stockholm / London",
+            "summary": "Lever · Engineering · Platform · posted 2026-09-28",
+        }
+    ]
+    remote = tools.ats_jobs("lever", "spotify", "data", "remote")
+    assert [j["title"] for j in remote] == [
+        "Product Manager - Data Platform",
+        "Senior Data Scientist, Artist-First AI Music lab",
+    ]

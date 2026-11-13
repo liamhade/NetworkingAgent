@@ -60,7 +60,7 @@ def breadcrumb_url(display_url: str) -> str:
     segments: list[str] = []
     for part in display_url.split("›"):
         part = part.strip()
-        if not part or part in {"...", "…"} or part.endswith("..."):
+        if not part or part in {"...", "…"} or part.endswith(("...", "…")):
             break
         segments.append(part)
     return "/".join(segments)

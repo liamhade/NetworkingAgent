@@ -23,13 +23,19 @@ Flow per planned query and provider:
 - `base.py`: `Provider` interface and the shared `get_json` (patched in tests)
 - `models.py`: `BoardRef` (parsed URL), `Board` (found through Google), `AtsJob`
 - `greenhouse.py`: the Greenhouse provider (`GREENHOUSE`)
+- `lever.py`: the Lever provider (`LEVER`); EU boards are found by retrying a 404 on the EU API
 - `registry.py`: `PROVIDERS`, `get_provider()`, `parse_url()`
 - `search.py`: pure helpers: `site_query`, breadcrumbs -> boards, keyword/location matching
 
-`read_page.methods.greenhouse_ids` uses `GREENHOUSE.parse_url`, so the Greenhouse URL rules
-live only here. `ats` must not import `read_page` (that would be an import cycle).
+`read_page.methods.greenhouse_ids` uses `GREENHOUSE.parse_url` and
+`read_page.methods.lever_api_url` uses `LEVER.parse_url` / `LEVER.api_base`, so those URL
+rules live only here. `ats` must not import `read_page` (that would be an import cycle).
 
-## Adding a provider (Lever, Ashby, Workable, ...)
+Provider quirks: Lever's API has no company name (`lever.company_name` title-cases the slug)
+and always includes full descriptions (~10 KB per posting); remote postings get "(Remote)"
+appended to their location so a "remote" search matches them.
+
+## Adding a provider (Ashby, Workable, ...)
 
 1. New module `ats/<name>.py` with a `Provider` subclass: `name`, `label`, `site_domains`
    (hosts for `site:`), `host_pattern` (every board host), `parse_url` (board slug and
@@ -43,8 +49,10 @@ live only here. `ats` must not import `read_page` (that would be an import cycle
 4. If `read_page` has its own URL regex for that ATS, point it at the provider's
    `parse_url` too.
 
-Known public APIs: Lever `https://api.lever.co/v0/postings/<slug>?mode=json` (EU:
-`api.eu.lever.co`), Ashby `https://api.ashbyhq.com/posting-api/job-board/<slug>`, Workable
+Every registered provider costs one more Google search per planned ATS query (Greenhouse +
+Lever = 2 per query, up to 4 per pipeline run), unless `ATS_MAX_BOARDS` is reached first.
+
+Known public APIs: Ashby `https://api.ashbyhq.com/posting-api/job-board/<slug>`, Workable
 `https://apply.workable.com/api/v1/widget/accounts/<slug>`. Check the shape with a few spaced
 live requests before relying on it.
 

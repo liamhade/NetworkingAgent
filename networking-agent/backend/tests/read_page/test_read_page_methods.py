@@ -153,6 +153,17 @@ def test_lever_eu_host(web: FakeWeb) -> None:
     assert methods.read_lever(f"https://jobs.eu.lever.co/acme/{job}").title == "Eng"
 
 
+def test_lever_urls_are_parsed_by_the_ats_layer() -> None:
+    job = "2a55d6c9-0000-4000-8000-000000000000"
+    assert (
+        methods.lever_api_url(f"https://jobs.lever.co/spotify/{job}/apply")
+        == f"https://api.lever.co/v0/postings/spotify/{job}"
+    )
+    for url in ("https://jobs.lever.co/spotify", "https://example.com/spotify/" + job):
+        with pytest.raises(MethodUnavailable):
+            methods.lever_api_url(url)
+
+
 ASHBY_ID = "1fc309c8-0000-4000-8000-000000000000"
 ASHBY_JSON = {
     "jobs": [

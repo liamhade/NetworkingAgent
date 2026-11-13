@@ -72,7 +72,7 @@ class SearchPlan(BaseModel):
         description="0-3 Conservation Job Board searches."
     )
     ats_jobs: list[AtsJobQuery] = Field(
-        description="0-2 searches of companies' own career boards (Greenhouse)."
+        description="0-2 searches of companies' own career boards (Greenhouse, Lever)."
     )
     google_queries: list[str] = Field(description="0-2 Google job-search queries.")
 

@@ -2,7 +2,7 @@
 
 - `builtin_jobs` / `builtin_companies`: BuiltInNYC jobs and companies (`builtin_nyc`).
 - `conservation_jobs`: Conservation Job Board jobs (`conservation_jobboard`).
-- `ats_boards` / `ats_jobs`: companies' ATS boards (Greenhouse, ...) found through Google,
+- `ats_boards` / `ats_jobs`: companies' ATS boards (Greenhouse, Lever, ...) found through Google,
   and their matching postings from the board's public API (`ats`).
 - `google_search`: Google search through real Chrome (`google_serp`), one shared worker.
 - `linkedin_people`: LinkedIn profiles at a company, found through Google (`linkedin`).

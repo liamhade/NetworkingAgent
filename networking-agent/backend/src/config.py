@@ -37,7 +37,7 @@ READ_POSTING_MAX_CHARS = max(1_000, int(os.environ.get("READ_POSTING_MAX_CHARS",
 """Characters of each read posting passed to the compile step."""
 
 ATS_MAX_BOARDS = max(0, int(os.environ.get("ATS_MAX_BOARDS", "6")))
-"""Most ATS boards (companies' Greenhouse boards, ...) fetched per search (0 turns ATS off)."""
+"""Most ATS boards (companies' Greenhouse or Lever boards) fetched per search (0 turns ATS off)."""
 
 ATS_JOBS_PER_BOARD = max(1, int(os.environ.get("ATS_JOBS_PER_BOARD", "4")))
 """Matching postings kept from each ATS board."""

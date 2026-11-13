@@ -1,0 +1,148 @@
+[
+ {
+  "id": "2a55d6c9-c564-443a-be3e-a3851db5a93b",
+  "text": "Account Executive - Commercial, Spotify Technology",
+  "hostedUrl": "https://jobs.lever.co/spotify/2a55d6c9-c564-443a-be3e-a3851db5a93b",
+  "applyUrl": "https://jobs.lever.co/spotify/2a55d6c9-c564-443a-be3e-a3851db5a93b/apply",
+  "categories": {
+   "commitment": "Permanent",
+   "department": "Operations and Business Support",
+   "location": "New York, NY",
+   "team": "Platform",
+   "allLocations": [
+    "New York, NY"
+   ]
+  },
+  "createdAt": 1792767640768,
+  "country": "US",
+  "workplaceType": "hybrid"
+ },
+ {
+  "id": "cf13d272-92ac-407d-89bf-7f20d20f7961",
+  "text": "Account Executive - Enterprise, Spotify Technology",
+  "hostedUrl": "https://jobs.lever.co/spotify/cf13d272-92ac-407d-89bf-7f20d20f7961",
+  "applyUrl": "https://jobs.lever.co/spotify/cf13d272-92ac-407d-89bf-7f20d20f7961/apply",
+  "categories": {
+   "commitment": "Permanent",
+   "department": "Operations and Business Support",
+   "location": "New York, NY",
+   "team": "Platform",
+   "allLocations": [
+    "New York, NY",
+    "San Francisco, CA"
+   ]
+  },
+  "createdAt": 1792767393133,
+  "country": "US",
+  "workplaceType": "hybrid"
+ },
+ {
+  "id": "a4651332-6400-40e8-8c22-5491e7a34161",
+  "text": "Analyst, Royalty Operations",
+  "hostedUrl": "https://jobs.lever.co/spotify/a4651332-6400-40e8-8c22-5491e7a34161",
+  "applyUrl": "https://jobs.lever.co/spotify/a4651332-6400-40e8-8c22-5491e7a34161/apply",
+  "categories": {
+   "department": "Finance",
+   "location": "Stockholm",
+   "team": "Accounting",
+   "allLocations": [
+    "Stockholm"
+   ]
+  },
+  "createdAt": 1794254699733,
+  "country": "SE",
+  "workplaceType": "hybrid"
+ },
+ {
+  "id": "186b763a-2a61-4563-8813-ff6b40c9c8a7",
+  "text": "Backend Engineer - Data Platform",
+  "hostedUrl": "https://jobs.lever.co/spotify/186b763a-2a61-4563-8813-ff6b40c9c8a7",
+  "applyUrl": "https://jobs.lever.co/spotify/186b763a-2a61-4563-8813-ff6b40c9c8a7/apply",
+  "categories": {
+   "commitment": "Permanent",
+   "department": "Engineering",
+   "location": "Stockholm",
+   "team": "Platform",
+   "allLocations": [
+    "Stockholm",
+    "London"
+   ]
+  },
+  "createdAt": 1790590791162,
+  "country": "SE",
+  "workplaceType": "hybrid"
+ },
+ {
+  "id": "9899871a-4307-4367-9f74-039569d7a650",
+  "text": "Full Stack Engineer - Music",
+  "hostedUrl": "https://jobs.lever.co/spotify/9899871a-4307-4367-9f74-039569d7a650",
+  "applyUrl": "https://jobs.lever.co/spotify/9899871a-4307-4367-9f74-039569d7a650/apply",
+  "categories": {
+   "commitment": "Permanent",
+   "department": "Engineering",
+   "location": "New York, NY",
+   "team": "Music",
+   "allLocations": [
+    "New York, NY"
+   ]
+  },
+  "createdAt": 1790962985085,
+  "country": "US",
+  "workplaceType": "remote"
+ },
+ {
+  "id": "03437e2a-2d5e-4593-9e97-11271014932e",
+  "text": "Product Manager - Data Platform",
+  "hostedUrl": "https://jobs.lever.co/spotify/03437e2a-2d5e-4593-9e97-11271014932e",
+  "applyUrl": "https://jobs.lever.co/spotify/03437e2a-2d5e-4593-9e97-11271014932e/apply",
+  "categories": {
+   "department": "Data and Analytics",
+   "location": "London",
+   "team": "Platform",
+   "allLocations": [
+    "London"
+   ]
+  },
+  "createdAt": 1776160237237,
+  "country": "GB",
+  "workplaceType": "remote"
+ },
+ {
+  "id": "babebec3-0061-4c39-a4ad-c51a54d23567",
+  "text": "Senior Data Scientist, Artist-First AI Music lab",
+  "hostedUrl": "https://jobs.lever.co/spotify/babebec3-0061-4c39-a4ad-c51a54d23567",
+  "applyUrl": "https://jobs.lever.co/spotify/babebec3-0061-4c39-a4ad-c51a54d23567/apply",
+  "categories": {
+   "commitment": "Permanent",
+   "department": "Engineering",
+   "location": "New York, NY",
+   "team": "Music",
+   "allLocations": [
+    "New York, NY",
+    "Boston, MA",
+    "Washington D.C."
+   ]
+  },
+  "createdAt": 1791474875083,
+  "country": "US",
+  "workplaceType": "remote"
+ },
+ {
+  "id": "d2489df3-87cb-48bb-81af-83aab5f03bdc",
+  "text": "Tax Analyst",
+  "hostedUrl": "https://jobs.lever.co/spotify/d2489df3-87cb-48bb-81af-83aab5f03bdc",
+  "applyUrl": "https://jobs.lever.co/spotify/d2489df3-87cb-48bb-81af-83aab5f03bdc/apply",
+  "categories": {
+   "commitment": "Permanent",
+   "department": "Finance",
+   "location": "Stockholm",
+   "team": "Accounting",
+   "allLocations": [
+    "Stockholm"
+   ]
+  },
+  "createdAt": 1787566707743,
+  "country": "SE",
+  "workplaceType": "hybrid"
+ }
+]

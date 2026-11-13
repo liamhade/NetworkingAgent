@@ -41,14 +41,15 @@ sustainability and conservation policy. Use it if the user wants conservation, \
 environmental, nature, wildlife or outdoor work. 1-3 searches: categories, the user's \
 state(s) and/or "remote", and an optional 1-2 word keyword. Filters combine with AND, so \
 keep each search to a few filters.
-- ats_jobs: companies' own career boards on Greenhouse, found through Google; postings come \
-straight from the employer, in any city or industry. 0-2 searches, each a role phrase of \
-1-3 words matched against posting titles (e.g. "data analyst"; no seniority words) and a \
-city ("New York"), "remote", or "" for anywhere. Use it when the user wants roles at tech \
-or other companies that hire through careers pages, especially outside NYC. Each search \
-costs a Google search, so skip it when the sources above fit well.
+- ats_jobs: companies' own career boards on Greenhouse and Lever, found through Google; \
+postings come straight from the employer, in any city or industry. 0-2 searches, each a \
+role phrase of 1-3 words matched against posting titles (e.g. "data analyst"; no seniority \
+words) and a city ("New York"), "remote", or "" for anywhere. Use it when the user wants \
+roles at tech or other companies that hire through careers pages, especially outside NYC. \
+Each search costs one Google search per board provider, so skip it when the sources above \
+fit well.
 - google_queries: Google, for job postings the sources above don't cover. 0-2 queries such \
-as `"<role>" jobs <city> site:lever.co OR site:ashbyhq.com`. Google is slow; skip it when \
+as `"<role>" jobs <city> site:ashbyhq.com`. Google is slow; skip it when \
 the other sources fit well."""
 
 RANK_PROMPT = """You rank companies for a job seeker, using job postings that were just \

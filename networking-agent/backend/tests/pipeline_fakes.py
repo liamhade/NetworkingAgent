@@ -145,7 +145,8 @@ class FakeSources:
     `jobs`: BuiltIn jobs returned for every query (default: one job per company).
     `people`: `{(company, keywords): list[profile] | Exception}`; anything else returns
     `default_people` profiles (all current employees).
-    `ats_boards`: boards returned for every ATS board search (or an Exception).
+    `ats_boards`: boards (or an Exception) for ATS board searches; each provider's search
+    returns the boards whose `provider` is its own.
     `ats_board_jobs`: `{slug: list[job] | Exception}` for `ats_jobs`; missing slugs give [].
     """
 
@@ -206,7 +207,7 @@ class FakeSources:
         self.calls.append(("ats_boards", (provider, keywords, location)))
         if isinstance(self.ats_boards, Exception):
             raise self.ats_boards
-        return self.ats_boards
+        return [b for b in self.ats_boards if b["provider"] == provider]
 
     def fake_ats_jobs(
         self,
@@ -224,8 +225,8 @@ class FakeSources:
         return result[:n]
 
 
-def ats_board(slug: str, *job_ids: str) -> dict[str, Any]:
-    return {"provider": "greenhouse", "slug": slug, "job_ids": list(job_ids)}
+def ats_board(slug: str, *job_ids: str, provider: str = "greenhouse") -> dict[str, Any]:
+    return {"provider": provider, "slug": slug, "job_ids": list(job_ids)}
 
 
 def ats_job(company: str, i: int, title: str = "Data Analyst") -> dict[str, Any]:

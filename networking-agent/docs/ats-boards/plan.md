@@ -120,3 +120,80 @@ board search recorded and skipped, Google fallback skipped, plan caps).
   are cached).
 - No live Google run was done; first real searches should check the `ats_boards` trace
   steps (count and note) for how many boards come from breadcrumbs.
+
+## Lever (second provider)
+
+Goal: add Lever (`jobs.lever.co`, public Postings API) as `ats/lever.py` + one `PROVIDERS`
+entry, without changing the pipeline design.
+
+### Findings (2026-11-13, 3 requests to the Postings API, spaced 6 s, none limited)
+
+- `GET https://api.lever.co/v0/postings/<slug>?mode=json` returns a JSON **array** (no
+  wrapper, no pagination by default). Each posting has `id` (UUID), `text` (title),
+  `hostedUrl`, `applyUrl` (`hostedUrl` + `/apply`), `createdAt` (epoch ms), `country`,
+  `workplaceType` (`onsite` / `hybrid` / `remote`), `categories` (`location`,
+  `allLocations`, `team`, `department`, `commitment`; `commitment` sometimes missing) and
+  the full description (`description`, `descriptionBody`, `opening`, `lists`,
+  `additional` and `*Plain` twins). Spotify: 85 postings, 800 KB.
+- There is no parameter to leave the descriptions out, and no company name anywhere.
+- Unknown board: `404 {"ok":false,"error":"Document not found"}`, on both `api.lever.co`
+  and `api.eu.lever.co`.
+- No real EU board was checked (none known); `read_page` already used `api.eu.lever.co`
+  for `jobs.eu.lever.co` postings.
+
+### Design
+
+- `Lever` provider: `site_domains = ("jobs.lever.co", "jobs.eu.lever.co")`, hosts
+  `jobs(.eu).lever.co`. `parse_url` reads `/<slug>` and `/<slug>/<uuid>` (any trailing
+  `/apply`, query string ignored; non-UUID second segments give a board-only ref).
+- `list_jobs(slug)` asks the US API; on a 404 it asks the EU API (a second 404 is raised as
+  an unknown board) and remembers the slug so `board_url` links `jobs.eu.lever.co`. Other
+  HTTP errors (429, 5xx) are raised without the EU retry. A `Board` only carries a slug,
+  so this keeps EU support without changing the shared models.
+- Normalization: `title` = `text`, `url` = `hostedUrl` (else built), `company` = slug
+  title-cased (`acme-labs` -> `Acme Labs`), `location` = all of `allLocations` joined with
+  " / " (else `location`), plus " (Remote)" for `workplaceType == "remote"` so
+  `matches_location(..., "remote")` finds them; `departments` = `[department, team]`
+  (deduplicated, so keyword matching also sees the team); `posted` = `createdAt` as a UTC
+  date.
+- `read_page.methods.read_lever` now builds its API URL with `lever_api_url`, which uses
+  `LEVER.parse_url` + `LEVER.api_base` (the `_LEVER` regex is gone). `read_page`'s
+  registry regex still routes `jobs(.eu).lever.co/<slug>/<uuid>` URLs to `lever_api`.
+- `search.breadcrumb_url` also treats a segment ending in "…" (Google truncating a long
+  UUID) as truncation, so `jobs.lever.co › spotify › 2a55d6c9-c5…` still gives the board.
+- `PLAN_PROMPT`: `ats_jobs` names Greenhouse and Lever and says each search costs one
+  Google search per board provider; the `google_queries` example no longer suggests
+  `site:lever.co` (now `site:ashbyhq.com` only). `SearchPlan.ats_jobs` description updated.
+
+### Google searches per pipeline run
+
+`_ats_searches` runs one `site:` search per (ATS query, provider) until `ATS_MAX_BOARDS`
+(6) boards are read. With `cap_plan`'s 2 ATS queries: at most 2 searches before, at most
+4 now, i.e. **+0 to +2 Google searches per run** (+1 per planned ATS query), and none
+when the plan has no `ats_jobs`. The extra search is skipped when an earlier search
+already filled the board cap. Each search is 2-25 s on the shared Chrome worker and
+cached for 15 minutes.
+
+### Tests (offline)
+
+`test_ats_lever.py` (URL forms incl. EU, `/apply`, query strings, rejections; registry;
+company names; normalization from a trimmed live Spotify fixture `lever_postings.json`;
+broken entries and gaps; empty/odd responses; EU fallback; 404 on both hosts; 429 not
+retried). `google_results.json` gained Lever results (full crumb, board crumb, "…"
+truncated UUID, EU `/apply`, fully truncated) used by `test_ats_search.py` and
+`test_ats_tools.py` (Lever `site:` query, breadcrumb boards, resolution, `ats_jobs`).
+`pipeline_fakes.fake_ats_boards` now returns only boards of the searched provider, and
+`test_ats_pipeline.py` expects a Greenhouse and a Lever search per query.
+
+### Caveats / deferred
+
+- Lever responses are large (descriptions can't be excluded); reading 6 boards can be a
+  few MB. A board-level cache would help if boards repeat.
+- The board cap is shared and Greenhouse is searched first, so a Greenhouse search that
+  yields 6 boards means Lever is never searched for that run. A per-provider share or
+  interleaving would be fairer; left as is to keep the pipeline design.
+- Company names are guessed from slugs (`mckinsey` -> `Mckinsey`); the LLM ranking and
+  entity matching may see slightly off names. The board page's `<title>` would give the
+  real name at the cost of one more request per board.
+- EU fallback costs a second request for unknown/closed boards; EU boards were not
+  verified live.

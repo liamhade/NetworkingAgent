@@ -12,6 +12,7 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 from ats.greenhouse import GREENHOUSE
+from ats.lever import LEVER
 
 from . import browser
 from . import fetch as fetch_mod
@@ -239,15 +240,16 @@ def read_greenhouse(url: str) -> PageResult:
     )
 
 
-_LEVER = re.compile(r"jobs\.(?P<eu>eu\.)?lever\.co/(?P<company>[^/?#]+)/(?P<id>[0-9a-f-]{36})")
+def lever_api_url(url: str) -> str:
+    """The Postings API URL of a Lever posting URL; the URL rules live in `ats`."""
+    ref = LEVER.parse_url(url)
+    if ref is not None and ref.job_id:
+        return f"{LEVER.api_base(url)}/{ref.slug}/{ref.job_id}"
+    raise MethodUnavailable("Not a Lever job URL")
 
 
 def read_lever(url: str) -> PageResult:
-    m = _LEVER.search(url)
-    if not m:
-        raise MethodUnavailable("Not a Lever job URL")
-    host = "api.eu.lever.co" if m["eu"] else "api.lever.co"
-    data = _api(f"https://{host}/v0/postings/{m['company']}/{m['id']}")
+    data = _api(lever_api_url(url))
     title = data.get("text") or None
     categories = data.get("categories") or {}
     final_url = data.get("hostedUrl") or url

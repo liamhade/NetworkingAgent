@@ -2,9 +2,10 @@
 
 from .base import Provider
 from .greenhouse import GREENHOUSE
+from .lever import LEVER
 from .models import BoardRef
 
-PROVIDERS: dict[str, Provider] = {p.name: p for p in (GREENHOUSE,)}
+PROVIDERS: dict[str, Provider] = {p.name: p for p in (GREENHOUSE, LEVER)}
 """Provider name -> provider, in the order the pipeline searches them."""
 
 

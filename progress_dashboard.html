@@ -52,6 +52,11 @@ const TASKS = [
   { title: "Frontend test runner + pinned-behavior tests", status: "done", commit: "fcb9736", note: "Vitest + jsdom + Testing Library (npm run test): 52 tests across sort, counts, toggle hook, PinToggle, and App-level pin/sort/rollback flows." },
   { title: "Conservation Job Board support", status: "done", commit: "03477e5", note: "conservation_jobboard module (server-rendered HTML; browser check found no JSON API) + search_conservation_jobs agent tool; offline fixture tests." },
   { title: "Enforced LangGraph search pipeline", status: "done", commit: "c776d42", note: "plan → find_jobs → rank_companies (0-100 fit) → find_people (top 3, fallback ladder) → read_postings → compile; per-search trace; parallel on-demand \"Find People To Connect With\" button." },
+  { title: "ATS job boards: Greenhouse (+ shared ats layer)", status: "done", commit: "0183644", note: "ats sub-package + provider interface; Google site: search → slug from breadcrumb → Greenhouse board API; keyword/location filter; trace steps; ATS_MAX_BOARDS / ATS_JOBS_PER_BOARD / ATS_RESOLVE_LINKS knobs." },
+  { title: "ATS job boards: Lever", status: "current", note: "Lever public postings API in the ats layer." },
+  { title: "ATS job boards: Ashby", status: "next", note: "Ashby public job-board API in the ats layer." },
+  { title: "ATS job boards: Workable", status: "next", note: "Workable public API in the ats layer." },
+  { title: "USAJOBS source", status: "next", note: "Official USAJOBS search API (env-var key), skipped when unconfigured." },
 ];
 
 function render() {

@@ -7,6 +7,7 @@ import pytest
 
 from ats import AtsJob, Board, boards_from_results, filter_jobs, needs_resolving, site_query
 from ats.greenhouse import GREENHOUSE
+from ats.lever import LEVER
 from ats.search import breadcrumb_url, matches_keywords, matches_location
 from google_serp import SearchResult
 
@@ -72,6 +73,11 @@ def test_site_query(keywords: str, location: str, query: str) -> None:
         ("https://boards.greenhouse.io › acme", "https://boards.greenhouse.io/acme"),
         ("https://job-boards.greenhouse.io › acme › ...", "https://job-boards.greenhouse.io/acme"),
         ("https://job-boards.greenhouse.io › …", "https://job-boards.greenhouse.io"),
+        (
+            "https://jobs.lever.co › spotify › 2a55d6c9-c564-443a-be3e-a3851db5a93b",
+            "https://jobs.lever.co/spotify/2a55d6c9-c564-443a-be3e-a3851db5a93b",
+        ),
+        ("https://jobs.lever.co › spotify › 2a55d6c9-c5…", "https://jobs.lever.co/spotify"),
         ("8 comments · 3 years ago", ""),
         ("", ""),
     ],
@@ -94,6 +100,34 @@ def test_boards_are_read_from_breadcrumbs_without_resolving() -> None:
         "https://www.google.com/goto?url=AAA4",
         "https://www.google.com/goto?url=AAA7",
     ]
+
+
+def test_lever_boards_are_read_from_breadcrumbs() -> None:
+    results = google_results()
+    assert boards_from_results(results, LEVER) == [
+        # The truncated Spotify crumb still names the board; it merges with the full one.
+        Board(provider="lever", slug="spotify", job_ids=["2a55d6c9-c564-443a-be3e-a3851db5a93b"]),
+        Board(provider="lever", slug="plaid", job_ids=[]),
+        # EU host, with the /apply suffix.
+        Board(provider="lever", slug="euroco", job_ids=["0b5e7d1c-3f2a-4c8e-9d61-5a7b8c9d0e1f"]),
+    ]
+    # Only the fully truncated crumb hides its board; Greenhouse and Indeed results are
+    # off-provider for Lever.
+    assert [r.url for r in results if needs_resolving(r, LEVER)] == [
+        "https://www.google.com/goto?url=LLL5"
+    ]
+    # ...and Lever results are off-provider for Greenhouse.
+    assert all(
+        b.provider == "greenhouse" and b.slug not in {"spotify", "plaid"}
+        for b in boards_from_results(results, GREENHOUSE)
+    )
+
+
+def test_lever_site_query() -> None:
+    assert (
+        site_query(LEVER, "data analyst", "New York, NY")
+        == 'site:jobs.lever.co OR site:jobs.eu.lever.co "data analyst" "New York"'
+    )
 
 
 def test_resolved_urls_win_over_breadcrumbs() -> None:
