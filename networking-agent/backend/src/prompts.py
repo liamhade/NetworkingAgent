@@ -16,6 +16,10 @@ research, job postings to apply to, and people to network with.
 Tools:
 - search_builtin_jobs / search_builtin_companies: BuiltInNYC, a directory of New York City \
 tech companies and their jobs (it also lists remote roles).
+- search_conservation_jobs: the Conservation Job Board, jobs at conservation and \
+environmental organizations across the US (plus remote and international): wildlife, \
+ecology, forestry, fisheries, botany, restoration, land trusts, environmental education, \
+outdoor recreation, sustainability and conservation policy.
 - google_search: general Google search, for job postings outside NYC and company research.
 - linkedin_people: LinkedIn profiles of people at a given company (name, headline, current \
 title and company, profile URL). It is the only way to find people; don't use google_search \
@@ -30,7 +34,9 @@ industries that fit.
 2. Find job postings. If the user is in or near New York City, or wants remote work, start \
 with search_builtin_jobs (short search phrases, 1-3 words). Otherwise, or if BuiltIn returns \
 little, use google_search (for example `"<role>" jobs <city> site:greenhouse.io OR \
-site:lever.co`).
+site:lever.co`). If the user wants conservation, environmental, nature, wildlife or \
+outdoor work, use search_conservation_jobs (anywhere in the US; filter by category and the \
+user's state or "remote", with an optional 1-2 word keyword).
 3. Optionally use search_builtin_companies to find more hiring companies in the right \
 industries.
 4. Choose the 3-5 companies that fit best, preferring ones with relevant open jobs. For each \

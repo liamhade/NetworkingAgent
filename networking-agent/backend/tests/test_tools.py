@@ -2,8 +2,11 @@ import json
 
 import pytest
 
+import prompts
 import tools
 from builtin_nyc.models import Company, ExperienceLevel, Job, JobCategory
+from conservation_jobboard.models import Category, Location
+from conservation_jobboard.models import Job as ConservationJob
 from google_serp import SearchResponse, SearchResult
 
 
@@ -104,3 +107,58 @@ def test_google_errors_are_returned(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(tools, "run_google_search", boom)
     assert "Chrome not found" in json.loads(tools.google_search.invoke({"query": "x"}))["error"]
+
+
+def test_search_conservation_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen = {}
+
+    def fake_get_jobs(job_filter, n):
+        seen["filter"], seen["n"] = job_filter, n
+        return [
+            ConservationJob(
+                id=1,
+                title="Wildlife Technician",
+                url="https://www.conservationjobboard.com/job-listing-wildlife-technician/123",
+                organization="Audubon",
+                location="Denver, CO",
+                job_type="Temporary",
+                salary="$20 - $22 per hour",
+            )
+        ]
+
+    monkeypatch.setattr(tools.conservation_api, "get_jobs", fake_get_jobs)
+    out = json.loads(
+        tools.search_conservation_jobs.invoke(
+            {"keyword": "wildlife", "categories": ["wildlife"], "locations": ["colorado", "remote"]}
+        )
+    )
+    assert seen["n"] == 15
+    assert seen["filter"].categories == [Category.WILDLIFE]
+    assert seen["filter"].locations == [Location.COLORADO, Location.REMOTE]
+    assert out == [
+        {
+            "title": "Wildlife Technician",
+            "url": "https://www.conservationjobboard.com/job-listing-wildlife-technician/123",
+            "company": "Audubon",
+            "location": "Denver, CO",
+            "job_type": "Temporary",
+            "salary": "$20 - $22 per hour",
+            "experience": None,
+            "deadline": None,
+            "posted": None,
+        }
+    ]
+
+
+def test_search_conservation_jobs_errors_are_returned(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*_):
+        raise RuntimeError("403 Forbidden")
+
+    monkeypatch.setattr(tools.conservation_api, "get_jobs", boom)
+    out = json.loads(tools.search_conservation_jobs.invoke({"keyword": "x"}))
+    assert "403" in out["error"]
+
+
+def test_search_conservation_jobs_is_registered() -> None:
+    assert tools.search_conservation_jobs in tools.ALL_TOOLS
+    assert "search_conservation_jobs" in prompts.RESEARCH_PROMPT

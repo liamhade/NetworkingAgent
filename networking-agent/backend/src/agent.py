@@ -2,8 +2,8 @@
 
 `run_search()` runs in two phases:
 
-1. **Research**: a LangChain tool-calling agent searches BuiltInNYC and Google. Each
-   tool call and tool result is reported as a `StatusEvent`.
+1. **Research**: a LangChain tool-calling agent searches BuiltInNYC, the Conservation Job
+   Board and Google. Each tool call and tool result is reported as a `StatusEvent`.
 2. **Compile**: one structured-output call turns the research transcript into
    `SearchResults`, which is reported as a `ResultEvent`. The same call writes each
    person's example LinkedIn note (`connect_message`).
@@ -60,6 +60,9 @@ def describe_tool_call(name: str, args: dict[str, Any]) -> str:
     if name == "search_builtin_companies":
         industries = ", ".join(args.get("industries") or []) or "all industries"
         return f"Browsing BuiltInNYC companies in {_short(industries)}"
+    if name == "search_conservation_jobs":
+        what = args.get("keyword") or ", ".join(args.get("categories") or []) or "all roles"
+        return f"Searching Conservation Job Board for “{_short(what)}”"
     if name == "google_search":
         return f"Searching Google for “{_short(args.get('query', ''))}”"
     if name == "linkedin_people":

@@ -1,6 +1,7 @@
 """LangChain tools that expose the two backbone packages (both in `src/`) to the agent.
 
 - `builtin_nyc`: BuiltInNYC jobs and companies.
+- `conservation_jobboard`: Conservation Job Board jobs (conservation/environmental roles).
 - `google_serp`: Google search through real Chrome.
 - `read_page`: read any web page (job posting, careers/team page) as Markdown.
 
@@ -33,6 +34,10 @@ from builtin_nyc.models import (
     JobFilter,
     RemotePreference,
 )
+from conservation_jobboard import api as conservation_api
+from conservation_jobboard.models import Category, JobType, Location
+from conservation_jobboard.models import ExperienceLevel as ConservationExperience
+from conservation_jobboard.models import JobFilter as ConservationJobFilter
 
 log = logging.getLogger(__name__)
 
@@ -172,6 +177,71 @@ def search_builtin_companies(
                 "description": _clip(c.description),
             }
             for c in companies
+        ]
+    )
+
+
+# ------------------------------------------------------------ Conservation Job Board
+
+
+class ConservationJobsArgs(BaseModel):
+    keyword: str | None = Field(
+        default=None, description='Free-text search, e.g. "biologist" or "trail crew".'
+    )
+    categories: list[Category] = Field(default=[], description="Job categories (any of).")
+    locations: list[Location] = Field(
+        default=[], description='US states, "remote", or world regions (any of).'
+    )
+    job_types: list[JobType] = Field(default=[], description="Job types (any of).")
+    experience_levels: list[ConservationExperience] = Field(
+        default=[], description='Minimum experience: "entry" (0-1 yr), "mid" (2-4), "senior" (5+).'
+    )
+    n: int = Field(default=15, ge=1, le=30, description="Maximum jobs to return.")
+
+
+@tool("search_conservation_jobs", args_schema=ConservationJobsArgs)
+def search_conservation_jobs(
+    keyword: str | None = None,
+    categories: list[Category] | None = None,
+    locations: list[Location] | None = None,
+    job_types: list[JobType] | None = None,
+    experience_levels: list[ConservationExperience] | None = None,
+    n: int = 15,
+) -> str:
+    """Search the Conservation Job Board: conservation, environmental, nature, wildlife,
+    forestry, outdoor recreation and sustainability jobs (mostly US, some remote/international).
+
+    Returns jobs with title, posting URL, organization, location, job type, salary, minimum
+    experience, application deadline and posted date. Filters combine (AND); keep the
+    keyword short (1-2 words) or leave it out and filter by category and location.
+    """
+    try:
+        jobs = conservation_api.get_jobs(
+            ConservationJobFilter(
+                keyword=keyword,
+                categories=categories or [],
+                locations=locations or [],
+                job_types=job_types or [],
+                experience_levels=experience_levels or [],
+            ),
+            n,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc)
+    return _dump(
+        [
+            {
+                "title": j.title,
+                "url": j.url,
+                "company": j.organization,
+                "location": j.location,
+                "job_type": j.job_type,
+                "salary": j.salary,
+                "experience": j.experience,
+                "deadline": j.deadline,
+                "posted": j.posted,
+            }
+            for j in jobs
         ]
     )
 
@@ -467,6 +537,7 @@ def read_page(url: str, method: ReadMethod = "auto", max_chars: int = READ_PAGE_
 ALL_TOOLS: list[BaseTool] = [
     search_builtin_jobs,
     search_builtin_companies,
+    search_conservation_jobs,
     google_search,
     linkedin_people,
     read_page,

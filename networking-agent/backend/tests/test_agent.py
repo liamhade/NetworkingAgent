@@ -90,3 +90,7 @@ def test_describe_tool_call() -> None:
         == "Looking for recruiter at Ramp"
     )
     assert agent.describe_tool_call("google_search", {"query": "q"}) == "Searching Google for “q”"
+    assert (
+        agent.describe_tool_call("search_conservation_jobs", {"categories": ["wildlife"]})
+        == "Searching Conservation Job Board for “wildlife”"
+    )
