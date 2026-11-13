@@ -20,6 +20,9 @@ CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://127.
 AGENT_RECURSION_LIMIT = int(os.environ.get("AGENT_RECURSION_LIMIT", "40"))
 """Maximum LangGraph steps (each model call and each tool round counts)."""
 
+LINKEDIN_MESSAGE_MAX_CHARS = max(1, int(os.environ.get("LINKEDIN_MESSAGE_MAX_CHARS", "300")))
+"""Upper bound on each person's example LinkedIn connection note (LinkedIn allows 300)."""
+
 DATABASE_DIR = Path(os.environ.get("DATABASE_DIR", PROJECT_DIR.parent / "database"))
 """Local JSON "database" for the POC (to be replaced by Supabase)."""
 

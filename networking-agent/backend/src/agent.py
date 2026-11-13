@@ -5,7 +5,10 @@
 1. **Research**: a LangChain tool-calling agent searches BuiltInNYC and Google. Each
    tool call and tool result is reported as a `StatusEvent`.
 2. **Compile**: one structured-output call turns the research transcript into
-   `SearchResults`, which is reported as a `ResultEvent`.
+   `SearchResults`, which is reported as a `ResultEvent`. The same call writes each
+   person's example LinkedIn note (`connect_message`).
+
+The prompts live in `prompts.py`.
 """
 
 import json
@@ -22,6 +25,7 @@ from langgraph.errors import GraphRecursionError
 import config
 from llm import get_llm
 from llm_usage import run_config
+from prompts import RESEARCH_PROMPT, compile_prompt
 from schemas import (
     AgentEvent,
     ErrorEvent,
@@ -33,57 +37,6 @@ from schemas import (
 from tools import ALL_TOOLS
 
 log = logging.getLogger(__name__)
-
-RESEARCH_PROMPT = """You are a networking agent that helps job seekers find companies to \
-research, job postings to apply to, and people to network with.
-
-Tools:
-- search_builtin_jobs / search_builtin_companies: BuiltInNYC, a directory of New York City \
-tech companies and their jobs (it also lists remote roles).
-- google_search: general Google search, for job postings outside NYC and company research.
-- linkedin_people: LinkedIn profiles of people at a given company (name, headline, current \
-title and company, profile URL). It is the only way to find people; don't use google_search \
-for people.
-- read_page: the text of one web page as Markdown with links, e.g. a job posting (for \
-requirements, salary and how to apply) or a company's careers or team page. It cannot read \
-LinkedIn profiles.
-
-Process:
-1. From the profile, decide on 2-3 target role titles, the seniority level and the \
-industries that fit.
-2. Find job postings. If the user is in or near New York City, or wants remote work, start \
-with search_builtin_jobs (short search phrases, 1-3 words). Otherwise, or if BuiltIn returns \
-little, use google_search (for example `"<role>" jobs <city> site:greenhouse.io OR \
-site:lever.co`).
-3. Optionally use search_builtin_companies to find more hiring companies in the right \
-industries.
-4. Choose the 3-5 companies that fit best, preferring ones with relevant open jobs. For each \
-of them, call linkedin_people once or twice: someone on the team the user would join (e.g. a \
-hiring manager or a peer in that role) and/or a recruiter. Use keywords that describe the \
-person ("data science manager", "recruiter"), not job-posting words ("jobs", "hiring").
-5. Optionally call read_page on the 1-3 most promising job postings to confirm they fit \
-(requirements, seniority, location, salary). Only read URLs that tools returned.
-6. Stop calling tools and write a short summary of what you found.
-
-Rules:
-- Be efficient: about 10-16 tool calls in total. Google-based tools are slow.
-- Never invent companies, jobs, people or URLs. Only report what tools returned.
-- If a tool returns an error, adjust the arguments or use another tool."""
-
-COMPILE_PROMPT = """You turn a job-search research transcript into the final results.
-
-Rules:
-- Include 3-5 companies, best fit first; prefer companies with relevant open jobs.
-- For each company, list up to 4 relevant jobs and up to 4 people to contact from the \
-transcript. Include every relevant person found at that company (the team the user would \
-join, data or hiring leaders, recruiters); skip people who clearly no longer work there \
-(`at_company: false`, "Ex-<company>") or are unrelated. Empty lists are allowed if nothing \
-was found.
-- Copy names, titles and URLs exactly as they appear in tool results. Never invent them.
-- `alignment` fields speak to the user ("You ...") and point to concrete overlaps between \
-their background/goals and the company, job or person: skills, industry, school, past \
-employers, location, seniority.
-- Keep each alignment to 1-3 sentences."""
 
 
 def format_profile(request: SearchRequest) -> str:
@@ -164,7 +117,7 @@ def compile_results(
     model = llm.with_structured_output(SearchResults, method="json_schema")
     result = model.invoke(
         [
-            SystemMessage(COMPILE_PROMPT),
+            SystemMessage(compile_prompt()),
             HumanMessage(
                 f"{format_profile(request)}\n\n<research>\n{transcript(messages)}\n</research>"
             ),

@@ -23,6 +23,8 @@ export interface PersonResult {
   title: string
   profile_url: string
   alignment: string
+  /** Example LinkedIn connection note (server caps its length); absent on older searches. */
+  connect_message?: string
   /** Stable identity across searches (server-computed); keys the CONNECTED toggle. */
   key: string
 }
@@ -184,6 +186,8 @@ export interface PersonEntity extends Sighting {
   title: string
   profile_url: string
   alignment: string
+  /** Example LinkedIn connection note (server caps its length); absent on older searches. */
+  connect_message?: string
   company: string
   company_key: string
 }

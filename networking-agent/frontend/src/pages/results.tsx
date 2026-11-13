@@ -15,6 +15,7 @@ import type {
   StatusMap,
 } from '@/api'
 import { AlignmentBox } from '@/components/alignment-box'
+import { ConnectMessageBox } from '@/components/connect-message-box'
 import { AgentThinking } from '@/components/application/agent-thinking/agent-thinking'
 import { Chip } from '@/components/base/badges/chip'
 import { Button } from '@/components/base/buttons/button'
@@ -259,6 +260,7 @@ function PersonRow({
         {person.key && <StatusToggle kind="person" isSelected={connected} onChange={onToggle} />}
       </div>
       <AlignmentBox text={person.alignment} label="Why connect" />
+      <ConnectMessageBox text={person.connect_message} />
     </li>
   )
 }

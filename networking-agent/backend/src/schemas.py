@@ -3,8 +3,10 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.json_schema import SkipJsonSchema
+
+import config
 
 ENTITY_KEY_DESCRIPTION = (
     "Stable identity across searches, filled in by the server (`entities.keys`). "
@@ -42,7 +44,45 @@ class JobResult(BaseModel):
     key: SkipJsonSchema[str] = Field(default="", description=ENTITY_KEY_DESCRIPTION)
 
 
+_SENTENCE_ENDS = (". ", "! ", "? ")
+
+
+def clamp_message(text: str, limit: int) -> str:
+    """`text` trimmed to at most `limit` characters, cut at a sentence or word boundary.
+
+    Prefers ending on the last complete sentence that fits (if it keeps at least half of
+    the limit); otherwise cuts at the last word boundary and adds "…". Never returns more
+    than `limit` characters.
+    """
+    text = text.strip()
+    if limit <= 0:
+        return ""
+    if len(text) <= limit:
+        return text
+    head = text[: limit + 1]  # One extra character so a sentence end at `limit` is found.
+    sentence_end = max(head.rfind(end) for end in _SENTENCE_ENDS)
+    if sentence_end >= 0 and sentence_end + 1 >= limit // 2:
+        return text[: sentence_end + 1]
+    if limit == 1:
+        return "…"
+    cut = text[: limit - 1]
+    space = cut.rfind(" ")
+    if space >= limit // 2:
+        cut = cut[:space]
+    return cut.rstrip(" ,;:-–—") + "…"
+
+
+def _require_connect_message(schema: dict) -> None:
+    # `connect_message` has a default so older saved searches still load, but the LLM must
+    # always write one, so it stays required in the structured-output schema.
+    required = schema.setdefault("required", [])
+    if "connect_message" not in required:
+        required.append("connect_message")
+
+
 class PersonResult(BaseModel):
+    model_config = ConfigDict(json_schema_extra=_require_connect_message)
+
     name: str
     title: str = Field(description="Their role/headline, or empty string.")
     profile_url: str = Field(description="Exact profile URL from a tool result.")
@@ -50,7 +90,17 @@ class PersonResult(BaseModel):
         description="1-3 sentences on why the user should connect with them and what "
         "they have in common."
     )
+    connect_message: str = Field(
+        default="",
+        description="Example LinkedIn connection note from the user to this person, at most "
+        f"{config.LINKEDIN_MESSAGE_MAX_CHARS} characters.",
+    )
     key: SkipJsonSchema[str] = Field(default="", description=ENTITY_KEY_DESCRIPTION)
+
+    @field_validator("connect_message")
+    @classmethod
+    def _clamp_connect_message(cls, value: str) -> str:
+        return clamp_message(value, config.LINKEDIN_MESSAGE_MAX_CHARS)
 
 
 class CompanyResult(BaseModel):
@@ -163,5 +213,8 @@ class PersonEntity(Sighting):
     title: str
     profile_url: str
     alignment: str
+    connect_message: str = Field(
+        default="", description="Example LinkedIn connection note; empty for older searches."
+    )
     company: str
     company_key: str

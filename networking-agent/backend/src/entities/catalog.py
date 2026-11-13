@@ -129,6 +129,7 @@ def _collect(searches: Iterable[SavedSearch]) -> _Catalog:
                         "title": person.title,
                         "profile_url": person.profile_url,
                         "alignment": person.alignment,
+                        "connect_message": person.connect_message,
                         "company": company.name,
                         "company_key": company_key,
                     },

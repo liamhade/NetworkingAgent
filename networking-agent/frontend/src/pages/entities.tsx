@@ -13,6 +13,7 @@ import {
   type StatusMap,
 } from '@/api'
 import { AlignmentBox } from '@/components/alignment-box'
+import { ConnectMessageBox } from '@/components/connect-message-box'
 import { Chip } from '@/components/base/badges/chip'
 import { Select, SelectItem } from '@/components/base/select/select'
 import { Spinner } from '@/components/base/spinner/spinner'
@@ -418,6 +419,7 @@ function PersonCard({
         <StatusToggle kind="person" isSelected={connected} onChange={onToggle} />
       </div>
       <AlignmentBox text={person.alignment} label="Why connect" />
+      <ConnectMessageBox text={person.connect_message} />
       <SeenIn sighting={person} onOpenSearch={onOpenSearch} />
     </Card>
   )
