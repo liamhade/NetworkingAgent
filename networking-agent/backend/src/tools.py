@@ -232,14 +232,14 @@ class _GoogleWorker:
             log.info("Google results for %r served from cache", query)
             return cached[1]
         try:
-            response = self._ensure_session().search(query, resolve_urls=False)
+            response = self._ensure_session().search(query)
         except google_serp.CaptchaTimeoutError:
             raise
         except Exception:  # noqa: BLE001
             # The browser may have been closed or crashed: start a fresh one once.
             log.warning("Google search failed; restarting browser", exc_info=True)
             self._reset()
-            response = self._ensure_session().search(query, resolve_urls=False)
+            response = self._ensure_session().search(query)
         if response.results and self._cache_ttl > 0 and (cacheable is None or cacheable(response)):
             self._cache = {q: e for q, e in self._cache.items() if now - e[0] < self._cache_ttl}
             if len(self._cache) >= self.MAX_CACHED:
@@ -259,7 +259,7 @@ class _GoogleWorker:
         if resolve_urls:
             # Resolved in place, so a cached page keeps its resolved links.
             self._ensure_session().resolve_results(results)
-        return google_serp.SearchResponse(results=results, metadata=response.metadata)
+        return google_serp.SearchResponse(results=results, query=response.query)
 
     def search(
         self,

@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from google_serp import SearchResult
-from google_serp.session import GoogleSerpSession
+from google_serp.session import GoogleSerpSession, default_profile_dir
 
 FIXTURE = Path(__file__).parent / "fixtures" / "results_page.html"
 
@@ -55,7 +55,7 @@ class FakePage:
 
 
 def _session(page: FakePage) -> GoogleSerpSession:
-    session = GoogleSerpSession(profile_dir="unused")
+    session = GoogleSerpSession()
     session._context = object()  # marks it as started, so start() is a no-op
     session._page = page
     return session
@@ -63,35 +63,31 @@ def _session(page: FakePage) -> GoogleSerpSession:
 
 def _redirect(i: int) -> SearchResult:
     goto = f"https://www.google.com/goto?url=TOKEN{i}"
-    return SearchResult(title=f"r{i}", url=goto, google_url=goto, position=i)
+    return SearchResult(title=f"r{i}", url=goto, google_url=goto)
 
 
-def test_fetch_html_waits_for_results_not_full_load():
-    page = FakePage("<html></html>")
-    _session(page).fetch_html("python requests", page=2)
-    assert page.goto_calls == [
-        ("https://www.google.com/search?q=python+requests&hl=en&start=10", "domcontentloaded")
-    ]
-    assert page.selector_waits == ["#search, #rso"]
-
-
-def test_search_resolves_all_redirects_by_default():
+def test_search_waits_for_results_not_full_load_and_leaves_links_unresolved():
     page = FakePage(FIXTURE.read_text(encoding="utf-8"))
     response = _session(page).search("python requests")
+    assert page.goto_calls == [
+        ("https://www.google.com/search?q=python+requests&hl=en", "domcontentloaded")
+    ]
+    assert page.selector_waits == ["#search, #rso"]
+    assert response.query == "python requests"
+    assert [r for r in response.results if r.google_url]
+    assert all(r.url == r.google_url for r in response.results if r.google_url)
+    assert page.request.calls == []
+
+
+def test_resolve_results_follows_each_redirect_link_once():
+    page = FakePage(FIXTURE.read_text(encoding="utf-8"))
+    session = _session(page)
+    response = session.search("python requests")
+    session.resolve_results(response.results)
     redirects = [r for r in response.results if r.google_url]
-    assert redirects
     assert all(r.url.startswith("https://dest.example/") for r in redirects)
     assert len(page.request.calls) == len(redirects)
     assert all(max_redirects == 0 for _, max_redirects in page.request.calls)
-
-
-def test_search_resolve_limit_only_resolves_first_results():
-    page = FakePage(FIXTURE.read_text(encoding="utf-8"))
-    response = _session(page).search("python requests", resolve_limit=1)
-    assert len(page.request.calls) == 1
-    first, *rest = response.results
-    assert first.url.startswith("https://dest.example/")
-    assert all(r.url == r.google_url for r in rest if r.google_url)
 
 
 def test_resolve_results_keeps_location_exactly_and_skips_resolved():
@@ -137,3 +133,11 @@ def test_resolve_failure_keeps_goto_link():
     result = _redirect(1)
     _session(page).resolve_results([result])
     assert result.url == result.google_url
+
+
+def test_profile_dir_can_be_overridden(monkeypatch, tmp_path):
+    monkeypatch.setenv("GOOGLE_SERP_PROFILE_DIR", str(tmp_path))
+    assert default_profile_dir() == tmp_path
+    monkeypatch.delenv("GOOGLE_SERP_PROFILE_DIR")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    assert default_profile_dir() == tmp_path / "google-serp" / "chrome-profile"

@@ -1,8 +1,8 @@
-"""Python API for https://www.builtinnyc.com (companies and jobs).
+"""Search https://www.builtinnyc.com for jobs and companies.
 
 BuiltInNYC has no public JSON API: the listing pages are server-rendered HTML.
-Filters are encoded as URL path segments (``/jobs/hybrid/senior``) plus a few
-query parameters, and appending ``handler=SearchResults`` returns only the list
+Filters are encoded as URL path segments (``/jobs/hybrid/senior``) plus a
+``search`` query parameter, and appending ``handler=SearchResults`` returns only the list
 fragment. This module builds those URLs and parses the cards that come back.
 """
 
@@ -23,7 +23,7 @@ REQUEST_DELAY_S = 0.5  # Be polite between page fetches.
 MAX_PAGES = 1000  # The site caps pagination at 1000 pages.
 TIMEOUT_S = 30
 
-T = TypeVar("T")
+T = TypeVar("T", Job, Company)
 
 _session = requests.Session()
 _session.headers["User-Agent"] = USER_AGENT
@@ -41,10 +41,10 @@ def _paginate(
     path: str,
     params: dict[str, str],
     parse_page: Callable[[BeautifulSoup], list[T]],
-    key: Callable[[T], int],
     n: int,
 ) -> list[T]:
-    """Fetch successive pages until ``n`` unique items are collected or results run out."""
+    """Fetch successive pages until ``n`` items (unique by ``id``) are collected or results
+    run out."""
     results: list[T] = []
     seen: set[int] = set()
     for page in range(1, MAX_PAGES + 1):
@@ -53,11 +53,10 @@ def _paginate(
         if page > 1:
             time.sleep(REQUEST_DELAY_S)
         items = parse_page(_fetch(path, {**params, "page": str(page)}))
-        new = [item for item in items if key(item) not in seen]
+        new = [item for item in items if item.id not in seen]
         if not new:
             break
-        for item in new:
-            seen.add(key(item))
+        seen.update(item.id for item in new)
         results.extend(new)
     return results[:n]
 
@@ -90,20 +89,8 @@ def _job_path_and_params(job_filter: JobFilter) -> tuple[str, dict[str, str]]:
     segments += [p.value for p in job_filter.remote_preferences]
     if job_filter.category:
         segments.append(job_filter.category.value)
-        segments += job_filter.subcategories
     segments += [e.value for e in job_filter.experience_levels]
-    segments += job_filter.industries
-    segments += [s.value for s in job_filter.company_sizes]
-
-    params: dict[str, str] = {}
-    if job_filter.search:
-        params["search"] = job_filter.search
-    if job_filter.posted_within_days:
-        params["daysSinceUpdated"] = str(job_filter.posted_within_days)
-    if job_filter.early_applicant:
-        params["earlyApplicant"] = "true"
-    if job_filter.skills and (job_filter.search or job_filter.category):
-        params["skills"] = ",".join(job_filter.skills)
+    params = {"search": job_filter.search} if job_filter.search else {}
     return "/" + "/".join(segments), params
 
 
@@ -126,7 +113,6 @@ def _parse_job_card(card: Tag) -> Job | None:
     if title_link is None or company_link is None or job_id is None:
         return None
 
-    logo = card.select_one('img[data-id="company-img"]')
     detail = card.select_one('div[id^="drop-data-"]')
     summary = None
     industries: list[str] = []
@@ -143,7 +129,6 @@ def _parse_job_card(card: Tag) -> Job | None:
         url=_abs(title_link.get("href")) or "",
         company_name=_text(company_link) or "",
         company_url=_abs(company_link.get("href")),
-        company_logo_url=logo.get("src") if logo else None,
         posted=_text(posted_tag.parent) if posted_tag else None,
         work_arrangement=_icon_text(card, "fa-house-building"),
         location=_icon_text(card, "fa-location-dot"),
@@ -162,37 +147,33 @@ def _parse_jobs(soup: BeautifulSoup) -> list[Job]:
 
 
 def get_jobs(job_filter: JobFilter, n: int) -> list[Job]:
-    """Fetches job listings from the BuiltInNYC website.
+    """Fetch up to ``n`` job listings matching ``job_filter``.
 
     Args:
         job_filter: Which jobs to look for.
         n: Maximum number of jobs to return (fewer if the site runs out).
     """
     path, params = _job_path_and_params(job_filter)
-    return _paginate(path, params, _parse_jobs, lambda j: j.id, n)
+    return _paginate(path, params, _parse_jobs, n)
 
 
 # ---------------------------------------------------------------------- companies
 
 
-def _company_path_and_params(company_filter: CompanyFilter) -> tuple[str, dict[str, str]]:
+def _company_path(company_filter: CompanyFilter) -> str:
     """Translate a CompanyFilter into the site's ``/companies/<facet>/<values>`` path."""
     path = "/companies"
     if company_filter.hiring_only:
         path += "/hiring/open-jobs"
     if company_filter.fully_remote:
         path += "/location/fully-remote"
-    if company_filter.office_types:
-        path += "/office-type/" + "/".join(company_filter.office_types)
     if company_filter.industries:
         path += "/type/" + "/".join(f"{i}-companies" for i in company_filter.industries)
-    if company_filter.perks:
-        path += "/perks/" + "/".join(company_filter.perks)
     if company_filter.sizes:
         path += "/size/" + "/".join(s.value for s in company_filter.sizes)
     if company_filter.tech_stack:
         path += "/tech/" + "/".join(f"{t}-companies" for t in company_filter.tech_stack)
-    return path, {}
+    return path
 
 
 def _parse_company_card(card: Tag) -> Company | None:
@@ -205,7 +186,6 @@ def _parse_company_card(card: Tag) -> Company | None:
     if company_id is None:
         return None
 
-    logo = card.select_one("img")
     tooltip = card.select_one('[aria-label="Office locations"]')
     locations: list[str] = []
     if tooltip is not None:
@@ -221,21 +201,16 @@ def _parse_company_card(card: Tag) -> Company | None:
         ),
         None,
     )
-    benefits = card.select_one('a[data-track-id="benefits"]')
     tagline = card.select_one("div.company-tagline-4-rows")
 
     return Company(
         id=company_id,
         name=name,
         url=_abs(str(overlay.get("href", ""))) or "",
-        logo_url=logo.get("src") if logo else None,
         industries=industries,
-        office_count=_int(_text(tooltip)),
         office_locations=locations,
         employee_count=employees,
-        benefits_count=_int(_text(benefits)),
         is_hiring=card.select_one('a[data-track-id="jobs_all"]') is not None,
-        is_featured=overlay.get("data-featured") == "true",
         mission=_text(tagline.select_one("strong")) if tagline else None,
         description=_text(tagline.select_one("p")) if tagline else None,
     )
@@ -249,11 +224,10 @@ def _parse_companies(soup: BeautifulSoup) -> list[Company]:
 
 
 def get_companies(company_filter: CompanyFilter, n: int) -> list[Company]:
-    """Fetches companies from the BuiltInNYC website.
+    """Fetch up to ``n`` companies matching ``company_filter``.
 
     Args:
         company_filter: Which companies to look for.
         n: Maximum number of companies to return (fewer if the site runs out).
     """
-    path, params = _company_path_and_params(company_filter)
-    return _paginate(path, params, _parse_companies, lambda c: c.id, n)
+    return _paginate(_company_path(company_filter), {}, _parse_companies, n)

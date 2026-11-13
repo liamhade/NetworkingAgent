@@ -6,7 +6,7 @@ import pytest
 
 import google_serp
 import tools
-from google_serp import SearchMetadata, SearchResponse, SearchResult
+from google_serp import SearchResponse, SearchResult
 
 
 class FakeSession:
@@ -15,7 +15,7 @@ class FakeSession:
     def __init__(self, n_results: int = 10, fail_first: bool = False):
         self.n_results = n_results
         self.fail_first = fail_first
-        self.searches: list[tuple[str, bool]] = []
+        self.searches: list[str] = []
         self.resolved: list[str] = []
         self.closed = False
 
@@ -25,8 +25,8 @@ class FakeSession:
     def close(self):
         self.closed = True
 
-    def search(self, query, resolve_urls=True):
-        self.searches.append((query, resolve_urls))
+    def search(self, query):
+        self.searches.append(query)
         if self.fail_first:
             self.fail_first = False
             raise RuntimeError("browser crashed")
@@ -36,19 +36,18 @@ class FakeSession:
             # Even positions look like LinkedIn profiles, odd ones like job boards.
             site = f"LinkedIn · Person {i}" if i % 2 == 0 else "Indeed"
             title = f"Person {i} - Recruiter at Ramp" if i % 2 == 0 else f"r{i}"
-            results.append(
-                SearchResult(title=title, url=goto, google_url=goto, site_name=site, position=i)
-            )
-        return SearchResponse(results=results, metadata=SearchMetadata(query=query))
+            results.append(SearchResult(title=title, url=goto, google_url=goto, site_name=site))
+        return SearchResponse(results=results, query=query)
 
     def resolve_results(self, results):
         for r in results:
             if r.google_url and r.url == r.google_url:
                 self.resolved.append(r.google_url)
+                i = r.google_url.rsplit("-", 1)[1]  # position on the page
                 if r.site_name.startswith("LinkedIn"):
-                    r.url = f"https://www.linkedin.com/in/person-{r.position}"
+                    r.url = f"https://www.linkedin.com/in/person-{i}"
                 else:
-                    r.url = f"https://real.example/{r.position}"
+                    r.url = f"https://real.example/{i}"
 
 
 @pytest.fixture
@@ -69,7 +68,7 @@ def worker(monkeypatch: pytest.MonkeyPatch):
 def test_only_picked_results_are_resolved(worker):
     response = worker.search("q", pick=lambda rs: rs[:3])
     session = worker.sessions[0]
-    assert session.searches == [("q", False)]
+    assert session.searches == ["q"]
     assert len(session.resolved) == 3
     assert [r.url for r in response.results] == [
         "https://real.example/1",
@@ -94,7 +93,7 @@ def test_repeated_query_uses_cache_and_only_resolves_new_results(worker):
     worker.search("q", pick=lambda rs: rs[:3])
     response = worker.search("q", pick=lambda rs: rs[:5])
     session = worker.sessions[0]
-    assert session.searches == [("q", False)]  # one page load for both calls
+    assert session.searches == ["q"]  # one page load for both calls
     assert len(session.resolved) == 5  # 3 the first time, 2 more the second
     assert len(response.results) == 5
 

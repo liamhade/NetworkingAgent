@@ -29,37 +29,25 @@ def test_job_path_with_filters() -> None:
     job_filter = JobFilter(
         search="python",
         category=JobCategory.ENGINEERING,
-        subcategories=["software-engineering"],
         remote_preferences=[RemotePreference.HYBRID],
-        experience_levels=[ExperienceLevel.SENIOR],
-        industries=["fintech"],
-        company_sizes=[CompanySize.S_51_200],
-        posted_within_days=7,
-        early_applicant=True,
+        experience_levels=[ExperienceLevel.SENIOR, ExperienceLevel.MID_LEVEL],
     )
     path, params = api._job_path_and_params(job_filter)
-    assert path == "/jobs/hybrid/engineering/software-engineering/senior/fintech/51-200"
-    assert params == {"search": "python", "daysSinceUpdated": "7", "earlyApplicant": "true"}
-
-
-def test_job_skills_ignored_without_search_or_category() -> None:
-    assert api._job_path_and_params(JobFilter(skills=["Python"]))[1] == {}
-    assert api._job_path_and_params(JobFilter(search="x", skills=["Python", "SQL"]))[1] == {
-        "search": "x",
-        "skills": "Python,SQL",
-    }
+    assert path == "/jobs/hybrid/engineering/senior/mid-level"
+    assert params == {"search": "python"}
 
 
 def test_company_path() -> None:
     company_filter = CompanyFilter(
         hiring_only=True,
+        fully_remote=True,
         industries=["fintech"],
         sizes=[CompanySize.S_1_10, CompanySize.S_11_50],
         tech_stack=["python"],
     )
-    path, _ = api._company_path_and_params(company_filter)
-    assert path == (
-        "/companies/hiring/open-jobs/type/fintech-companies/size/1-10/11-50/tech/python-companies"
+    assert api._company_path(company_filter) == (
+        "/companies/hiring/open-jobs/location/fully-remote/type/fintech-companies"
+        "/size/1-10/11-50/tech/python-companies"
     )
 
 

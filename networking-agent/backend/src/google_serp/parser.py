@@ -1,8 +1,4 @@
-"""Parse Google results-page HTML into structured data.
-
-These functions are pure (HTML in, objects out), so they can be used on saved
-pages and tested without a browser.
-"""
+"""Parse Google results-page HTML (pure functions: HTML in, objects out, no browser)."""
 
 import html as html_lib
 import re
@@ -10,28 +6,9 @@ from urllib.parse import parse_qs, urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
-from .models import SearchMetadata, SearchResponse, SearchResult
+from .models import SearchResult
 
 GOOGLE_ORIGIN = "https://www.google.com/"
-
-
-def parse_results_page(html: str, query: str) -> SearchResponse:
-    """Parse a full results page into a SearchResponse."""
-    soup = BeautifulSoup(html, "html.parser")
-    return SearchResponse(
-        results=_extract_results(soup),
-        metadata=_extract_metadata(soup, query),
-    )
-
-
-def parse_results(html: str) -> list[SearchResult]:
-    """Parse only the organic results from a results page."""
-    return _extract_results(BeautifulSoup(html, "html.parser"))
-
-
-def parse_metadata(html: str, query: str) -> SearchMetadata:
-    """Parse only the result count and search time from a results page."""
-    return _extract_metadata(BeautifulSoup(html, "html.parser"), query)
 
 
 def is_google_redirect(url: str) -> bool:
@@ -57,7 +34,9 @@ def _clean_url(href: str) -> str:
     return urljoin(GOOGLE_ORIGIN, href)
 
 
-def _extract_results(soup: BeautifulSoup) -> list[SearchResult]:
+def parse_results(html: str) -> list[SearchResult]:
+    """The organic results on a results page, in page order."""
+    soup = BeautifulSoup(html, "html.parser")
     # Anchor on <a href><h3>title</h3></a>. It has stayed stable across Google
     # layout changes, while the class names around it are obfuscated and change.
     root = soup.select_one("#rso") or soup.select_one("#search") or soup
@@ -112,23 +91,7 @@ def _extract_results(soup: BeautifulSoup) -> list[SearchResult]:
                 snippet=snippet,
                 site_name=site_name,
                 google_url=url if is_google_redirect(url) else "",
-                position=len(results) + 1,
             )
         )
 
     return results
-
-
-def _extract_metadata(soup: BeautifulSoup, query: str) -> SearchMetadata:
-    stats = soup.select_one("#result-stats")
-    text = stats.get_text(" ", strip=True) if stats else ""
-
-    count_match = re.search(r"((?:About )?[\d,.]+ results?)", text, re.IGNORECASE)
-    # "(0.19s)" in the current layout, "(0.19 seconds)" in older ones.
-    time_match = re.search(r"\(([\d.]+)\s*s(?:econds?)?\)", text, re.IGNORECASE)
-
-    return SearchMetadata(
-        query=query,
-        search_time=float(time_match.group(1)) if time_match else None,
-        results_count=count_match.group(1) if count_match else None,
-    )

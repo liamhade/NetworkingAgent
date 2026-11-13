@@ -1,33 +1,12 @@
-"""Search Google from Python by driving a real Chrome browser.
+"""Google search through a real Chrome browser, for the agent's Google tools.
 
-import google_serp
-
-response = google_serp.search("python requests library")
-for result in response.results:
-    print(result.position, result.title, result.url)
-
-# Several searches in one browser
-with google_serp.GoogleSerpSession() as serp:
-    for q in ["python requests", "playwright python"]:
-        print(len(serp.search(q).results))
+session = GoogleSerpSession().start()
+response = session.search("python requests library")  # links are Google /goto redirects
+session.resolve_results(response.results[:3])          # follow only the ones you need
+session.close()
 """
 
-from .errors import CaptchaTimeoutError, GoogleSerpError
-from .models import SearchMetadata, SearchResponse, SearchResult
-from .parser import parse_results_page
-from .session import GoogleSerpSession, default_profile_dir, search
+from .models import SearchResponse, SearchResult
+from .session import CaptchaTimeoutError, GoogleSerpSession
 
-__version__ = "0.1.0"
-
-__all__ = [
-    "search",
-    "GoogleSerpSession",
-    "SearchResponse",
-    "SearchResult",
-    "SearchMetadata",
-    "GoogleSerpError",
-    "CaptchaTimeoutError",
-    "parse_results_page",
-    "default_profile_dir",
-    "__version__",
-]
+__all__ = ["CaptchaTimeoutError", "GoogleSerpSession", "SearchResponse", "SearchResult"]
