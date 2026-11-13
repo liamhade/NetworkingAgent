@@ -1,17 +1,18 @@
-import type { EntityKind, EntityMap, Sighting, StatusKind, StatusMap } from '@/api'
+import type { EntityKind, EntityMap, PinKind, PinMap, Sighting, StatusKind, StatusMap } from '@/api'
 
 /**
  * Sort options for the Companies / Jobs / People pages. Pure functions (no React), so they
  * can be unit tested and reused if sorting ever moves server-side (the ids would become a
  * `?sort=` value).
  *
- * To add an option (e.g. "Pinned first"), add an entry to `SORT_OPTIONS` built from the
- * comparator helpers below; anything beyond the entity itself goes on `SortContext`.
+ * To add an option, add an entry to `SORT_OPTIONS` built from the comparator helpers
+ * below; anything beyond the entity itself goes on `SortContext`.
  */
 
 /** Per-user state a comparator may need beyond the entity's own fields. */
 export interface SortContext {
   statuses: StatusMap
+  pins: PinMap
 }
 
 export type Comparator<T> = (a: T, b: T, ctx: SortContext) => number
@@ -47,6 +48,14 @@ export function byStatus<T extends Sighting>(kind: StatusKind, active: boolean):
   }
 }
 
+/** Pinned entities first. */
+export function byPinned<T extends Sighting>(kind: PinKind): Comparator<T> {
+  return (a, b, ctx) => {
+    const pinned = (item: T) => ctx.pins[kind][item.key] ?? false
+    return Number(pinned(b)) - Number(pinned(a))
+  }
+}
+
 /** Most recently seen first. */
 export function byLastSeen<T extends Sighting>(): Comparator<T> {
   return (a, b) => Date.parse(b.last_seen) - Date.parse(a.last_seen)
@@ -57,12 +66,14 @@ const recent = { id: 'recent', label: 'Most recent', compare: byLastSeen() } as 
 export const SORT_OPTIONS: { [K in EntityKind]: readonly SortOption<EntityMap[K]>[] } = {
   companies: [
     recent,
+    { id: 'pinned', label: 'Pinned first', compare: byPinned('company') },
     { id: 'name', label: 'Name A–Z', compare: byText((c) => c.name) },
     { id: 'jobs', label: 'Most jobs', compare: byNumberDesc((c) => c.job_count) },
     { id: 'contacts', label: 'Most contacts', compare: byNumberDesc((c) => c.person_count) },
   ],
   jobs: [
     recent,
+    { id: 'pinned', label: 'Pinned first', compare: byPinned('job') },
     { id: 'applied', label: 'Applied first', compare: byStatus('job', true) },
     { id: 'not-applied', label: 'Not applied first', compare: byStatus('job', false) },
     { id: 'title', label: 'Title A–Z', compare: byText((j) => j.title) },
@@ -70,6 +81,7 @@ export const SORT_OPTIONS: { [K in EntityKind]: readonly SortOption<EntityMap[K]
   ],
   people: [
     recent,
+    { id: 'pinned', label: 'Pinned first', compare: byPinned('person') },
     { id: 'connected', label: 'Connected first', compare: byStatus('person', true) },
     { id: 'not-connected', label: 'Not connected first', compare: byStatus('person', false) },
     { id: 'name', label: 'Name A–Z', compare: byText((p) => p.name) },

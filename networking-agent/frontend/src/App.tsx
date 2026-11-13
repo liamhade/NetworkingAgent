@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   getCurrentUser,
+  getPins,
   getSearch,
   getStatuses,
   listSearches,
+  setPin,
   setStatus,
   streamSearch,
+  type PinKind,
+  type PinMap,
   type SearchRequest,
   type SearchResults,
   type SearchSummary,
@@ -19,10 +23,12 @@ import { CompaniesPage, JobsPage, PeoplePage } from '@/pages/entities'
 import { Hero } from '@/pages/hero'
 import { Results } from '@/pages/results'
 import { withRetry } from '@/utils/retry'
+import { useKeyedToggles } from '@/utils/use-keyed-toggles'
 import { type View, viewFromHash, viewHash } from '@/utils/view'
 
 const EMPTY_FORM: SearchRequest = { background: '', location: '', looking_for: '' }
 const EMPTY_STATUSES: StatusMap = { job: {}, person: {} }
+const EMPTY_PINS: PinMap = { company: {}, job: {}, person: {} }
 
 export default function App() {
   /** Top-level page, mirrored in the URL hash (`#/companies`, `#/jobs`, `#/people`). */
@@ -43,10 +49,19 @@ export default function App() {
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
 
-  const [entityStatuses, setEntityStatuses] = useState<StatusMap>(EMPTY_STATUSES)
-  const [statusError, setStatusError] = useState<string | null>(null)
-  /** Latest change per entity, so a stale failed request doesn't roll back a newer one. */
-  const statusVersions = useRef(new Map<string, number>())
+  /** APPLIED / CONNECTED marks and pins, by entity key; toggled optimistically. */
+  const marks = useKeyedToggles<StatusKind>(
+    EMPTY_STATUSES,
+    setStatus,
+    'Could not save that change. Please try again.',
+  )
+  const pinState = useKeyedToggles<PinKind>(
+    EMPTY_PINS,
+    setPin,
+    'Could not save that pin. Please try again.',
+  )
+  const { map: entityStatuses, error: statusError, toggle: toggleStatus } = marks
+  const { map: pins, error: pinError, toggle: togglePin } = pinState
 
   useEffect(() => {
     const onHashChange = () => setView(viewFromHash(window.location.hash))
@@ -83,12 +98,15 @@ export default function App() {
         if (!signal.aborted) setHistoryLoading(false)
       })
     withRetry(getStatuses, signal)
-      .then((loaded) => {
-        setEntityStatuses({ ...EMPTY_STATUSES, ...loaded })
-        setStatusError(null)
-      })
+      .then(marks.load)
       .catch((caught: Error) => {
-        if (!signal.aborted) setStatusError('Could not load APPLIED / CONNECTED marks.')
+        if (!signal.aborted) marks.setError('Could not load APPLIED / CONNECTED marks.')
+        console.error(caught)
+      })
+    withRetry(getPins, signal)
+      .then(pinState.load)
+      .catch((caught: Error) => {
+        if (!signal.aborted) pinState.setError('Could not load your pins.')
         console.error(caught)
       })
   }
@@ -132,13 +150,9 @@ export default function App() {
             ])
             setHistoryError(null)
             setEntitiesVersion((current) => current + 1)
-            // The backend is clearly up now; recover the marks if the first load failed.
-            getStatuses()
-              .then((loaded) => {
-                setEntityStatuses({ ...EMPTY_STATUSES, ...loaded })
-                setStatusError(null)
-              })
-              .catch(console.error)
+            // The backend is clearly up now; recover the marks/pins if the first load failed.
+            getStatuses().then(marks.load).catch(console.error)
+            getPins().then(pinState.load).catch(console.error)
             if (!controller.signal.aborted) setActiveId(event.search.id)
           } else setError(event.message)
         },
@@ -165,27 +179,6 @@ export default function App() {
     }
   }
 
-  /** Optimistically flip a job/person toggle; roll back if saving fails. */
-  const toggleStatus = async (kind: StatusKind, key: string, active: boolean) => {
-    const previous = entityStatuses[kind][key] ?? false
-    const versionKey = `${kind}:${key}`
-    const version = (statusVersions.current.get(versionKey) ?? 0) + 1
-    statusVersions.current.set(versionKey, version)
-    const apply = (value: boolean) =>
-      setEntityStatuses((current) => ({ ...current, [kind]: { ...current[kind], [key]: value } }))
-
-    apply(active)
-    try {
-      await setStatus(kind, key, active)
-      if (statusVersions.current.get(versionKey) === version) setStatusError(null)
-    } catch (caught) {
-      console.error(caught)
-      if (statusVersions.current.get(versionKey) !== version) return
-      apply(previous)
-      setStatusError('Could not save that change. Please try again.')
-    }
-  }
-
   const back = () => {
     abort.current?.abort()
     setRunning(false)
@@ -193,6 +186,8 @@ export default function App() {
     setPage('hero')
     navigate('search')
   }
+
+  const pinProps = { pins, pinError, onTogglePin: togglePin }
 
   return (
     <div className="flex min-h-svh bg-background-full">
@@ -208,7 +203,11 @@ export default function App() {
       <div className="min-w-0 flex-1">
         <TopNav view={view} />
         {view === 'companies' ? (
-          <CompaniesPage refreshKey={entitiesVersion} onOpenSearch={openSaved} />
+          <CompaniesPage
+            refreshKey={entitiesVersion}
+            onOpenSearch={openSaved}
+            {...pinProps}
+          />
         ) : view === 'jobs' ? (
           <JobsPage
             refreshKey={entitiesVersion}
@@ -216,6 +215,7 @@ export default function App() {
             entityStatuses={entityStatuses}
             statusError={statusError}
             onToggleStatus={toggleStatus}
+            {...pinProps}
           />
         ) : view === 'people' ? (
           <PeoplePage
@@ -224,6 +224,7 @@ export default function App() {
             entityStatuses={entityStatuses}
             statusError={statusError}
             onToggleStatus={toggleStatus}
+            {...pinProps}
           />
         ) : page === 'hero' ? (
           <Hero initial={form} onSubmit={search} />
@@ -236,6 +237,7 @@ export default function App() {
             entityStatuses={entityStatuses}
             statusError={statusError}
             onToggleStatus={toggleStatus}
+            {...pinProps}
             onBack={back}
           />
         )}

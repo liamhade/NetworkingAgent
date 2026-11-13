@@ -36,6 +36,8 @@ export interface CompanyResult {
   alignment: string
   jobs: JobResult[]
   people: PersonResult[]
+  /** Stable identity across searches (server-computed); keys the pin. Absent if unkeyed. */
+  key?: string
 }
 
 export interface SearchResults {
@@ -151,9 +153,26 @@ export async function setStatus(kind: StatusKind, key: string, active: boolean):
   if (!response.ok) throw new Error(await errorMessage(response))
 }
 
+/** Entities that can be pinned to come back to later. */
+export type PinKind = 'company' | 'job' | 'person'
+
+/** `{kind: {entityKey: pinned}}`; a missing key means not pinned. */
+export type PinMap = Record<PinKind, Record<string, boolean>>
+
+export const getPins = (signal?: AbortSignal) => getJson<PinMap>('/api/pins', signal)
+
+export async function setPin(kind: PinKind, key: string, pinned: boolean): Promise<void> {
+  const response = await fetch('/api/pins', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, key, pinned }),
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
+}
+
 /** Where and when an entity was seen across the user's searches. */
 export interface Sighting {
-  /** Entity key; matches `key` on jobs/people in search results (and the status map). */
+  /** Entity key; matches `key` in search results (and the status / pin maps). */
   key: string
   /** ISO-8601 UTC timestamps of the oldest / newest search it appeared in. */
   first_seen: string

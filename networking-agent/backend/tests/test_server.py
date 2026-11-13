@@ -207,3 +207,68 @@ def test_set_status_validates_input() -> None:
     assert wrong_prefix.status_code == 422
     empty = client.put("/api/statuses", json={"kind": "job", "key": "", "active": True})
     assert empty.status_code == 422
+
+
+def test_pins_follow_entities_across_searches(monkeypatch: pytest.MonkeyPatch) -> None:
+    first = _run(
+        monkeypatch,
+        SearchResults(
+            summary="1",
+            companies=[
+                _company(
+                    "https://www.linkedin.com/jobs/view/data-analyst-at-acme-123?trk=a",
+                    "https://www.linkedin.com/in/jane-doe?trk=a",
+                )
+            ],
+        ),
+    )
+    company = first[0]["data"]["companies"][0]
+    company_key = company["key"]
+    job_key, person_key = company["jobs"][0]["key"], company["people"][0]["key"]
+    assert company_key == "company:name:acme"
+    assert client.get("/api/pins").json() == {"company": {}, "job": {}, "person": {}}
+
+    for kind, key in [("company", company_key), ("job", job_key), ("person", person_key)]:
+        response = client.put("/api/pins", json={"kind": kind, "key": key, "pinned": True})
+        assert response.status_code == 200
+        assert response.json()["pinned"] is True
+
+    # A later search returns the same entities; their keys still match the pins.
+    second = _run(
+        monkeypatch,
+        SearchResults(
+            summary="2",
+            companies=[
+                _company(
+                    "https://uk.linkedin.com/jobs/view/123/?refId=b",
+                    "https://linkedin.com/in/Jane-Doe/",
+                )
+            ],
+        ),
+    )
+    company = second[0]["data"]["companies"][0]
+    current = client.get("/api/pins").json()
+    assert current["company"][company["key"]] is True
+    assert current["job"][company["jobs"][0]["key"]] is True
+    assert current["person"][company["people"][0]["key"]] is True
+
+    # Entity lists and reopened searches carry the same keys.
+    assert client.get("/api/entities/companies").json()[0]["key"] == company_key
+    saved = client.get(f"/api/searches/{first[1]['search']['id']}").json()
+    assert saved["results"]["companies"][0]["key"] == company_key
+
+    client.put("/api/pins", json={"kind": "company", "key": company_key, "pinned": False})
+    assert client.get("/api/pins").json()["company"][company_key] is False
+    # Pins don't touch APPLIED / CONNECTED.
+    assert client.get("/api/statuses").json() == {"job": {}, "person": {}}
+
+
+def test_set_pin_validates_input() -> None:
+    bad_kind = client.put("/api/pins", json={"kind": "search", "key": "x", "pinned": True})
+    assert bad_kind.status_code == 422
+    wrong_prefix = client.put("/api/pins", json={"kind": "company", "key": "job:x", "pinned": True})
+    assert wrong_prefix.status_code == 422
+    empty = client.put("/api/pins", json={"kind": "job", "key": "", "pinned": True})
+    assert empty.status_code == 422
+    missing = client.put("/api/pins", json={"kind": "job", "key": "job:x"})
+    assert missing.status_code == 422

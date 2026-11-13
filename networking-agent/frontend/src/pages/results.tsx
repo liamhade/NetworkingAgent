@@ -10,6 +10,8 @@ import type {
   CompanyResult,
   JobResult,
   PersonResult,
+  PinKind,
+  PinMap,
   SearchResults,
   StatusKind,
   StatusMap,
@@ -19,9 +21,11 @@ import { ConnectMessageBox } from '@/components/connect-message-box'
 import { AgentThinking } from '@/components/application/agent-thinking/agent-thinking'
 import { Chip } from '@/components/base/badges/chip'
 import { Button } from '@/components/base/buttons/button'
+import { PinToggle } from '@/components/pin-toggle'
 import { StatusToggle } from '@/components/status-toggle'
 
 type ToggleStatus = (kind: StatusKind, key: string, active: boolean) => void
+type TogglePin = (kind: PinKind, key: string, pinned: boolean) => void
 
 interface ResultsProps {
   statuses: string[]
@@ -32,6 +36,10 @@ interface ResultsProps {
   entityStatuses: StatusMap
   statusError: string | null
   onToggleStatus: ToggleStatus
+  /** Pinned companies / jobs / people for the current user, by entity key. */
+  pins: PinMap
+  pinError: string | null
+  onTogglePin: TogglePin
   onBack: () => void
 }
 
@@ -43,6 +51,9 @@ export function Results({
   entityStatuses,
   statusError,
   onToggleStatus,
+  pins,
+  pinError,
+  onTogglePin,
   onBack,
 }: ResultsProps) {
   return (
@@ -57,6 +68,7 @@ export function Results({
 
       {error && <ErrorBanner message={error} />}
       {statusError && <ErrorBanner message={statusError} />}
+      {pinError && <ErrorBanner message={pinError} />}
 
       {results && (
         <>
@@ -77,6 +89,8 @@ export function Results({
                     rank={index + 1}
                     entityStatuses={entityStatuses}
                     onToggleStatus={onToggleStatus}
+                    pins={pins}
+                    onTogglePin={onTogglePin}
                   />
                 </li>
               ))}
@@ -141,9 +155,19 @@ interface CompanyCardProps {
   rank: number
   entityStatuses: StatusMap
   onToggleStatus: ToggleStatus
+  pins: PinMap
+  onTogglePin: TogglePin
 }
 
-function CompanyCard({ company, rank, entityStatuses, onToggleStatus }: CompanyCardProps) {
+function CompanyCard({
+  company,
+  rank,
+  entityStatuses,
+  onToggleStatus,
+  pins,
+  onTogglePin,
+}: CompanyCardProps) {
+  const companyKey = company.key
   return (
     <article className="flex flex-col gap-4 rounded-3xl border border-border-button-default bg-background-primary-default p-5">
       <div className="flex flex-col gap-2">
@@ -158,13 +182,20 @@ function CompanyCard({ company, rank, entityStatuses, onToggleStatus }: CompanyC
             </h2>
             <p className="text-body-2-regular text-text-secondary">{company.description}</p>
           </div>
-          <div className="flex shrink-0 gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <Chip variant="caption" color="soft">
               {company.jobs.length} {company.jobs.length === 1 ? 'job' : 'jobs'}
             </Chip>
             <Chip variant="caption" color="soft">
               {company.people.length} {company.people.length === 1 ? 'contact' : 'contacts'}
             </Chip>
+            {companyKey && (
+              <PinToggle
+                name={company.name}
+                isPinned={pins.company[companyKey] ?? false}
+                onChange={(pinned) => onTogglePin('company', companyKey, pinned)}
+              />
+            )}
           </div>
         </div>
         <AlignmentBox text={company.alignment} />
@@ -178,6 +209,8 @@ function CompanyCard({ company, rank, entityStatuses, onToggleStatus }: CompanyC
               job={job}
               applied={entityStatuses.job[job.key] ?? false}
               onToggle={(active) => onToggleStatus('job', job.key, active)}
+              pinned={pins.job[job.key] ?? false}
+              onTogglePin={(pinned) => onTogglePin('job', job.key, pinned)}
             />
           ))}
         </Section>
@@ -191,6 +224,8 @@ function CompanyCard({ company, rank, entityStatuses, onToggleStatus }: CompanyC
               person={person}
               connected={entityStatuses.person[person.key] ?? false}
               onToggle={(active) => onToggleStatus('person', person.key, active)}
+              pinned={pins.person[person.key] ?? false}
+              onTogglePin={(pinned) => onTogglePin('person', person.key, pinned)}
             />
           ))}
         </Section>
@@ -221,9 +256,17 @@ function Section({
 
 interface RowToggleProps {
   onToggle: (active: boolean) => void
+  pinned: boolean
+  onTogglePin: (pinned: boolean) => void
 }
 
-function JobRow({ job, applied, onToggle }: { job: JobResult; applied: boolean } & RowToggleProps) {
+function JobRow({
+  job,
+  applied,
+  onToggle,
+  pinned,
+  onTogglePin,
+}: { job: JobResult; applied: boolean } & RowToggleProps) {
   const meta = [job.location, job.salary].filter(Boolean).join(' · ')
   return (
     <li className="flex flex-col gap-1.5">
@@ -234,7 +277,12 @@ function JobRow({ job, applied, onToggle }: { job: JobResult; applied: boolean }
           </span>
           {meta && <span className="text-body-2-regular text-text-tertiary">{meta}</span>}
         </div>
-        {job.key && <StatusToggle kind="job" isSelected={applied} onChange={onToggle} />}
+        {job.key && (
+          <div className="flex shrink-0 items-center gap-1">
+            <StatusToggle kind="job" isSelected={applied} onChange={onToggle} />
+            <PinToggle name={job.title} isPinned={pinned} onChange={onTogglePin} />
+          </div>
+        )}
       </div>
       <AlignmentBox text={job.alignment} />
     </li>
@@ -245,6 +293,8 @@ function PersonRow({
   person,
   connected,
   onToggle,
+  pinned,
+  onTogglePin,
 }: { person: PersonResult; connected: boolean } & RowToggleProps) {
   return (
     <li className="flex flex-col gap-1.5">
@@ -257,7 +307,12 @@ function PersonRow({
             <span className="text-body-2-regular text-text-tertiary">{person.title}</span>
           )}
         </div>
-        {person.key && <StatusToggle kind="person" isSelected={connected} onChange={onToggle} />}
+        {person.key && (
+          <div className="flex shrink-0 items-center gap-1">
+            <StatusToggle kind="person" isSelected={connected} onChange={onToggle} />
+            <PinToggle name={person.name} isPinned={pinned} onChange={onTogglePin} />
+          </div>
+        )}
       </div>
       <AlignmentBox text={person.alignment} label="Why connect" />
       <ConnectMessageBox text={person.connect_message} />

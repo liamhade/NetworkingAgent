@@ -106,9 +106,11 @@ def test_annotate_fills_keys_without_mutating() -> None:
         ],
     )
     annotated = keys.annotate(results)
+    assert annotated.companies[0].key == "company:name:acme"
     assert annotated.companies[0].jobs[0].key == "job:url:acme.com/j/1"
     assert annotated.companies[0].people[0].key == "person:linkedin:jane"
     assert results.companies[0].jobs[0].key == ""
+    assert results.companies[0].key == ""
 
 
 def test_llm_schema_does_not_expose_key() -> None:

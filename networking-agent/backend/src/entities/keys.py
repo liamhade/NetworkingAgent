@@ -165,6 +165,7 @@ def person_key(person: PersonResult, company_name: str) -> str:
 def _annotate_company(company: CompanyResult) -> CompanyResult:
     return company.model_copy(
         update={
+            "key": company_key(company.name),
             "jobs": [
                 job.model_copy(update={"key": job_key(job, company.name)}) for job in company.jobs
             ],
@@ -177,7 +178,7 @@ def _annotate_company(company: CompanyResult) -> CompanyResult:
 
 
 def annotate(results: SearchResults) -> SearchResults:
-    """A copy of `results` with `key` filled in on every job and person."""
+    """A copy of `results` with `key` filled in on every company, job and person."""
     return results.model_copy(
         update={"companies": [_annotate_company(company) for company in results.companies]}
     )

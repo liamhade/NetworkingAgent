@@ -24,11 +24,14 @@ from llm_usage import bind_context, usage_context
 from schemas import (
     AgentEvent,
     CompanyEntity,
+    EntityPin,
     EntityStatus,
     EntityStatusKind,
     ErrorEvent,
     JobEntity,
     PersonEntity,
+    PinKind,
+    PinUpdate,
     ResultEvent,
     ResumeProfile,
     SavedEvent,
@@ -37,7 +40,7 @@ from schemas import (
     SearchSummary,
     StatusUpdate,
 )
-from userdata import accounts, history, statuses
+from userdata import accounts, history, pins, statuses
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -171,6 +174,21 @@ def set_status(update: StatusUpdate, user: CurrentUser) -> EntityStatus:
     try:
         return statuses.set_status(user.id, update)
     except statuses.InvalidStatusKey as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/pins")
+def get_pins(user: CurrentUser) -> dict[PinKind, dict[str, bool]]:
+    """The current user's pinned companies / jobs / people, by entity key."""
+    return pins.get_pins(user.id)
+
+
+@app.put("/api/pins")
+def set_pin(update: PinUpdate, user: CurrentUser) -> EntityPin:
+    """Pin or unpin one entity. Keys come from `key` on search results and entity lists."""
+    try:
+        return pins.set_pin(user.id, update)
+    except pins.InvalidPinKey as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 

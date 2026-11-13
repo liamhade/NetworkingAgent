@@ -110,6 +110,7 @@ class CompanyResult(BaseModel):
     alignment: str = Field(description="1-3 sentences on why this company fits the user.")
     jobs: list[JobResult]
     people: list[PersonResult]
+    key: SkipJsonSchema[str] = Field(default="", description=ENTITY_KEY_DESCRIPTION)
 
 
 class SearchResults(BaseModel):
@@ -146,6 +147,22 @@ class StatusUpdate(BaseModel):
 
 
 class EntityStatus(StatusUpdate):
+    updated_at: datetime
+
+
+PinKind = Literal["company", "job", "person"]
+"""Entities that can be pinned to come back to later."""
+
+
+class PinUpdate(BaseModel):
+    """Pin (or unpin) one entity, identified by its `entities.keys` key."""
+
+    kind: PinKind
+    key: str = Field(min_length=1, max_length=1000)
+    pinned: bool
+
+
+class EntityPin(PinUpdate):
     updated_at: datetime
 
 

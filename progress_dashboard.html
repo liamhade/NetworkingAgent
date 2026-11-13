@@ -46,9 +46,9 @@ const TASKS = [
   { title: "Log token usage for each LLM", status: "done", commit: "8299d78", note: "LangChain callback writes one CSV row per LLM call (user, search, tokens, cost, latency) to backend/logs/llm_usage.csv; python -m llm_usage summaries." },
   { title: "Sort companies / jobs / people pages", status: "done", commit: "81df458", note: "Client-side Sort dropdown (BoardUI Select) per page: recency, status (applied/connected) first, A–Z, most jobs/contacts; logic in utils/sort-entities.ts." },
   { title: "Add X/Y counts to Jobs & People pages", status: "done", commit: "60cf35a", note: "Title chip reads \"3/12 applied\" / \"5/40 connected\", recomputed live on toggle (utils/count-status.ts)." },
-  { title: "Example LinkedIn connection message", status: "done", note: "connect_message generated in the existing compile call (no extra LLM calls), clamped to LINKEDIN_MESSAGE_MAX_CHARS (300); prompts in prompts.py; copyable bubble." },
-  { title: "Pin entities for later", status: "current", note: "Pin companies/jobs/people and sort by pins on their pages." },
-  { title: "Clean up google_serp (and builtin_nyc) modules", status: "next", note: "Strip CLI/__main__ fluff; keep only what networking_agent uses." },
+  { title: "Example LinkedIn connection message", status: "done", commit: "8ba97d1", note: "connect_message generated in the existing compile call (no extra LLM calls), clamped to LINKEDIN_MESSAGE_MAX_CHARS (300); prompts in prompts.py; copyable bubble." },
+  { title: "Pin entities for later", status: "done", note: "Pushpin toggle on all cards, per-user pins.json + GET/PUT /api/pins, \"Pinned first\" sort on every page; shared use-keyed-toggles hook." },
+  { title: "Clean up google_serp (and builtin_nyc) modules", status: "current", note: "Strip CLI/__main__ fluff; keep only what networking_agent uses." },
 ];
 
 function render() {

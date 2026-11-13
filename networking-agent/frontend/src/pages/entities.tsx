@@ -8,6 +8,8 @@ import {
   type EntityMap,
   type JobEntity,
   type PersonEntity,
+  type PinKind,
+  type PinMap,
   type Sighting,
   type StatusKind,
   type StatusMap,
@@ -17,6 +19,7 @@ import { ConnectMessageBox } from '@/components/connect-message-box'
 import { Chip } from '@/components/base/badges/chip'
 import { Select, SelectItem } from '@/components/base/select/select'
 import { Spinner } from '@/components/base/spinner/spinner'
+import { PinToggle } from '@/components/pin-toggle'
 import { StatusToggle } from '@/components/status-toggle'
 import { ErrorBanner, ExternalLink } from '@/pages/results'
 import { countStatus, type StatusCount } from '@/utils/count-status'
@@ -24,6 +27,7 @@ import { formatRelativeDate, fullDateFormat } from '@/utils/format-date'
 import { DEFAULT_SORT, SORT_OPTIONS, sortEntities } from '@/utils/sort-entities'
 
 type ToggleStatus = (kind: StatusKind, key: string, active: boolean) => void
+type TogglePin = (kind: PinKind, key: string, pinned: boolean) => void
 
 /** Searches listed on a card before collapsing the rest into "+N more". */
 const MAX_SEARCH_LINKS = 3
@@ -81,16 +85,17 @@ function useEntities<K extends EntityKind>(kind: K, refreshKey: number) {
 /** Companies have no APPLIED / CONNECTED status, so their sort options never read one. */
 const NO_STATUSES: StatusMap = { job: {}, person: {} }
 
-/** The page's chosen sort and the list sorted by it (recomputed when a status changes). */
+/** The page's chosen sort and the list sorted by it (recomputed when a status/pin changes). */
 function useSorted<K extends EntityKind>(
   kind: K,
   items: EntityMap[K][] | null,
   statuses: StatusMap,
+  pins: PinMap,
 ) {
   const [sortId, setSortId] = useState<string>(DEFAULT_SORT)
   const sorted = useMemo(
-    () => items && sortEntities(kind, items, sortId, { statuses }),
-    [kind, items, sortId, statuses],
+    () => items && sortEntities(kind, items, sortId, { statuses, pins }),
+    [kind, items, sortId, statuses, pins],
   )
   return { sorted, sort: { id: sortId, onChange: setSortId } }
 }
@@ -103,9 +108,19 @@ function useStatusCount(
   return useMemo(() => items && countStatus(items, statuses), [items, statuses])
 }
 
+/** Pin state and handler passed to every card. */
+interface CardPinProps {
+  pinned: boolean
+  onTogglePin: (pinned: boolean) => void
+}
+
 interface PageProps {
   refreshKey: number
   onOpenSearch: (id: string) => void
+  /** Pinned companies / jobs / people for the current user, by entity key. */
+  pins: PinMap
+  pinError: string | null
+  onTogglePin: TogglePin
 }
 
 interface ToggleProps {
@@ -114,12 +129,25 @@ interface ToggleProps {
   onToggleStatus: ToggleStatus
 }
 
-export function CompaniesPage({ refreshKey, onOpenSearch }: PageProps) {
+export function CompaniesPage({
+  refreshKey,
+  onOpenSearch,
+  pins,
+  pinError,
+  onTogglePin,
+}: PageProps) {
   const { items, error } = useEntities('companies', refreshKey)
-  const { sorted, sort } = useSorted('companies', items, NO_STATUSES)
+  const { sorted, sort } = useSorted('companies', items, NO_STATUSES, pins)
   return (
-    <EntityPage kind="companies" items={sorted} error={error} sort={sort}>
-      {(company) => <CompanyCard company={company} onOpenSearch={onOpenSearch} />}
+    <EntityPage kind="companies" items={sorted} error={error} sort={sort} pinError={pinError}>
+      {(company) => (
+        <CompanyCard
+          company={company}
+          pinned={pins.company[company.key] ?? false}
+          onTogglePin={(pinned) => onTogglePin('company', company.key, pinned)}
+          onOpenSearch={onOpenSearch}
+        />
+      )}
     </EntityPage>
   )
 }
@@ -130,9 +158,12 @@ export function JobsPage({
   entityStatuses,
   statusError,
   onToggleStatus,
+  pins,
+  pinError,
+  onTogglePin,
 }: PageProps & ToggleProps) {
   const { items, error } = useEntities('jobs', refreshKey)
-  const { sorted, sort } = useSorted('jobs', items, entityStatuses)
+  const { sorted, sort } = useSorted('jobs', items, entityStatuses, pins)
   const statusCount = useStatusCount(items, entityStatuses.job)
   return (
     <EntityPage
@@ -142,12 +173,15 @@ export function JobsPage({
       sort={sort}
       statusCount={statusCount}
       statusError={statusError}
+      pinError={pinError}
     >
       {(job) => (
         <JobCard
           job={job}
           applied={entityStatuses.job[job.key] ?? false}
           onToggle={(active) => onToggleStatus('job', job.key, active)}
+          pinned={pins.job[job.key] ?? false}
+          onTogglePin={(pinned) => onTogglePin('job', job.key, pinned)}
           onOpenSearch={onOpenSearch}
         />
       )}
@@ -161,9 +195,12 @@ export function PeoplePage({
   entityStatuses,
   statusError,
   onToggleStatus,
+  pins,
+  pinError,
+  onTogglePin,
 }: PageProps & ToggleProps) {
   const { items, error } = useEntities('people', refreshKey)
-  const { sorted, sort } = useSorted('people', items, entityStatuses)
+  const { sorted, sort } = useSorted('people', items, entityStatuses, pins)
   const statusCount = useStatusCount(items, entityStatuses.person)
   return (
     <EntityPage
@@ -173,12 +210,15 @@ export function PeoplePage({
       sort={sort}
       statusCount={statusCount}
       statusError={statusError}
+      pinError={pinError}
     >
       {(person) => (
         <PersonCard
           person={person}
           connected={entityStatuses.person[person.key] ?? false}
           onToggle={(active) => onToggleStatus('person', person.key, active)}
+          pinned={pins.person[person.key] ?? false}
+          onTogglePin={(pinned) => onTogglePin('person', person.key, pinned)}
           onOpenSearch={onOpenSearch}
         />
       )}
@@ -194,6 +234,7 @@ interface EntityPageProps<K extends EntityKind> {
   /** Jobs / People: replaces the plain count chip with "X/Y applied" / "X/Y connected". */
   statusCount?: StatusCount | null
   statusError?: string | null
+  pinError: string | null
   children: (item: EntityMap[K]) => React.ReactNode
 }
 
@@ -204,6 +245,7 @@ function EntityPage<K extends EntityKind>({
   sort,
   statusCount,
   statusError,
+  pinError,
   children,
 }: EntityPageProps<K>) {
   const page = PAGES[kind]
@@ -247,6 +289,7 @@ function EntityPage<K extends EntityKind>({
 
       {error && <ErrorBanner message={error} />}
       {statusError && <ErrorBanner message={statusError} />}
+      {pinError && <ErrorBanner message={pinError} />}
 
       {items === null ? (
         !error && (
@@ -332,11 +375,13 @@ function SeenIn({
 
 function CompanyCard({
   company,
+  pinned,
+  onTogglePin,
   onOpenSearch,
 }: {
   company: CompanyEntity
   onOpenSearch: (id: string) => void
-}) {
+} & CardPinProps) {
   return (
     <Card>
       <div className="flex items-start gap-3">
@@ -349,13 +394,14 @@ function CompanyCard({
             <p className="text-body-2-regular text-text-secondary">{company.description}</p>
           )}
         </div>
-        <div className="flex shrink-0 gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <Chip variant="caption" color="soft">
             {company.job_count} {company.job_count === 1 ? 'job' : 'jobs'}
           </Chip>
           <Chip variant="caption" color="soft">
             {company.person_count} {company.person_count === 1 ? 'contact' : 'contacts'}
           </Chip>
+          <PinToggle name={company.name} isPinned={pinned} onChange={onTogglePin} />
         </div>
       </div>
       <AlignmentBox text={company.alignment} />
@@ -368,13 +414,15 @@ function JobCard({
   job,
   applied,
   onToggle,
+  pinned,
+  onTogglePin,
   onOpenSearch,
 }: {
   job: JobEntity
   applied: boolean
   onToggle: (active: boolean) => void
   onOpenSearch: (id: string) => void
-}) {
+} & CardPinProps) {
   const meta = [job.company, job.location, job.salary].filter(Boolean).join(' · ')
   return (
     <Card>
@@ -386,7 +434,10 @@ function JobCard({
           </h2>
           {meta && <p className="text-body-2-regular text-text-tertiary">{meta}</p>}
         </div>
-        <StatusToggle kind="job" isSelected={applied} onChange={onToggle} />
+        <div className="flex shrink-0 items-center gap-1">
+          <StatusToggle kind="job" isSelected={applied} onChange={onToggle} />
+          <PinToggle name={job.title} isPinned={pinned} onChange={onTogglePin} />
+        </div>
       </div>
       <AlignmentBox text={job.alignment} />
       <SeenIn sighting={job} onOpenSearch={onOpenSearch} />
@@ -398,13 +449,15 @@ function PersonCard({
   person,
   connected,
   onToggle,
+  pinned,
+  onTogglePin,
   onOpenSearch,
 }: {
   person: PersonEntity
   connected: boolean
   onToggle: (active: boolean) => void
   onOpenSearch: (id: string) => void
-}) {
+} & CardPinProps) {
   const meta = [person.title, person.company].filter(Boolean).join(' · ')
   return (
     <Card>
@@ -416,7 +469,10 @@ function PersonCard({
           </h2>
           {meta && <p className="text-body-2-regular text-text-tertiary">{meta}</p>}
         </div>
-        <StatusToggle kind="person" isSelected={connected} onChange={onToggle} />
+        <div className="flex shrink-0 items-center gap-1">
+          <StatusToggle kind="person" isSelected={connected} onChange={onToggle} />
+          <PinToggle name={person.name} isPinned={pinned} onChange={onTogglePin} />
+        </div>
       </div>
       <AlignmentBox text={person.alignment} label="Why connect" />
       <ConnectMessageBox text={person.connect_message} />
