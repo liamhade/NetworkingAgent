@@ -21,6 +21,7 @@ from langgraph.errors import GraphRecursionError
 
 import config
 from llm import get_llm
+from llm_usage import run_config
 from schemas import (
     AgentEvent,
     ErrorEvent,
@@ -163,7 +164,8 @@ def compile_results(
             HumanMessage(
                 f"{format_profile(request)}\n\n<research>\n{transcript(messages)}\n</research>"
             ),
-        ]
+        ],
+        config=run_config("compile_results"),
     )
     return result if isinstance(result, SearchResults) else SearchResults.model_validate(result)
 
@@ -184,7 +186,9 @@ def run_search(
     try:
         for update in agent.stream(
             {"messages": [first]},
-            config={"recursion_limit": recursion_limit or config.AGENT_RECURSION_LIMIT},
+            config=run_config(
+                "research", recursion_limit=recursion_limit or config.AGENT_RECURSION_LIMIT
+            ),
             stream_mode="updates",
         ):
             for node_update in update.values():

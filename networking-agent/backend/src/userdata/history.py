@@ -47,10 +47,24 @@ def make_title(request: SearchRequest) -> str:
     return title
 
 
-def save_search(user_id: str, request: SearchRequest, results: SearchResults) -> SavedSearch:
-    """Persist a finished search for `user_id` and return the stored record."""
+def new_search_id() -> str:
+    return uuid.uuid4().hex
+
+
+def save_search(
+    user_id: str,
+    request: SearchRequest,
+    results: SearchResults,
+    search_id: str | None = None,
+) -> SavedSearch:
+    """Persist a finished search for `user_id` and return the stored record.
+
+    `search_id` lets the caller pick the id up front (so LLM usage logs can reference it).
+    """
+    if search_id is not None and not _ID_PATTERN.match(search_id):
+        raise ValueError(f"Invalid search id: {search_id!r}")
     record = SavedSearch(
-        id=uuid.uuid4().hex,
+        id=search_id or new_search_id(),
         user_id=user_id,
         created_at=datetime.now(UTC),
         title=make_title(request),

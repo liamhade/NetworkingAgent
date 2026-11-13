@@ -12,6 +12,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 
 import config
+from llm_usage import usage_handler
 
 
 def _split(model: str) -> tuple[str, str]:
@@ -25,7 +26,8 @@ def _split(model: str) -> tuple[str, str]:
 def get_llm(model: str | None = None, max_tokens: int = 16_000) -> BaseChatModel:
     """Return a chat model for `model` (defaults to `config.LLM_MODEL`)."""
     provider, name = _split(model or config.LLM_MODEL)
-    kwargs: dict = {"max_tokens": max_tokens}
+    # The usage handler logs tokens and cost of every call made with this model.
+    kwargs: dict = {"max_tokens": max_tokens, "callbacks": [usage_handler]}
     api_key = config.provider_api_key(provider)
     if api_key:
         kwargs["api_key"] = api_key

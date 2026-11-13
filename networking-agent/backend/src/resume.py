@@ -8,6 +8,7 @@ from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
 from llm import get_llm
+from llm_usage import run_config
 from schemas import ResumeProfile
 
 MAX_RESUME_CHARS = 60_000
@@ -40,6 +41,7 @@ def parse_resume(data: bytes, llm: BaseChatModel | None = None) -> ResumeProfile
     text = extract_pdf_text(data)
     model = (llm or get_llm()).with_structured_output(ResumeProfile, method="json_schema")
     result = model.invoke(
-        [SystemMessage(SYSTEM_PROMPT), HumanMessage(f"<resume>\n{text}\n</resume>")]
+        [SystemMessage(SYSTEM_PROMPT), HumanMessage(f"<resume>\n{text}\n</resume>")],
+        config=run_config("parse_resume"),
     )
     return result if isinstance(result, ResumeProfile) else ResumeProfile.model_validate(result)

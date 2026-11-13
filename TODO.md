@@ -15,7 +15,7 @@
 
 - [x] (**investigate speeding up Google SERP results**) Check if there's a way to speed up the Google SERP results without flagging the bot-detection radar, while still keeping full redirect links.
 
-- [ ] (**Log token usage for each LLM**) Logs LLM token usage + cost to `logs` in a csv format so that I can easily calculate token usage per person, per timeframe, or just overall.
+- [x] (**Log token usage for each LLM**) Logs LLM token usage + cost to `logs` in a csv format so that I can easily calculate token usage per person, per timeframe, or just overall.
 
 # Postponed
 

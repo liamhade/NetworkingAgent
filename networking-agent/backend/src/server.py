@@ -6,6 +6,7 @@ Run from `networking-agent/backend`:
 """
 
 import logging
+import uuid
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -19,6 +20,7 @@ import config
 import resume
 import tools
 from entities import catalog, keys
+from llm_usage import bind_context, usage_context
 from schemas import (
     AgentEvent,
     CompanyEntity,
@@ -75,7 +77,7 @@ def health() -> dict[str, str]:
 
 
 @app.post("/api/resume")
-def parse_resume(file: Annotated[UploadFile, File()]) -> ResumeProfile:
+def parse_resume(file: Annotated[UploadFile, File()], user: CurrentUser) -> ResumeProfile:
     """Read an uploaded PDF resume and return pre-filled hero form fields."""
     is_pdf = file.content_type == "application/pdf" or (file.filename or "").lower().endswith(
         ".pdf"
@@ -86,7 +88,8 @@ def parse_resume(file: Annotated[UploadFile, File()]) -> ResumeProfile:
     if len(data) > MAX_RESUME_BYTES:
         raise HTTPException(status_code=413, detail="PDF is larger than 10 MB.")
     try:
-        return resume.parse_resume(data)
+        with usage_context(user_id=user.id, request_id=uuid.uuid4().hex):
+            return resume.parse_resume(data)
     except resume.ResumeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -95,13 +98,13 @@ def _sse(event: AgentEvent) -> str:
     return f"data: {event.model_dump_json()}\n\n"
 
 
-def _event_stream(request: SearchRequest, user_id: str) -> Iterator[str]:
+def _event_stream(request: SearchRequest, user_id: str, search_id: str) -> Iterator[str]:
     try:
         for event in agent.run_search(request):
             if isinstance(event, ResultEvent):
                 event = ResultEvent(data=keys.annotate(event.data))
                 yield _sse(event)
-                yield from _save(user_id, request, event)
+                yield from _save(user_id, request, event, search_id)
             else:
                 yield _sse(event)
     except Exception as exc:  # noqa: BLE001
@@ -109,10 +112,12 @@ def _event_stream(request: SearchRequest, user_id: str) -> Iterator[str]:
         yield _sse(ErrorEvent(message=f"Search failed: {exc}"))
 
 
-def _save(user_id: str, request: SearchRequest, event: ResultEvent) -> Iterator[str]:
+def _save(
+    user_id: str, request: SearchRequest, event: ResultEvent, search_id: str
+) -> Iterator[str]:
     """Persist a finished search; a storage failure must not hide the results."""
     try:
-        record = history.save_search(user_id, request, event.data)
+        record = history.save_search(user_id, request, event.data, search_id=search_id)
     except Exception:  # noqa: BLE001
         log.exception("Could not save search to history")
         return
@@ -123,8 +128,16 @@ def _save(user_id: str, request: SearchRequest, event: ResultEvent) -> Iterator[
 @app.post("/api/search")
 def search(request: SearchRequest, user: CurrentUser) -> StreamingResponse:
     """Run the networking agent. Streams Server-Sent Events (`data: <json>` lines)."""
+    search_id = history.new_search_id()
+    # LLM usage rows are tagged with this user and the id the search is saved under.
+    events = bind_context(
+        _event_stream(request, user.id, search_id),
+        user_id=user.id,
+        request_id=search_id,
+        search_id=search_id,
+    )
     return StreamingResponse(
-        _event_stream(request, user.id),
+        events,
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

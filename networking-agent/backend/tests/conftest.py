@@ -63,3 +63,13 @@ def isolated_database(tmp_path, monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(config, "DATABASE_DIR", tmp_path / "database")
     return tmp_path / "database"
+
+
+@pytest.fixture(autouse=True)
+def usage_log(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    """Never let tests append to the real `logs/llm_usage.csv`."""
+    import config
+
+    path = tmp_path / "logs" / "llm_usage.csv"
+    monkeypatch.setattr(config, "LLM_USAGE_LOG", path)
+    return path

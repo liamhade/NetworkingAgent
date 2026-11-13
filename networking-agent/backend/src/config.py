@@ -30,6 +30,10 @@ GOOGLE_CACHE_TTL_S = float(os.environ.get("GOOGLE_CACHE_TTL_S", "900"))
 """Seconds a Google results page is reused for a repeated query (0 turns the cache off)."""
 
 
+LLM_USAGE_LOG = Path(os.environ.get("LLM_USAGE_LOG", BACKEND_DIR / "logs" / "llm_usage.csv"))
+"""CSV with one row per LLM call (tokens, cost, user); see `llm_usage`."""
+
+
 def provider_api_key(provider: str) -> str | None:
     """API key for `provider`, accepting this project's `<PROVIDER>_KEY` naming too."""
     name = provider.upper()
