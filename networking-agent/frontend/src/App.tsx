@@ -18,6 +18,7 @@ import { TopNav } from '@/components/top-nav'
 import { CompaniesPage, JobsPage, PeoplePage } from '@/pages/entities'
 import { Hero } from '@/pages/hero'
 import { Results } from '@/pages/results'
+import { withRetry } from '@/utils/retry'
 import { type View, viewFromHash, viewHash } from '@/utils/view'
 
 const EMPTY_FORM: SearchRequest = { background: '', location: '', looking_for: '' }
@@ -58,31 +59,43 @@ export default function App() {
     if (viewFromHash(window.location.hash) !== target) window.location.hash = viewHash(target)
   }
 
-  useEffect(() => {
-    const controller = new AbortController()
-    getCurrentUser(controller.signal)
+  /**
+   * Load the user's saved data. Each request retries with backoff, because the
+   * backend is often still starting (or reloading) when the page first loads;
+   * an error is only shown once every attempt has failed.
+   */
+  const loadUserData = (signal: AbortSignal) => {
+    withRetry(getCurrentUser, signal)
       .then(setUser)
       .catch(() => {
         // The name is cosmetic; the panel works without it.
       })
-    listSearches(controller.signal)
+    withRetry(listSearches, signal)
       .then((searches) => {
         setHistory(searches)
         setHistoryError(null)
       })
       .catch((caught: Error) => {
-        if (!controller.signal.aborted) setHistoryError('Could not load previous searches.')
+        if (!signal.aborted) setHistoryError('Could not load previous searches.')
         console.error(caught)
       })
       .finally(() => {
-        if (!controller.signal.aborted) setHistoryLoading(false)
+        if (!signal.aborted) setHistoryLoading(false)
       })
-    getStatuses(controller.signal)
-      .then((loaded) => setEntityStatuses({ ...EMPTY_STATUSES, ...loaded }))
+    withRetry(getStatuses, signal)
+      .then((loaded) => {
+        setEntityStatuses({ ...EMPTY_STATUSES, ...loaded })
+        setStatusError(null)
+      })
       .catch((caught: Error) => {
-        if (!controller.signal.aborted) setStatusError('Could not load APPLIED / CONNECTED marks.')
+        if (!signal.aborted) setStatusError('Could not load APPLIED / CONNECTED marks.')
         console.error(caught)
       })
+  }
+
+  useEffect(() => {
+    const controller = new AbortController()
+    loadUserData(controller.signal)
     return () => controller.abort()
   }, [])
 
@@ -119,6 +132,13 @@ export default function App() {
             ])
             setHistoryError(null)
             setEntitiesVersion((current) => current + 1)
+            // The backend is clearly up now; recover the marks if the first load failed.
+            getStatuses()
+              .then((loaded) => {
+                setEntityStatuses({ ...EMPTY_STATUSES, ...loaded })
+                setStatusError(null)
+              })
+              .catch(console.error)
             if (!controller.signal.aborted) setActiveId(event.search.id)
           } else setError(event.message)
         },

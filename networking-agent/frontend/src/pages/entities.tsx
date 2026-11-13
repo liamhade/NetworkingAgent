@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { RiBriefcaseLine, RiBuilding2Line, RiUserLine } from '@remixicon/react'
+import { withRetry } from '@/utils/retry'
 import {
   listEntities,
   type CompanyEntity,
@@ -54,7 +55,7 @@ function useEntities<K extends EntityKind>(kind: K, refreshKey: number) {
 
   useEffect(() => {
     const controller = new AbortController()
-    listEntities(kind, controller.signal)
+    withRetry((signal) => listEntities(kind, signal), controller.signal)
       .then((loaded) => {
         setItems(loaded)
         setError(null)
