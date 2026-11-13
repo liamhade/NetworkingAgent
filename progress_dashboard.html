@@ -43,7 +43,7 @@ const TASKS = [
   { title: "Companies / Jobs / People pages in menu bar", status: "done", commit: "624368e", note: "Top nav + per-entity card pages, aggregated & deduped across all saved searches; refresh on each new search." },
   { title: "Add read_page() tool", status: "done", commit: "07df208", note: "URL → Markdown: trafilatura default; Greenhouse/Lever/Ashby APIs, JSON-LD, cleaned-full and Playwright fallbacks; per-domain registry." },
   { title: "Investigate speeding up Google SERP", status: "done", commit: "3222146", note: "Resolve only returned /goto links + 15-min query cache: google_search n=5 23.7s → 5.3s, find_people 24s → 0.6s. No CAPTCHAs." },
-  { title: "Log token usage for each LLM", status: "done", commit: "PENDING", note: "LangChain callback writes one CSV row per LLM call (user, search, tokens, cost, latency) to backend/logs/llm_usage.csv; python -m llm_usage summaries." },
+  { title: "Log token usage for each LLM", status: "done", commit: "8299d78", note: "LangChain callback writes one CSV row per LLM call (user, search, tokens, cost, latency) to backend/logs/llm_usage.csv; python -m llm_usage summaries." },
 ];
 
 function render() {
