@@ -18,6 +18,7 @@ import { Select, SelectItem } from '@/components/base/select/select'
 import { Spinner } from '@/components/base/spinner/spinner'
 import { StatusToggle } from '@/components/status-toggle'
 import { ErrorBanner, ExternalLink } from '@/pages/results'
+import { countStatus, type StatusCount } from '@/utils/count-status'
 import { formatRelativeDate, fullDateFormat } from '@/utils/format-date'
 import { DEFAULT_SORT, SORT_OPTIONS, sortEntities } from '@/utils/sort-entities'
 
@@ -38,12 +39,15 @@ const PAGES = {
     blurb: 'Every job opening that has come up in your searches.',
     icon: RiBriefcaseLine,
     noun: ['job', 'jobs'],
+    /** Shown in the title chip as "X/Y applied". */
+    statusLabel: 'applied',
   },
   people: {
     title: 'People',
     blurb: 'Everyone suggested to connect with across your searches.',
     icon: RiUserLine,
     noun: ['person', 'people'],
+    statusLabel: 'connected',
   },
 } as const
 
@@ -90,6 +94,14 @@ function useSorted<K extends EntityKind>(
   return { sorted, sort: { id: sortId, onChange: setSortId } }
 }
 
+/** "X of Y applied / connected" for the title chip; recomputed whenever a toggle flips. */
+function useStatusCount(
+  items: readonly Sighting[] | null,
+  statuses: Readonly<Record<string, boolean>>,
+) {
+  return useMemo(() => items && countStatus(items, statuses), [items, statuses])
+}
+
 interface PageProps {
   refreshKey: number
   onOpenSearch: (id: string) => void
@@ -120,8 +132,16 @@ export function JobsPage({
 }: PageProps & ToggleProps) {
   const { items, error } = useEntities('jobs', refreshKey)
   const { sorted, sort } = useSorted('jobs', items, entityStatuses)
+  const statusCount = useStatusCount(items, entityStatuses.job)
   return (
-    <EntityPage kind="jobs" items={sorted} error={error} sort={sort} statusError={statusError}>
+    <EntityPage
+      kind="jobs"
+      items={sorted}
+      error={error}
+      sort={sort}
+      statusCount={statusCount}
+      statusError={statusError}
+    >
       {(job) => (
         <JobCard
           job={job}
@@ -143,8 +163,16 @@ export function PeoplePage({
 }: PageProps & ToggleProps) {
   const { items, error } = useEntities('people', refreshKey)
   const { sorted, sort } = useSorted('people', items, entityStatuses)
+  const statusCount = useStatusCount(items, entityStatuses.person)
   return (
-    <EntityPage kind="people" items={sorted} error={error} sort={sort} statusError={statusError}>
+    <EntityPage
+      kind="people"
+      items={sorted}
+      error={error}
+      sort={sort}
+      statusCount={statusCount}
+      statusError={statusError}
+    >
       {(person) => (
         <PersonCard
           person={person}
@@ -162,6 +190,8 @@ interface EntityPageProps<K extends EntityKind> {
   items: EntityMap[K][] | null
   error: string | null
   sort: { id: string; onChange: (id: string) => void }
+  /** Jobs / People: replaces the plain count chip with "X/Y applied" / "X/Y connected". */
+  statusCount?: StatusCount | null
   statusError?: string | null
   children: (item: EntityMap[K]) => React.ReactNode
 }
@@ -171,6 +201,7 @@ function EntityPage<K extends EntityKind>({
   items,
   error,
   sort,
+  statusCount,
   statusError,
   children,
 }: EntityPageProps<K>) {
@@ -183,7 +214,9 @@ function EntityPage<K extends EntityKind>({
           <h1 className="text-title-1-semibold text-text-primary">{page.title}</h1>
           {items && items.length > 0 && (
             <Chip variant="caption" color="soft">
-              {items.length} {items.length === 1 ? page.noun[0] : page.noun[1]}
+              {statusCount && 'statusLabel' in page
+                ? `${statusCount.active}/${statusCount.total} ${page.statusLabel}`
+                : `${items.length} ${items.length === 1 ? page.noun[0] : page.noun[1]}`}
             </Chip>
           )}
           {items && items.length > 1 && (
