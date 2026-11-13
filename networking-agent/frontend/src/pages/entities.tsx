@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { RiBriefcaseLine, RiBuilding2Line, RiUserLine } from '@remixicon/react'
 import { withRetry } from '@/utils/retry'
 import {
@@ -14,10 +14,12 @@ import {
 } from '@/api'
 import { AlignmentBox } from '@/components/alignment-box'
 import { Chip } from '@/components/base/badges/chip'
+import { Select, SelectItem } from '@/components/base/select/select'
 import { Spinner } from '@/components/base/spinner/spinner'
 import { StatusToggle } from '@/components/status-toggle'
 import { ErrorBanner, ExternalLink } from '@/pages/results'
 import { formatRelativeDate, fullDateFormat } from '@/utils/format-date'
+import { DEFAULT_SORT, SORT_OPTIONS, sortEntities } from '@/utils/sort-entities'
 
 type ToggleStatus = (kind: StatusKind, key: string, active: boolean) => void
 
@@ -71,6 +73,23 @@ function useEntities<K extends EntityKind>(kind: K, refreshKey: number) {
   return { items, error }
 }
 
+/** Companies have no APPLIED / CONNECTED status, so their sort options never read one. */
+const NO_STATUSES: StatusMap = { job: {}, person: {} }
+
+/** The page's chosen sort and the list sorted by it (recomputed when a status changes). */
+function useSorted<K extends EntityKind>(
+  kind: K,
+  items: EntityMap[K][] | null,
+  statuses: StatusMap,
+) {
+  const [sortId, setSortId] = useState<string>(DEFAULT_SORT)
+  const sorted = useMemo(
+    () => items && sortEntities(kind, items, sortId, { statuses }),
+    [kind, items, sortId, statuses],
+  )
+  return { sorted, sort: { id: sortId, onChange: setSortId } }
+}
+
 interface PageProps {
   refreshKey: number
   onOpenSearch: (id: string) => void
@@ -84,8 +103,9 @@ interface ToggleProps {
 
 export function CompaniesPage({ refreshKey, onOpenSearch }: PageProps) {
   const { items, error } = useEntities('companies', refreshKey)
+  const { sorted, sort } = useSorted('companies', items, NO_STATUSES)
   return (
-    <EntityPage kind="companies" items={items} error={error}>
+    <EntityPage kind="companies" items={sorted} error={error} sort={sort}>
       {(company) => <CompanyCard company={company} onOpenSearch={onOpenSearch} />}
     </EntityPage>
   )
@@ -99,8 +119,9 @@ export function JobsPage({
   onToggleStatus,
 }: PageProps & ToggleProps) {
   const { items, error } = useEntities('jobs', refreshKey)
+  const { sorted, sort } = useSorted('jobs', items, entityStatuses)
   return (
-    <EntityPage kind="jobs" items={items} error={error} statusError={statusError}>
+    <EntityPage kind="jobs" items={sorted} error={error} sort={sort} statusError={statusError}>
       {(job) => (
         <JobCard
           job={job}
@@ -121,8 +142,9 @@ export function PeoplePage({
   onToggleStatus,
 }: PageProps & ToggleProps) {
   const { items, error } = useEntities('people', refreshKey)
+  const { sorted, sort } = useSorted('people', items, entityStatuses)
   return (
-    <EntityPage kind="people" items={items} error={error} statusError={statusError}>
+    <EntityPage kind="people" items={sorted} error={error} sort={sort} statusError={statusError}>
       {(person) => (
         <PersonCard
           person={person}
@@ -139,6 +161,7 @@ interface EntityPageProps<K extends EntityKind> {
   kind: K
   items: EntityMap[K][] | null
   error: string | null
+  sort: { id: string; onChange: (id: string) => void }
   statusError?: string | null
   children: (item: EntityMap[K]) => React.ReactNode
 }
@@ -147,6 +170,7 @@ function EntityPage<K extends EntityKind>({
   kind,
   items,
   error,
+  sort,
   statusError,
   children,
 }: EntityPageProps<K>) {
@@ -155,12 +179,33 @@ function EntityPage<K extends EntityKind>({
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
       <header className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-title-1-semibold text-text-primary">{page.title}</h1>
           {items && items.length > 0 && (
             <Chip variant="caption" color="soft">
               {items.length} {items.length === 1 ? page.noun[0] : page.noun[1]}
             </Chip>
+          )}
+          {items && items.length > 1 && (
+            <Select
+              aria-label={`Sort ${page.noun[1]}`}
+              size="sm"
+              className="ms-auto"
+              selectedKey={sort.id}
+              onSelectionChange={(key) => key !== null && sort.onChange(String(key))}
+              renderValue={({ selectedText }) => (
+                <span className="truncate">
+                  <span className="text-text-tertiary">Sort: </span>
+                  {selectedText}
+                </span>
+              )}
+            >
+              {SORT_OPTIONS[kind].map((option) => (
+                <SelectItem key={option.id} id={option.id} textValue={option.label}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </Select>
           )}
         </div>
         <p className="text-body-regular text-text-secondary">{page.blurb}</p>

@@ -36,7 +36,7 @@
 </main>
 <script>
 // Edit this block to update the dashboard. status: "done" | "current" | "next"
-const UPDATED = "2026-11-12";
+const UPDATED = "2026-11-13";
 const TASKS = [
   { title: "Store previous searches", status: "done", commit: "15be6ff", note: "Left side-panel of past searches + minimal TEST_USER account layer (get_current_user, /api/me, database/users/<id>/)." },
   { title: "Keep log of applied jobs / connected people", status: "done", note: "APPLIED / CONNECTED toggles keyed by stable entity IDs (normalized URL / LinkedIn slug), persisted per user.", commit: "5836ba3" },
@@ -44,6 +44,11 @@ const TASKS = [
   { title: "Add read_page() tool", status: "done", commit: "07df208", note: "URL → Markdown: trafilatura default; Greenhouse/Lever/Ashby APIs, JSON-LD, cleaned-full and Playwright fallbacks; per-domain registry." },
   { title: "Investigate speeding up Google SERP", status: "done", commit: "3222146", note: "Resolve only returned /goto links + 15-min query cache: google_search n=5 23.7s → 5.3s, find_people 24s → 0.6s. No CAPTCHAs." },
   { title: "Log token usage for each LLM", status: "done", commit: "8299d78", note: "LangChain callback writes one CSV row per LLM call (user, search, tokens, cost, latency) to backend/logs/llm_usage.csv; python -m llm_usage summaries." },
+  { title: "Sort companies / jobs / people pages", status: "done", note: "Client-side Sort dropdown (BoardUI Select) per page: recency, status (applied/connected) first, A–Z, most jobs/contacts; logic in utils/sort-entities.ts." },
+  { title: "Add X/Y counts to Jobs & People pages", status: "current", note: "Show how many jobs applied / people connected out of the total." },
+  { title: "Example LinkedIn connection message", status: "next", note: "Bubble below Why Connect with a <300-char (configurable) message; prompt exposed in prompts.py." },
+  { title: "Pin entities for later", status: "next", note: "Pin companies/jobs/people and sort by pins on their pages." },
+  { title: "Clean up google_serp (and builtin_nyc) modules", status: "next", note: "Strip CLI/__main__ fluff; keep only what networking_agent uses." },
 ];
 
 function render() {
