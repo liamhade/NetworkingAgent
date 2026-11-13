@@ -1,10 +1,10 @@
 import json
-from types import SimpleNamespace
 
 import pytest
 
 import tools
 from builtin_nyc.models import Company, ExperienceLevel, Job, JobCategory
+from google_serp import SearchResponse, SearchResult
 
 
 def _job(i: int) -> Job:
@@ -71,14 +71,14 @@ def test_tool_errors_are_returned_not_raised(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def _serp(*results):
-    return SimpleNamespace(results=[SimpleNamespace(**r) for r in results])
+    return SearchResponse(results=[SearchResult(**r) for r in results])
 
 
 def test_google_search(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         tools,
         "run_google_search",
-        lambda q: _serp(
+        lambda q, pick=None: _serp(
             {
                 "title": "Jobs",
                 "url": "https://boards.greenhouse.io/x",
@@ -101,7 +101,7 @@ def test_google_search(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_find_people_builds_linkedin_query_and_parses(monkeypatch: pytest.MonkeyPatch) -> None:
     queries = []
 
-    def fake(q):
+    def fake(q, pick=None):
         queries.append(q)
         return _serp(
             {
@@ -134,7 +134,7 @@ def test_find_people_builds_linkedin_query_and_parses(monkeypatch: pytest.Monkey
 
 
 def test_google_errors_are_returned(monkeypatch: pytest.MonkeyPatch) -> None:
-    def boom(q):
+    def boom(q, pick=None):
         raise RuntimeError("Chrome not found")
 
     monkeypatch.setattr(tools, "run_google_search", boom)

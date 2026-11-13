@@ -26,6 +26,9 @@ DATABASE_DIR = Path(os.environ.get("DATABASE_DIR", PROJECT_DIR.parent / "databas
 GOOGLE_RESOLVE_URLS = os.environ.get("GOOGLE_RESOLVE_URLS", "true").lower() != "false"
 """Follow Google's /goto redirects to real URLs (slower, but links are usable)."""
 
+GOOGLE_CACHE_TTL_S = float(os.environ.get("GOOGLE_CACHE_TTL_S", "900"))
+"""Seconds a Google results page is reused for a repeated query (0 turns the cache off)."""
+
 
 def provider_api_key(provider: str) -> str | None:
     """API key for `provider`, accepting this project's `<PROVIDER>_KEY` naming too."""

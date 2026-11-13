@@ -79,7 +79,7 @@ Run from `networking-agent/backend/src`:
 
 - **Browser window.** Chrome runs headed, because headless Chrome is flagged more often. Its window starts off-screen (`hidden=True`) and moves on-screen if Google shows a CAPTCHA. Someone then has 3 minutes to solve it (`captcha_timeout=`), after which `CaptchaTimeoutError` is raised. Pass `hidden=False` or `--show-window` to keep the window visible.
 - **Profile location.** Defaults to `%LOCALAPPDATA%\google-serp\chrome-profile` on Windows, `~/Library/Application Support/google-serp/chrome-profile` on macOS, and `~/.local/share/google-serp/chrome-profile` on Linux. Override it with `profile_dir=` or the `GOOGLE_SERP_PROFILE_DIR` environment variable. Delete the folder to start a fresh session. Only one process can use a profile at a time.
-- **Real URLs cost extra time.** Google links every result through an opaque `/goto?url=...` redirect, and the real URL isn't in the page. With `resolve_urls=True` (the default), each link is followed inside the browser session. Google throttles this after a few links, which adds about 5–25s per search. With `resolve_urls=False`, `url` is the redirect link. The redirect link is always kept in `result.google_url`.
+- **Real URLs cost extra time.** Google links every result through an opaque `/goto?url=...` redirect, and the real URL isn't in the page. With `resolve_urls=True` (the default), each link is followed inside the browser session. Google throttles this after a few links, which adds about 5–25s per search. With `resolve_urls=False`, `url` is the redirect link. The redirect link is always kept in `result.google_url`. Resolving is ~95% of a search's time, so resolve only the results you will use: pass `resolve_limit=n`, or search with `resolve_urls=False` and call `session.resolve_results(chosen)`. See `docs/google-serp-speed/findings.md`.
 - **Pagination.** `page=` is 1-based and maps to Google's `start=(page-1)*10`. `result.position` restarts at 1 on each page; `response.metadata.page` says which page it came from. Reuse one `GoogleSerpSession` to walk several pages: `[serp.search(q, page=p) for p in (1, 2, 3)]`. Google may CAPTCHA or stop returning results on deep pages.
 - **Errors.** `search()` raises by default. Pass `strict=False` to log the error and get an empty response instead. All package errors subclass `GoogleSerpError`.
 - **No plain-HTTP mode.** `requests`/curl get Google's "enable JavaScript" page even with fresh cookies, so there is no browser-free option.
@@ -89,7 +89,7 @@ Run from `networking-agent/backend/src`:
 | Name | Description |
 |---|---|
 | `search(query, *, page=1, resolve_urls=True, hidden=True, profile_dir=None, strict=True)` | One search; starts and closes Chrome |
-| `GoogleSerpSession(profile_dir=None, hidden=True, captcha_timeout=180, language="en")` | Reusable session; `.search(query, resolve_urls=True, page=1)`, `.fetch_html(query, page=1)`, `.resolve_url(url)` |
+| `GoogleSerpSession(profile_dir=None, hidden=True, captcha_timeout=180, language="en")` | Reusable session; `.search(query, resolve_urls=True, page=1, resolve_limit=None)`, `.fetch_html(query, page=1)`, `.resolve_results(results)`, `.resolve_url(url)` |
 | `parse_results_page(html, query)` | Parse saved HTML into a `SearchResponse` |
 | `SearchResponse` | `.results: list[SearchResult]`, `.metadata: SearchMetadata`, `.to_dict()` |
 | `SearchResult` | `title`, `url`, `display_url`, `snippet`, `site_name`, `google_url`, `position` |

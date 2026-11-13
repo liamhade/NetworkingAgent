@@ -13,6 +13,7 @@ import json
 import logging
 import re
 import threading
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Literal, TypeVar
@@ -178,17 +179,30 @@ def search_builtin_companies(
 # --------------------------------------------------------------------------- Google
 
 
+ResultPicker = Callable[[list[google_serp.SearchResult]], list[google_serp.SearchResult]]
+"""Chooses which results a tool will use, before their links are resolved."""
+
+
 class _GoogleWorker:
     """Runs every Google search on one dedicated thread with one reusable browser.
 
     Playwright's sync API is bound to the thread that started it, and the Chrome
     profile can only be used by one browser at a time, so searches are serialized.
+
+    Resolving Google's /goto links is ~95% of a search's time (Google throttles
+    them), so only the results a tool will return are resolved. Results pages are
+    cached for `config.GOOGLE_CACHE_TTL_S`, so a repeated query sends no new
+    requests to Google.
     """
 
-    def __init__(self) -> None:
+    MAX_CACHED = 64
+
+    def __init__(self, cache_ttl: float | None = None) -> None:
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="google-serp")
         self._session: google_serp.GoogleSerpSession | None = None
         self._lock = threading.Lock()
+        self._cache_ttl = config.GOOGLE_CACHE_TTL_S if cache_ttl is None else cache_ttl
+        self._cache: dict[str, tuple[float, google_serp.SearchResponse]] = {}
 
     def _ensure_session(self) -> google_serp.GoogleSerpSession:
         if self._session is None:
@@ -203,20 +217,45 @@ class _GoogleWorker:
                 log.debug("Ignoring error while closing Google session", exc_info=True)
             self._session = None
 
-    def _search(self, query: str, resolve_urls: bool) -> google_serp.SearchResponse:
+    def _fetch(self, query: str) -> google_serp.SearchResponse:
+        """The results page for `query`, links unresolved, from the cache if fresh."""
+        now = time.monotonic()
+        cached = self._cache.get(query)
+        if cached is not None and now - cached[0] < self._cache_ttl:
+            log.info("Google results for %r served from cache", query)
+            return cached[1]
         try:
-            return self._ensure_session().search(query, resolve_urls=resolve_urls)
+            response = self._ensure_session().search(query, resolve_urls=False)
         except google_serp.CaptchaTimeoutError:
             raise
         except Exception:  # noqa: BLE001
             # The browser may have been closed or crashed: start a fresh one once.
             log.warning("Google search failed; restarting browser", exc_info=True)
             self._reset()
-            return self._ensure_session().search(query, resolve_urls=resolve_urls)
+            response = self._ensure_session().search(query, resolve_urls=False)
+        if response.results and self._cache_ttl > 0:
+            self._cache = {q: e for q, e in self._cache.items() if now - e[0] < self._cache_ttl}
+            if len(self._cache) >= self.MAX_CACHED:
+                self._cache.pop(min(self._cache, key=lambda q: self._cache[q][0]))
+            self._cache[query] = (now, response)
+        return response
 
-    def search(self, query: str, resolve_urls: bool = True) -> google_serp.SearchResponse:
+    def _search(
+        self, query: str, resolve_urls: bool, pick: ResultPicker | None
+    ) -> google_serp.SearchResponse:
+        response = self._fetch(query)
+        results = pick(list(response.results)) if pick else list(response.results)
+        if resolve_urls:
+            # Resolved in place, so a cached page keeps its resolved links.
+            self._ensure_session().resolve_results(results)
+        return google_serp.SearchResponse(results=results, metadata=response.metadata)
+
+    def search(
+        self, query: str, resolve_urls: bool = True, pick: ResultPicker | None = None
+    ) -> google_serp.SearchResponse:
+        """Search Google; resolve the links of only the results `pick` keeps."""
         with self._lock:
-            return self._executor.submit(self._search, query, resolve_urls).result()
+            return self._executor.submit(self._search, query, resolve_urls, pick).result()
 
     def close(self) -> None:
         self._executor.submit(self._reset).result()
@@ -236,9 +275,12 @@ def _google_worker() -> _GoogleWorker:
         return _google
 
 
-def run_google_search(query: str) -> google_serp.SearchResponse:
-    """Run one Google search through the shared worker (patched in tests)."""
-    return _google_worker().search(query, resolve_urls=config.GOOGLE_RESOLVE_URLS)
+def run_google_search(query: str, pick: ResultPicker | None = None) -> google_serp.SearchResponse:
+    """Run one Google search through the shared worker (patched in tests).
+
+    `pick` chooses the results the caller will use; only their links are resolved.
+    """
+    return _google_worker().search(query, resolve_urls=config.GOOGLE_RESOLVE_URLS, pick=pick)
 
 
 def shutdown() -> None:
@@ -268,9 +310,9 @@ def google_search(query: str, n: int = 10) -> str:
     """Search Google. Returns title, URL, site and snippet for each organic result.
 
     Good for job postings outside NYC (e.g. `"data analyst" jobs Boston site:greenhouse.io`),
-    company research, and company websites. Each call takes 10-30 seconds.
+    company research, and company websites. Each call takes 2-25 seconds (larger n is slower).
     """
-    response = _safe(lambda: run_google_search(query))
+    response = _safe(lambda: run_google_search(query, pick=lambda results: results[:n]))
     if isinstance(response, str):
         return response
     return _dump(
@@ -299,6 +341,15 @@ def parse_linkedin_title(title: str) -> tuple[str, str]:
     return name, headline
 
 
+def _looks_like_linkedin(result: google_serp.SearchResult) -> bool:
+    """True for a LinkedIn result. Works before its /goto link is resolved too."""
+    return (
+        "linkedin.com/in/" in result.url
+        or "linkedin.com" in result.display_url
+        or "LinkedIn" in (result.site_name + result.title)
+    )
+
+
 class FindPeopleArgs(BaseModel):
     company: str = Field(description="Company name, e.g. 'Ramp'.")
     keywords: str = Field(
@@ -312,15 +363,20 @@ class FindPeopleArgs(BaseModel):
 def find_people(company: str, keywords: str, location: str = "", n: int = 5) -> str:
     """Find people at a company to network with, via Google search of LinkedIn profiles.
 
-    Returns name, headline, LinkedIn profile URL and snippet. Each call takes 10-30 seconds.
+    Returns name, headline, LinkedIn profile URL and snippet.
+    Each call takes 2-25 seconds (larger n is slower).
     """
     query = f'site:linkedin.com/in "{company}" {keywords} {location}'.strip()
-    response = _safe(lambda: run_google_search(query))
+    response = _safe(
+        lambda: run_google_search(
+            query, pick=lambda results: [r for r in results if _looks_like_linkedin(r)][:n]
+        )
+    )
     if isinstance(response, str):
         return response
     people = []
     for r in response.results:
-        if "linkedin.com/in/" not in r.url and "LinkedIn" not in (r.site_name + r.title):
+        if not _looks_like_linkedin(r):
             continue
         name, headline = parse_linkedin_title(r.title)
         people.append(

@@ -12,6 +12,7 @@ default its window sits off-screen and only comes forward for a CAPTCHA.
 import logging
 import os
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from urllib.parse import urlencode, urljoin
 
@@ -19,7 +20,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
 from .errors import CaptchaTimeoutError
-from .models import SearchMetadata, SearchResponse
+from .models import SearchMetadata, SearchResponse, SearchResult
 from .parser import parse_meta_refresh, parse_results_page
 
 log = logging.getLogger(__name__)
@@ -129,7 +130,13 @@ class GoogleSerpSession:
 
     # -- public API --------------------------------------------------------
 
-    def search(self, query: str, resolve_urls: bool = True, page: int = 1) -> SearchResponse:
+    def search(
+        self,
+        query: str,
+        resolve_urls: bool = True,
+        page: int = 1,
+        resolve_limit: int | None = None,
+    ) -> SearchResponse:
         """Search Google and return the parsed results page.
 
         Args:
@@ -140,6 +147,9 @@ class GoogleSerpSession:
                 adds one request per result, and Google throttles after a
                 few, so expect about 5-25s extra. If False, ``url`` is the
                 redirect link.
+            resolve_limit: Resolve only the first ``resolve_limit`` results
+                (the rest keep their /goto link). Resolving is almost all of a
+                search's time, so only resolve the results you will use.
 
         Raises:
             CaptchaTimeoutError: A CAPTCHA appeared and was not solved in time.
@@ -147,14 +157,23 @@ class GoogleSerpSession:
         response = parse_results_page(self.fetch_html(query, page=page), query)
         response.metadata.page = page
         if resolve_urls:
-            for result in response.results:
-                if not result.google_url:
-                    continue
-                try:
-                    result.url = self.resolve_url(result.google_url) or result.google_url
-                except Exception as e:
-                    log.warning("Could not resolve %s: %s", result.google_url, e)
+            self.resolve_results(response.results[:resolve_limit])
         return response
+
+    def resolve_results(self, results: Iterable[SearchResult]) -> None:
+        """Replace each result's /goto ``url`` with its real destination, in place.
+
+        Results that have no redirect link, or were already resolved, are
+        skipped. A link that can't be resolved keeps its /goto URL. Links are
+        resolved one at a time, honouring Google's throttle delay.
+        """
+        for result in results:
+            if not result.google_url or result.url != result.google_url:
+                continue
+            try:
+                result.url = self.resolve_url(result.google_url) or result.google_url
+            except Exception as e:
+                log.warning("Could not resolve %s: %s", result.google_url, e)
 
     def fetch_html(self, query: str, page: int = 1) -> str:
         """Run a search and return the raw results-page HTML.
@@ -168,8 +187,11 @@ class GoogleSerpSession:
         if page > 1:
             params["start"] = (page - 1) * RESULTS_PER_PAGE
         url = "https://www.google.com/search?" + urlencode(params)
-        # Wait for 'load', not 'networkidle': results pages keep connections open.
-        tab.goto(url, wait_until="load", timeout=30_000)
+        # The results are server-rendered, so they are in the DOM well before
+        # 'load' (images, scripts). Don't wait for 'networkidle' at all: results
+        # pages keep connections open. The page keeps loading normally in the
+        # background, exactly as it would for a person.
+        tab.goto(url, wait_until="domcontentloaded", timeout=30_000)
         if "/sorry/" in tab.url:
             self._wait_for_captcha()
         if "consent.google." in tab.url:
