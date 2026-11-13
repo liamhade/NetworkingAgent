@@ -2,6 +2,8 @@
 
 - `builtin_jobs` / `builtin_companies`: BuiltInNYC jobs and companies (`builtin_nyc`).
 - `conservation_jobs`: Conservation Job Board jobs (`conservation_jobboard`).
+- `ats_boards` / `ats_jobs`: companies' ATS boards (Greenhouse, ...) found through Google,
+  and their matching postings from the board's public API (`ats`).
 - `google_search`: Google search through real Chrome (`google_serp`), one shared worker.
 - `linkedin_people`: LinkedIn profiles at a company, found through Google (`linkedin`).
 - `read_page`: any web page as Markdown (`read_page`).
@@ -18,6 +20,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+import ats
 import config
 import google_serp
 import linkedin
@@ -309,6 +312,74 @@ def linkedin_people(
             "Google returned job listings instead of LinkedIn profiles (asked twice)."
         )
     return people
+
+
+# ----------------------------------------------------------------------- ATS boards
+
+
+def ats_boards(provider: str, keywords: str, location: str = "") -> list[dict[str, Any]]:
+    """Companies' boards on ATS `provider` (e.g. "greenhouse") that Google finds for
+    `keywords` in `location`, via a `site:` search: `{provider, slug, job_ids}` each, in
+    Google's order. `job_ids` are postings Google linked to directly.
+
+    Most boards are read off the result's breadcrumb without resolving its `/goto` link;
+    only results that hide the board (e.g. embeds) are resolved, at most
+    `config.ATS_RESOLVE_LINKS`. Takes 2-25 s.
+    """
+    p = ats.get_provider(provider)
+
+    def pick(results: list[google_serp.SearchResult]) -> list[google_serp.SearchResult]:
+        # Only these get their links resolved; the rest are read from their breadcrumbs.
+        return [r for r in results if ats.needs_resolving(r, p)][: config.ATS_RESOLVE_LINKS]
+
+    def on_provider(page: google_serp.SearchResponse) -> bool:
+        # Don't cache a page where Google ignored the site: operator.
+        return any(ats.board_ref(r, p) or ats.needs_resolving(r, p) for r in page.results)
+
+    query = ats.site_query(p, keywords, location)
+    results = _google_page_results(query, pick, on_provider)
+    return [b.model_dump() for b in ats.boards_from_results(results, p)]
+
+
+def _google_page_results(
+    query: str, pick: ResultPicker, cacheable: PageCheck
+) -> list[google_serp.SearchResult]:
+    """Every result of the page (resolved ones included), not only the picked ones."""
+    everything: list[google_serp.SearchResult] = []
+
+    def keep_all(results: list[google_serp.SearchResult]) -> list[google_serp.SearchResult]:
+        everything[:] = results
+        return pick(results)
+
+    run_google_search(query, pick=keep_all, cacheable=cacheable)
+    return everything
+
+
+def ats_jobs(
+    provider: str,
+    board: str,
+    keywords: str,
+    location: str = "",
+    job_ids: list[str] | None = None,
+    n: int = 4,
+) -> list[dict[str, Any]]:
+    """Up to `n` open postings on one ATS board from its public API: those Google linked to
+    (`job_ids`) first, then those matching `keywords` and `location`."""
+    p = ats.get_provider(provider)
+    jobs = ats.filter_jobs(p.list_jobs(board), keywords, location, job_ids or [], n)
+    return [
+        {
+            "title": j.title,
+            "url": j.url,
+            "company": j.company,
+            "company_url": p.board_url(j.board),
+            "location": j.location,
+            "summary": " · ".join(
+                [p.label, *j.departments[:2], *([f"posted {j.posted}"] if j.posted else [])]
+            ),
+        }
+        for j in jobs
+    ]
 
 
 # ------------------------------------------------------------------------ read_page

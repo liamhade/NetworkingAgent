@@ -10,7 +10,8 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+
+from ats.greenhouse import GREENHOUSE
 
 from . import browser
 from . import fetch as fetch_mod
@@ -192,17 +193,11 @@ def _api(url: str, params: dict[str, str] | None = None) -> Any:
         raise
 
 
-_GREENHOUSE = re.compile(r"greenhouse\.io/(?P<board>[^/?#]+)/jobs/(?P<id>\d+)", flags=re.IGNORECASE)
-
-
 def greenhouse_ids(url: str) -> tuple[str, str]:
-    m = _GREENHOUSE.search(url)
-    if m and m["board"] != "embed":
-        return m["board"], m["id"]
-    query = parse_qs(urlparse(url).query)
-    board, job_id = query.get("for", [None])[0], query.get("token", [None])[0]
-    if board and job_id and job_id.isdigit():
-        return board, job_id
+    """(board slug, job id) of a Greenhouse posting URL; the URL rules live in `ats`."""
+    ref = GREENHOUSE.parse_url(url)
+    if ref is not None and ref.job_id:
+        return ref.slug, ref.job_id
     raise MethodUnavailable("Not a Greenhouse job URL")
 
 

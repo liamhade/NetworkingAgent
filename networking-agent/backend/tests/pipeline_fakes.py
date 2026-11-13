@@ -62,6 +62,7 @@ def plan(**changes: Any) -> SearchPlan:
         ],
         builtin_companies=[],
         conservation_jobs=[],
+        ats_jobs=[],
         google_queries=[],
     )
     return base.model_copy(update=changes)
@@ -144,6 +145,8 @@ class FakeSources:
     `jobs`: BuiltIn jobs returned for every query (default: one job per company).
     `people`: `{(company, keywords): list[profile] | Exception}`; anything else returns
     `default_people` profiles (all current employees).
+    `ats_boards`: boards returned for every ATS board search (or an Exception).
+    `ats_board_jobs`: `{slug: list[job] | Exception}` for `ats_jobs`; missing slugs give [].
     """
 
     def __init__(self, monkeypatch: pytest.MonkeyPatch, default_people: int = 3) -> None:
@@ -164,10 +167,14 @@ class FakeSources:
         self.default_people = default_people
         self.calls: list[tuple[str, Any]] = []
         self.people_calls: list[tuple[str, str, str]] = []
+        self.ats_boards: list[dict] | Exception = []
+        self.ats_board_jobs: dict[str, list[dict] | Exception] = {}
         for name in ("builtin_jobs", "builtin_companies", "conservation_jobs", "google_search"):
             monkeypatch.setattr(tools, name, self._source(name))
         monkeypatch.setattr(tools, "linkedin_people", self.linkedin_people)
         monkeypatch.setattr(tools, "read_page", self.read_page)
+        monkeypatch.setattr(tools, "ats_boards", self.fake_ats_boards)
+        monkeypatch.setattr(tools, "ats_jobs", self.fake_ats_jobs)
 
     def _source(self, name: str):
         def run(arg: Any, n: int = 15) -> list[dict]:
@@ -194,3 +201,41 @@ class FakeSources:
     def read_page(self, url: str, max_chars: int = 12_000) -> PageResult:
         self.calls.append(("read_page", url))
         return PageResult(url=url, final_url=url, method="static", markdown=f"Posting {url}")
+
+    def fake_ats_boards(self, provider: str, keywords: str, location: str = "") -> list[dict]:
+        self.calls.append(("ats_boards", (provider, keywords, location)))
+        if isinstance(self.ats_boards, Exception):
+            raise self.ats_boards
+        return self.ats_boards
+
+    def fake_ats_jobs(
+        self,
+        provider: str,
+        board: str,
+        keywords: str,
+        location: str = "",
+        job_ids: list[str] | None = None,
+        n: int = 4,
+    ) -> list[dict]:
+        self.calls.append(("ats_jobs", (provider, board, keywords, location, job_ids, n)))
+        result = self.ats_board_jobs.get(board, [])
+        if isinstance(result, Exception):
+            raise result
+        return result[:n]
+
+
+def ats_board(slug: str, *job_ids: str) -> dict[str, Any]:
+    return {"provider": "greenhouse", "slug": slug, "job_ids": list(job_ids)}
+
+
+def ats_job(company: str, i: int, title: str = "Data Analyst") -> dict[str, Any]:
+    """A job dict as `tools.ats_jobs` returns it."""
+    board = slug(company)
+    return {
+        "title": title,
+        "url": f"https://job-boards.greenhouse.io/{board}/jobs/{i}",
+        "company": company,
+        "company_url": f"https://job-boards.greenhouse.io/{board}",
+        "location": "New York, NY",
+        "summary": "Greenhouse · posted 2026-11-01",
+    }

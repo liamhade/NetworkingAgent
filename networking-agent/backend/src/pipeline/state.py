@@ -47,6 +47,14 @@ class ConservationJobQuery(BaseModel):
     )
 
 
+class AtsJobQuery(BaseModel):
+    keywords: str = Field(
+        description='Role phrase, 1-3 words, matched against posting titles, e.g. "data '
+        'analyst". No seniority words.'
+    )
+    location: str = Field(description='A city, e.g. "New York", "remote", or "" for anywhere.')
+
+
 class SearchPlan(BaseModel):
     role_titles: list[str] = Field(description="2-3 target role titles.")
     seniority: str = Field(description='e.g. "entry level", "mid level", "senior".')
@@ -62,6 +70,9 @@ class SearchPlan(BaseModel):
     )
     conservation_jobs: list[ConservationJobQuery] = Field(
         description="0-3 Conservation Job Board searches."
+    )
+    ats_jobs: list[AtsJobQuery] = Field(
+        description="0-2 searches of companies' own career boards (Greenhouse)."
     )
     google_queries: list[str] = Field(description="0-2 Google job-search queries.")
 

@@ -16,6 +16,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
 
+import ats
 import config
 import prompts
 import tools
@@ -48,6 +49,7 @@ T = TypeVar("T", bound=BaseModel)
 
 MAX_JOB_QUERIES = 3
 MAX_GOOGLE_QUERIES = 2
+MAX_ATS_QUERIES = 2
 MIN_JOBS_BEFORE_GOOGLE = 5
 """Fewer jobs than this from the planned sources (and no Google query planned) adds one."""
 MAX_JOBS_PER_COMPANY = 4
@@ -138,12 +140,13 @@ def cap_plan(plan: SearchPlan, request: SearchRequest) -> SearchPlan:
             "builtin_jobs": plan.builtin_jobs[:MAX_JOB_QUERIES],
             "builtin_companies": plan.builtin_companies[:1],
             "conservation_jobs": plan.conservation_jobs[:MAX_JOB_QUERIES],
+            "ats_jobs": [q for q in plan.ats_jobs if q.keywords.strip()][:MAX_ATS_QUERIES],
             "google_queries": [q.strip() for q in plan.google_queries if q.strip()][
                 :MAX_GOOGLE_QUERIES
             ],
         }
     )
-    if not (plan.builtin_jobs or plan.conservation_jobs or plan.google_queries):
+    if not (plan.builtin_jobs or plan.conservation_jobs or plan.ats_jobs or plan.google_queries):
         plan.google_queries = [google_fallback_query(plan, request)]
     return plan
 
@@ -245,6 +248,54 @@ def google_job_search(query: str) -> tuple[str, str, dict, Callable[[], list]]:
     )
 
 
+JobRunner = Callable[[str, str, dict, Callable[[], list]], None]
+
+
+def _ats_searches(plan: SearchPlan, run: JobRunner, trace: list[TraceStep]) -> None:
+    """For every planned ATS query and provider: a Google `site:` search for boards, then
+    each new board's postings from its API, until `config.ATS_MAX_BOARDS` boards are read.
+
+    Every board search and board read is its own trace step; a failing one is skipped.
+    """
+    fetched: set[tuple[str, str]] = set()
+    for q in plan.ats_jobs:
+        for provider in ats.PROVIDERS.values():
+            if len(fetched) >= config.ATS_MAX_BOARDS:
+                return
+            keywords, location = q.keywords.strip(), q.location.strip()
+            label = f"{provider.label} boards for “{_short(keywords)}”"
+            status(f"Searching Google for {label}")
+            args = {"provider": provider.name, "keywords": keywords, "location": location}
+            boards, step = call(
+                "find_jobs",
+                "ats_boards",
+                args,
+                lambda p=provider.name, k=keywords, loc=location: tools.ats_boards(p, k, loc),
+            )
+            trace.append(step)
+            if boards is None:
+                status(f"{label} failed: {_short(step.error, 120)}")
+                continue
+            new = [b for b in boards if (b["provider"], b["slug"].lower()) not in fetched]
+            new = new[: config.ATS_MAX_BOARDS - len(fetched)]
+            step.note = f"{len(new)} new boards read"
+            for board in new:
+                fetched.add((board["provider"], board["slug"].lower()))
+                run(
+                    "ats_jobs",
+                    f"{provider.label} board “{board['slug']}”",
+                    {**args, "board": board["slug"], "job_ids": board["job_ids"]},
+                    lambda b=board, k=keywords, loc=location: tools.ats_jobs(
+                        b["provider"],
+                        b["slug"],
+                        k,
+                        loc,
+                        job_ids=b["job_ids"],
+                        n=config.ATS_JOBS_PER_BOARD,
+                    ),
+                )
+
+
 def find_jobs_node(state: PipelineState) -> dict:
     plan = state["plan"]
     jobs: list[Job] = []
@@ -272,6 +323,7 @@ def find_jobs_node(state: PipelineState) -> dict:
 
     for search in _job_searches(plan):
         run(*search)
+    _ats_searches(plan, run, trace)
     if len(jobs) < MIN_JOBS_BEFORE_GOOGLE and not plan.google_queries:
         run(*google_job_search(google_fallback_query(plan, state["request"])))
         trace[-1].note += "; fallback: too few jobs from the planned sources"
