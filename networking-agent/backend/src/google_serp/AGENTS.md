@@ -27,8 +27,8 @@ cd networking-agent\backend
 from google_serp import GoogleSerpSession
 
 session = GoogleSerpSession().start()
-response = session.search("playwright python")   # urls are Google /goto links
-session.resolve_results(response.results[:3])    # real URLs for only these
+response = session.search("playwright python")  # urls are Google /goto links
+session.resolve_results(response.results[:3])  # real URLs for only these
 session.close()
 ```
 
