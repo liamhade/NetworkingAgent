@@ -1,4 +1,4 @@
-"""Where the LLM object used by agent.py lives.
+"""Where the LLM object used by the search pipeline (`pipeline/`) and the resume parser lives.
 
 The model is chosen by the `LLM_MODEL` setting (`<provider>:<model>`, default
 `anthropic:claude-haiku-5-5`), so switching providers is a config change. Code that

@@ -18,6 +18,7 @@ import type {
 } from '@/api'
 import { AlignmentBox } from '@/components/alignment-box'
 import { ConnectMessageBox } from '@/components/connect-message-box'
+import { FindPeopleButton } from '@/components/find-people-button'
 import { AgentThinking } from '@/components/application/agent-thinking/agent-thinking'
 import { Chip } from '@/components/base/badges/chip'
 import { Button } from '@/components/base/buttons/button'
@@ -26,6 +27,8 @@ import { StatusToggle } from '@/components/status-toggle'
 
 type ToggleStatus = (kind: StatusKind, key: string, active: boolean) => void
 type TogglePin = (kind: PinKind, key: string, pinned: boolean) => void
+/** A company came back from an on-demand people search; replace it in the results. */
+type CompanyFound = (company: CompanyResult) => void
 
 interface ResultsProps {
   statuses: string[]
@@ -40,6 +43,9 @@ interface ResultsProps {
   pins: PinMap
   pinError: string | null
   onTogglePin: TogglePin
+  /** Id of the saved search shown; on-demand people searches need it. Null until saved. */
+  searchId: string | null
+  onCompanyFound: CompanyFound
   onBack: () => void
 }
 
@@ -54,6 +60,8 @@ export function Results({
   pins,
   pinError,
   onTogglePin,
+  searchId,
+  onCompanyFound,
   onBack,
 }: ResultsProps) {
   return (
@@ -91,6 +99,8 @@ export function Results({
                     onToggleStatus={onToggleStatus}
                     pins={pins}
                     onTogglePin={onTogglePin}
+                    searchId={searchId}
+                    onCompanyFound={onCompanyFound}
                   />
                 </li>
               ))}
@@ -157,6 +167,8 @@ interface CompanyCardProps {
   onToggleStatus: ToggleStatus
   pins: PinMap
   onTogglePin: TogglePin
+  searchId: string | null
+  onCompanyFound: CompanyFound
 }
 
 function CompanyCard({
@@ -166,8 +178,11 @@ function CompanyCard({
   onToggleStatus,
   pins,
   onTogglePin,
+  searchId,
+  onCompanyFound,
 }: CompanyCardProps) {
   const companyKey = company.key
+  const searchedEmpty = company.people_searched && company.people.length === 0
   return (
     <article className="flex flex-col gap-4 rounded-3xl border border-border-button-default bg-background-primary-default p-5">
       <div className="flex flex-col gap-2">
@@ -183,6 +198,11 @@ function CompanyCard({
             <p className="text-body-2-regular text-text-secondary">{company.description}</p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {company.score != null && (
+              <Chip variant="caption" color="soft">
+                Fit {company.score}
+              </Chip>
+            )}
             <Chip variant="caption" color="soft">
               {company.jobs.length} {company.jobs.length === 1 ? 'job' : 'jobs'}
             </Chip>
@@ -211,8 +231,27 @@ function CompanyCard({
               onToggle={(active) => onToggleStatus('job', job.key, active)}
               pinned={pins.job[job.key] ?? false}
               onTogglePin={(pinned) => onTogglePin('job', job.key, pinned)}
+              findPeople={
+                companyKey && job.key ? (
+                  <FindPeopleButton
+                    searchId={searchId}
+                    companyKey={companyKey}
+                    jobKey={job.key}
+                    target={`${job.title} at ${company.name}`}
+                    onFound={onCompanyFound}
+                  />
+                ) : null
+              }
             />
           ))}
+        </Section>
+      )}
+
+      {searchedEmpty && (
+        <Section icon={RiUserLine} title="People to connect with">
+          <li className="text-body-2-regular text-text-tertiary">
+            No current employees found yet.
+          </li>
         </Section>
       )}
 
@@ -229,6 +268,16 @@ function CompanyCard({
             />
           ))}
         </Section>
+      )}
+
+      {companyKey && (
+        <FindPeopleButton
+          searchId={searchId}
+          companyKey={companyKey}
+          target={company.name}
+          label={company.people.length > 0 ? 'Find more people' : undefined}
+          onFound={onCompanyFound}
+        />
       )}
     </article>
   )
@@ -266,7 +315,8 @@ function JobRow({
   onToggle,
   pinned,
   onTogglePin,
-}: { job: JobResult; applied: boolean } & RowToggleProps) {
+  findPeople,
+}: { job: JobResult; applied: boolean; findPeople: React.ReactNode } & RowToggleProps) {
   const meta = [job.location, job.salary].filter(Boolean).join(' · ')
   return (
     <li className="flex flex-col gap-1.5">
@@ -285,6 +335,7 @@ function JobRow({
         )}
       </div>
       <AlignmentBox text={job.alignment} />
+      {findPeople}
     </li>
   )
 }

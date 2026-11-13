@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pdf_utils import make_pdf
 
-import agent
+import pipeline
 import resume
 import server
 from schemas import (
@@ -16,6 +16,8 @@ from schemas import (
     SearchRequest,
     SearchResults,
     StatusEvent,
+    TraceEvent,
+    TraceStep,
 )
 from userdata import history
 
@@ -61,7 +63,7 @@ def test_search_streams_sse(monkeypatch: pytest.MonkeyPatch) -> None:
         yield StatusEvent(message="Working")
         yield ResultEvent(data=results)
 
-    monkeypatch.setattr(agent, "run_search", fake_run_search)
+    monkeypatch.setattr(pipeline, "run_search", fake_run_search)
     body = {"background": "Analyst", "location": "NYC", "looking_for": "Data roles"}
     with client.stream("POST", "/api/search", json=body) as response:
         assert response.headers["content-type"].startswith("text/event-stream")
@@ -93,7 +95,7 @@ def test_search_error_is_not_saved(monkeypatch: pytest.MonkeyPatch) -> None:
         yield StatusEvent(message="Working")
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(agent, "run_search", failing_run_search)
+    monkeypatch.setattr(pipeline, "run_search", failing_run_search)
     body = {"background": "Analyst", "location": "", "looking_for": "Data roles"}
     with client.stream("POST", "/api/search", json=body) as response:
         types = [
@@ -127,7 +129,7 @@ def _company(job_url: str, person_url: str) -> CompanyResult:
 
 
 def _run(monkeypatch: pytest.MonkeyPatch, results: SearchResults) -> list[dict]:
-    monkeypatch.setattr(agent, "run_search", lambda request: iter([ResultEvent(data=results)]))
+    monkeypatch.setattr(pipeline, "run_search", lambda request: iter([ResultEvent(data=results)]))
     body = {"background": "Analyst", "location": "", "looking_for": "Data roles"}
     with client.stream("POST", "/api/search", json=body) as response:
         return [
@@ -272,3 +274,65 @@ def test_set_pin_validates_input() -> None:
     assert empty.status_code == 422
     missing = client.put("/api/pins", json={"kind": "job", "key": "job:x"})
     assert missing.status_code == 422
+
+
+def test_trace_is_saved_with_the_search_but_not_streamed(monkeypatch: pytest.MonkeyPatch) -> None:
+    results = SearchResults(summary="ok", companies=[])
+    trace = [
+        TraceStep(step="find_people", source="linkedin_people", args={"company": "Ramp"}, count=0)
+    ]
+
+    def fake_run_search(request):
+        yield TraceEvent(steps=trace)
+        yield ResultEvent(data=results)
+
+    monkeypatch.setattr(pipeline, "run_search", fake_run_search)
+    body = {"background": "Analyst", "location": "", "looking_for": "Data roles"}
+    with client.stream("POST", "/api/search", json=body) as response:
+        types = [
+            json.loads(line.removeprefix("data: "))["type"]
+            for line in response.iter_lines()
+            if line.startswith("data: ")
+        ]
+    assert types == ["result", "saved"]
+    [saved] = history.load_searches("TEST_USER")
+    assert saved.trace == trace
+
+
+def test_old_saved_searches_without_new_fields_still_load(isolated_database) -> None:
+    folder = isolated_database / "users" / "TEST_USER" / "searches"
+    folder.mkdir(parents=True)
+    old = {
+        "id": "a" * 32,
+        "title": "Old",
+        "created_at": "2026-11-01T10:00:00Z",
+        "user_id": "TEST_USER",
+        "request": {"background": "b", "location": "", "looking_for": "l"},
+        "results": {
+            "summary": "s",
+            "companies": [
+                {
+                    "name": "Acme",
+                    "url": "u",
+                    "description": "d",
+                    "alignment": "a",
+                    "jobs": [
+                        {
+                            "title": "t",
+                            "url": "https://acme.com/j",
+                            "location": "",
+                            "salary": "",
+                            "alignment": "a",
+                        }
+                    ],
+                    "people": [],
+                }
+            ],
+        },
+    }
+    (folder / f"{'a' * 32}.json").write_text(json.dumps(old), encoding="utf-8")
+    record = client.get(f"/api/searches/{'a' * 32}").json()
+    assert record["trace"] is None
+    company = record["results"]["companies"][0]
+    assert (company["score"], company["people_searched"]) == (None, False)
+    assert company["jobs"][0]["score"] is None

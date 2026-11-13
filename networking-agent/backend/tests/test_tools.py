@@ -1,12 +1,10 @@
-import json
-
 import pytest
 
-import prompts
 import tools
-from builtin_nyc.models import Company, ExperienceLevel, Job, JobCategory
+from builtin_nyc.models import Company, CompanyFilter, ExperienceLevel, Job, JobCategory, JobFilter
 from conservation_jobboard.models import Category, Location
 from conservation_jobboard.models import Job as ConservationJob
+from conservation_jobboard.models import JobFilter as ConservationJobFilter
 from google_serp import SearchResponse, SearchResult
 
 
@@ -32,15 +30,13 @@ def test_search_builtin_jobs_builds_filter_and_clips(monkeypatch: pytest.MonkeyP
         return [_job(1), _job(2)]
 
     monkeypatch.setattr(tools.builtin_api, "get_jobs", fake_get_jobs)
-    out = json.loads(
-        tools.search_builtin_jobs.invoke(
-            {
-                "search": "analyst",
-                "category": "data-analytics",
-                "experience_levels": ["junior"],
-                "n": 2,
-            }
-        )
+    out = tools.builtin_jobs(
+        JobFilter(
+            search="analyst",
+            category=JobCategory.DATA_ANALYTICS,
+            experience_levels=[ExperienceLevel.JUNIOR],
+        ),
+        n=2,
     )
     assert seen["n"] == 2
     assert seen["filter"].search == "analyst"
@@ -60,17 +56,17 @@ def test_search_builtin_companies(monkeypatch: pytest.MonkeyPatch) -> None:
         return [Company(id=1, name="Ramp", url="https://www.builtinnyc.com/company/ramp")]
 
     monkeypatch.setattr(tools.builtin_api, "get_companies", fake_get_companies)
-    out = json.loads(tools.search_builtin_companies.invoke({"industries": ["fintech"]}))
+    out = tools.builtin_companies(CompanyFilter(industries=["fintech"], hiring_only=True))
     assert out[0]["name"] == "Ramp"
 
 
-def test_tool_errors_are_returned_not_raised(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_source_errors_are_raised(monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(*_):
         raise RuntimeError("404 Not Found")
 
     monkeypatch.setattr(tools.builtin_api, "get_companies", boom)
-    out = json.loads(tools.search_builtin_companies.invoke({"industries": ["nope"]}))
-    assert "404" in out["error"]
+    with pytest.raises(RuntimeError, match="404"):
+        tools.builtin_companies(CompanyFilter(industries=["nope"]))
 
 
 def _serp(*results):
@@ -90,7 +86,7 @@ def test_google_search(monkeypatch: pytest.MonkeyPatch) -> None:
             }
         ),
     )
-    out = json.loads(tools.google_search.invoke({"query": "analyst jobs"}))
+    out = tools.google_search("analyst jobs")
     assert out == [
         {
             "title": "Jobs",
@@ -101,12 +97,13 @@ def test_google_search(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
-def test_google_errors_are_returned(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_google_errors_are_raised(monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(q, pick=None):
         raise RuntimeError("Chrome not found")
 
     monkeypatch.setattr(tools, "run_google_search", boom)
-    assert "Chrome not found" in json.loads(tools.google_search.invoke({"query": "x"}))["error"]
+    with pytest.raises(RuntimeError, match="Chrome not found"):
+        tools.google_search("x")
 
 
 def test_search_conservation_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -127,9 +124,11 @@ def test_search_conservation_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
         ]
 
     monkeypatch.setattr(tools.conservation_api, "get_jobs", fake_get_jobs)
-    out = json.loads(
-        tools.search_conservation_jobs.invoke(
-            {"keyword": "wildlife", "categories": ["wildlife"], "locations": ["colorado", "remote"]}
+    out = tools.conservation_jobs(
+        ConservationJobFilter(
+            keyword="wildlife",
+            categories=[Category.WILDLIFE],
+            locations=[Location.COLORADO, Location.REMOTE],
         )
     )
     assert seen["n"] == 15
@@ -150,15 +149,10 @@ def test_search_conservation_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
-def test_search_conservation_jobs_errors_are_returned(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_search_conservation_jobs_errors_are_raised(monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(*_):
         raise RuntimeError("403 Forbidden")
 
     monkeypatch.setattr(tools.conservation_api, "get_jobs", boom)
-    out = json.loads(tools.search_conservation_jobs.invoke({"keyword": "x"}))
-    assert "403" in out["error"]
-
-
-def test_search_conservation_jobs_is_registered() -> None:
-    assert tools.search_conservation_jobs in tools.ALL_TOOLS
-    assert "search_conservation_jobs" in prompts.RESEARCH_PROMPT
+    with pytest.raises(RuntimeError, match="403"):
+        tools.conservation_jobs(ConservationJobFilter(keyword="x"))

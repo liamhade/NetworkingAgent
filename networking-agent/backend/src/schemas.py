@@ -1,12 +1,17 @@
 """Request, response and result models shared by the agent and the server."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.json_schema import SkipJsonSchema
 
 import config
+
+SCORE_DESCRIPTION = (
+    "Fit with the user's profile, 0-100, from the ranking step (`pipeline`). Results are "
+    "sorted by it. Hidden from the LLM's structured-output schema; None for older searches."
+)
 
 ENTITY_KEY_DESCRIPTION = (
     "Stable identity across searches, filled in by the server (`entities.keys`). "
@@ -41,6 +46,7 @@ class JobResult(BaseModel):
     location: str = Field(description="Location / work arrangement, or empty string.")
     salary: str = Field(description="Salary text if listed, else empty string.")
     alignment: str = Field(description="1-3 sentences on why this job fits the user.")
+    score: SkipJsonSchema[int | None] = Field(default=None, description=SCORE_DESCRIPTION)
     key: SkipJsonSchema[str] = Field(default="", description=ENTITY_KEY_DESCRIPTION)
 
 
@@ -110,6 +116,17 @@ class CompanyResult(BaseModel):
     alignment: str = Field(description="1-3 sentences on why this company fits the user.")
     jobs: list[JobResult]
     people: list[PersonResult]
+    score: SkipJsonSchema[int | None] = Field(default=None, description=SCORE_DESCRIPTION)
+    people_searched: SkipJsonSchema[bool] = Field(
+        default=False,
+        description="True once a people search ran for this company, so an empty `people` "
+        'means "no one found" rather than "not searched yet". Set by the server.',
+    )
+    people_keywords: SkipJsonSchema[list[str]] = Field(
+        default=[],
+        description="People-search keyword sets from the ranking step, reused by the "
+        "on-demand people search. Set by the server.",
+    )
     key: SkipJsonSchema[str] = Field(default="", description=ENTITY_KEY_DESCRIPTION)
 
 
@@ -126,12 +143,30 @@ class SearchSummary(BaseModel):
     created_at: datetime
 
 
+class TraceStep(BaseModel):
+    """One step of a search run: a source call, an LLM call or a validation.
+
+    Saved with the search so "why is this list empty?" can be answered from data later.
+    """
+
+    step: str = Field(description='Pipeline node, e.g. "find_people".')
+    source: str = Field(description='"llm", "linkedin_people", "builtin_jobs", "validate", ...')
+    args: dict[str, Any] = {}
+    count: int | None = Field(default=None, description="Results returned, if it applies.")
+    error: str = ""
+    duration_ms: int = 0
+    note: str = ""
+
+
 class SavedSearch(SearchSummary):
     """A persisted search: what was asked and what came back."""
 
     user_id: str
     request: SearchRequest
     results: SearchResults
+    trace: list[TraceStep] | None = Field(
+        default=None, description="How the results were found; None for older searches."
+    )
 
 
 EntityStatusKind = Literal["job", "person"]
@@ -166,6 +201,13 @@ class EntityPin(PinUpdate):
     updated_at: datetime
 
 
+class FindPeopleRequest(BaseModel):
+    """On-demand people search for one company of a saved search, optionally for one job."""
+
+    company_key: str = Field(min_length=1, max_length=1000)
+    job_key: str | None = Field(default=None, max_length=1000)
+
+
 class StatusEvent(BaseModel):
     type: Literal["status"] = "status"
     message: str
@@ -181,12 +223,20 @@ class ErrorEvent(BaseModel):
     message: str
 
 
+class TraceEvent(BaseModel):
+    """The run's trace, sent just before `ResultEvent`. Server-internal: saved with the
+    search, never streamed to the browser."""
+
+    type: Literal["trace"] = "trace"
+    steps: list[TraceStep]
+
+
 class SavedEvent(BaseModel):
     type: Literal["saved"] = "saved"
     search: SearchSummary
 
 
-AgentEvent = StatusEvent | ResultEvent | ErrorEvent | SavedEvent
+AgentEvent = StatusEvent | ResultEvent | ErrorEvent | TraceEvent | SavedEvent
 
 
 class Sighting(BaseModel):

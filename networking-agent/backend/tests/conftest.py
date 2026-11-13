@@ -13,7 +13,11 @@ from pydantic import BaseModel
 
 
 class ScriptedChatModel(BaseChatModel):
-    """Returns `responses` in order; `structured` is returned by with_structured_output."""
+    """Returns `responses` in order; `structured` is returned by with_structured_output.
+
+    `structured` may be a dict `{schema: answer}` to answer each schema differently; an
+    answer that is an exception is raised.
+    """
 
     responses: list[AIMessage] = []
     structured: Any = None
@@ -41,7 +45,12 @@ class ScriptedChatModel(BaseChatModel):
     def with_structured_output(self, schema: type[BaseModel], **kwargs: Any):
         def run(messages: Any) -> Any:
             self.structured_calls.append({"schema": schema, "kwargs": kwargs, "input": messages})
-            return self.structured
+            answer = self.structured
+            if isinstance(answer, dict) and all(isinstance(k, type) for k in answer):
+                answer = answer.get(schema)
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
 
         return RunnableLambda(run)
 

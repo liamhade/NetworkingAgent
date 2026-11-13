@@ -51,6 +51,7 @@ const TASKS = [
   { title: "Clean up google_serp (and builtin_nyc) modules", status: "done", commit: "cf65f13", note: "Removed cli/__main__/errors/metadata/pagination; google_serp 643 → 337 lines, builtin_nyc 427 → 381; agent behavior (profile, CAPTCHA, /goto, cache) unchanged." },
   { title: "Frontend test runner + pinned-behavior tests", status: "done", commit: "fcb9736", note: "Vitest + jsdom + Testing Library (npm run test): 52 tests across sort, counts, toggle hook, PinToggle, and App-level pin/sort/rollback flows." },
   { title: "Conservation Job Board support", status: "done", commit: "03477e5", note: "conservation_jobboard module (server-rendered HTML; browser check found no JSON API) + search_conservation_jobs agent tool; offline fixture tests." },
+  { title: "Enforced LangGraph search pipeline", status: "done", note: "plan → find_jobs → rank_companies (0-100 fit) → find_people (top 3, fallback ladder) → read_postings → compile; per-search trace; parallel on-demand \"Find People To Connect With\" button." },
 ];
 
 function render() {

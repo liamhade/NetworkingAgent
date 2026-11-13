@@ -4,9 +4,11 @@ Type in your background, where you live and what you're looking for (or upload a
 PDF), and the agent returns companies to research, open jobs, and people to network
 with, each with a note on how you align. Design: [docs/v1/plan.md](docs/v1/plan.md).
 
-- `backend/`: FastAPI + LangChain agent (Python 3.11). Tools wrap two packages in
-  `backend/src/`: `builtin_nyc` (BuiltInNYC jobs/companies) and `google_serp` (Google
-  search through Chrome, used for LinkedIn people and non-NYC jobs). Per-user data
+- `backend/`: FastAPI + a LangGraph search pipeline (Python 3.11, `backend/src/pipeline/`,
+  plan: [docs/langgraph-pipeline/plan.md](docs/langgraph-pipeline/plan.md)). Its data
+  sources (`backend/src/tools.py`) wrap `builtin_nyc` (BuiltInNYC jobs/companies),
+  `conservation_jobboard`, `read_page` and `google_serp` (Google search through Chrome,
+  used for LinkedIn people and non-NYC jobs). Per-user data
   (accounts, search history, APPLIED/CONNECTED statuses) lives in `backend/src/userdata/`;
   stable job/person/company keys in `backend/src/entities/keys.py`.
 - `research/`: scripts used to reverse-engineer those two sites (not used at runtime).
@@ -64,6 +66,10 @@ npm run build
 |---|---|---|
 | `LLM_MODEL` | `anthropic:claude-haiku-5-5` | Model used by the agent and resume parser |
 | `ANTHROPIC_KEY` / `ANTHROPIC_API_KEY` | | API key (`<PROVIDER>_KEY` works for other providers) |
-| `AGENT_RECURSION_LIMIT` | `40` | Max agent steps before compiling results |
+| `MAX_COMPANIES` | `6` | Companies a search returns, ranked by fit (0-100) |
+| `PEOPLE_AUTO_COMPANIES` | `3` | Top-ranked companies that get a people search automatically |
+| `PEOPLE_PER_COMPANY` | `3` | People-search ladder stops at this many current employees |
+| `PEOPLE_SEARCH_N` | `5` | Profiles asked for per people search |
+| `READ_POSTINGS` | `2` | Job postings read in full for the results (0 = off) |
 | `GOOGLE_RESOLVE_URLS` | `true` | Follow Google redirects to real URLs (slower) |
 | `CORS_ORIGINS` | `http://localhost:5173,...` | Allowed browser origins |

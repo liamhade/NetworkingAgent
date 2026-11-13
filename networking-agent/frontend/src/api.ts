@@ -14,6 +14,8 @@ export interface JobResult {
   location: string
   salary: string
   alignment: string
+  /** Fit with the user's profile, 0-100 (server-computed); absent on older searches. */
+  score?: number | null
   /** Stable identity across searches (server-computed); keys the APPLIED toggle. */
   key: string
 }
@@ -36,6 +38,14 @@ export interface CompanyResult {
   alignment: string
   jobs: JobResult[]
   people: PersonResult[]
+  /** Fit with the user's profile, 0-100; results come sorted by it. Absent on older searches. */
+  score?: number | null
+  /**
+   * True once a people search ran for this company, so an empty `people` means "no one
+   * found" rather than "not searched yet". Only the top companies are searched during a
+   * search; the rest on demand (`findPeople`).
+   */
+  people_searched?: boolean
   /** Stable identity across searches (server-computed); keys the pin. Absent if unkeyed. */
   key?: string
 }
@@ -133,7 +143,26 @@ export const getCurrentUser = (signal?: AbortSignal) => getJson<User>('/api/me',
 export const listSearches = (signal?: AbortSignal) =>
   getJson<SearchSummary[]>('/api/searches', signal)
 
-export const getSearch = (id: string, signal?: AbortSignal) =>
+/**
+ * Find people to connect with at one company of a saved search, optionally for one of its
+ * jobs. The server saves them into the search and returns the updated company. Several
+ * calls can run at once.
+ */
+export async function findPeople(
+  searchId: string,
+  companyKey: string,
+  jobKey?: string,
+): Promise<CompanyResult> {
+  const response = await fetch(`/api/searches/${encodeURIComponent(searchId)}/people`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ company_key: companyKey, job_key: jobKey ?? null }),
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
+  return response.json()
+}
+
+export const getSearch =(id: string, signal?: AbortSignal) =>
   getJson<SavedSearch>(`/api/searches/${encodeURIComponent(id)}`, signal)
 
 /** Entities with a toggle: jobs (APPLIED) and people (CONNECTED). */

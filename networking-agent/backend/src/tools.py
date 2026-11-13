@@ -1,50 +1,36 @@
-"""LangChain tools that expose the two backbone packages (both in `src/`) to the agent.
+"""Shared data-source functions used by the search pipeline (`pipeline.steps`).
 
-- `builtin_nyc`: BuiltInNYC jobs and companies.
-- `conservation_jobboard`: Conservation Job Board jobs (conservation/environmental roles).
-- `google_serp`: Google search through real Chrome.
-- `read_page`: read any web page (job posting, careers/team page) as Markdown.
+- `builtin_jobs` / `builtin_companies`: BuiltInNYC jobs and companies (`builtin_nyc`).
+- `conservation_jobs`: Conservation Job Board jobs (`conservation_jobboard`).
+- `google_search`: Google search through real Chrome (`google_serp`), one shared worker.
+- `linkedin_people`: LinkedIn profiles at a company, found through Google (`linkedin`).
+- `read_page`: any web page as Markdown (`read_page`).
 
-Every tool returns a compact JSON string. Errors are returned as `{"error": ...}`
-instead of raised, so the agent can change its query and keep going.
+Each returns compact, JSON-friendly dicts (long text clipped) and raises on failure; the
+pipeline records errors in its trace and keeps going.
 """
 
 import atexit
-import json
 import logging
 import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Literal, TypeVar
-
-from langchain_core.tools import BaseTool, tool
-from pydantic import BaseModel, Field
+from typing import Any
 
 import config
 import google_serp
 import linkedin
 import read_page as read_page_pkg
 from builtin_nyc import api as builtin_api
-from builtin_nyc.models import (
-    CompanyFilter,
-    CompanySize,
-    ExperienceLevel,
-    JobCategory,
-    JobFilter,
-    RemotePreference,
-)
+from builtin_nyc.models import CompanyFilter, JobFilter
 from conservation_jobboard import api as conservation_api
-from conservation_jobboard.models import Category, JobType, Location
-from conservation_jobboard.models import ExperienceLevel as ConservationExperience
 from conservation_jobboard.models import JobFilter as ConservationJobFilter
 
 log = logging.getLogger(__name__)
 
-T = TypeVar("T")
-
 MAX_TEXT = 300
-"""Longest description/snippet passed back to the model, in characters."""
+"""Longest description/snippet passed on to the model, in characters."""
 
 
 def _clip(text: str | None, limit: int = MAX_TEXT) -> str | None:
@@ -53,197 +39,66 @@ def _clip(text: str | None, limit: int = MAX_TEXT) -> str | None:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def _dump(payload: Any) -> str:
-    return json.dumps(payload, ensure_ascii=False)
-
-
-def _error(exc: Exception) -> str:
-    log.warning("Tool error: %s", exc)
-    return _dump({"error": f"{type(exc).__name__}: {exc}"})
-
-
 # ----------------------------------------------------------------------- BuiltInNYC
 
 
-class BuiltinJobsArgs(BaseModel):
-    search: str | None = Field(
-        default=None, description='Free-text search, e.g. "data analyst" or "python".'
-    )
-    category: JobCategory | None = Field(default=None, description="Top-level job category.")
-    experience_levels: list[ExperienceLevel] = Field(default=[], description="Seniority levels.")
-    remote_preferences: list[RemotePreference] = Field(
-        default=[], description='"remote", "hybrid" and/or "office" (on-site).'
-    )
-    n: int = Field(default=15, ge=1, le=30, description="Maximum jobs to return.")
+def builtin_jobs(job_filter: JobFilter, n: int = 15) -> list[dict[str, Any]]:
+    """BuiltInNYC job postings (NYC tech/startup jobs, plus remote) matching `job_filter`."""
+    return [
+        {
+            "title": j.title,
+            "url": j.url,
+            "company": j.company_name,
+            "company_url": j.company_url,
+            "location": j.location,
+            "work_arrangement": j.work_arrangement,
+            "salary": j.salary,
+            "experience_level": j.experience_level,
+            "posted": j.posted,
+            "industries": j.industries,
+            "skills": j.skills[:8],
+            "summary": _clip(j.description),
+        }
+        for j in builtin_api.get_jobs(job_filter, n)
+    ]
 
 
-@tool("search_builtin_jobs", args_schema=BuiltinJobsArgs)
-def search_builtin_jobs(
-    search: str | None = None,
-    category: JobCategory | None = None,
-    experience_levels: list[ExperienceLevel] | None = None,
-    remote_preferences: list[RemotePreference] | None = None,
-    n: int = 15,
-) -> str:
-    """Search job postings on BuiltInNYC (tech/startup jobs in New York City, plus remote).
-
-    Returns jobs with title, posting URL, company, location, salary, level and skills.
-    Use a short search phrase (1-3 words); combine with category/level filters.
-    """
-    try:
-        jobs = builtin_api.get_jobs(
-            JobFilter(
-                search=search,
-                category=category,
-                experience_levels=experience_levels or [],
-                remote_preferences=remote_preferences or [],
-            ),
-            n,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return _error(exc)
-    return _dump(
-        [
-            {
-                "title": j.title,
-                "url": j.url,
-                "company": j.company_name,
-                "company_url": j.company_url,
-                "location": j.location,
-                "work_arrangement": j.work_arrangement,
-                "salary": j.salary,
-                "experience_level": j.experience_level,
-                "posted": j.posted,
-                "industries": j.industries,
-                "skills": j.skills[:8],
-                "summary": _clip(j.description),
-            }
-            for j in jobs
-        ]
-    )
-
-
-class BuiltinCompaniesArgs(BaseModel):
-    industries: list[str] = Field(
-        default=[],
-        description='BuiltIn industry aliases (lowercase, hyphenated), e.g. "fintech", '
-        '"artificial-intelligence", "healthtech", "edtech", "greentech", "software", '
-        '"cybersecurity", "consumer-web", "media", "nonprofit".',
-    )
-    sizes: list[CompanySize] = Field(default=[], description="Employee-count buckets.")
-    tech_stack: list[str] = Field(default=[], description='Tech aliases, e.g. "python".')
-    hiring_only: bool = Field(default=True, description="Only companies with open jobs.")
-    fully_remote: bool = Field(default=False, description="Only fully remote companies.")
-    n: int = Field(default=15, ge=1, le=30, description="Maximum companies to return.")
-
-
-@tool("search_builtin_companies", args_schema=BuiltinCompaniesArgs)
-def search_builtin_companies(
-    industries: list[str] | None = None,
-    sizes: list[CompanySize] | None = None,
-    tech_stack: list[str] | None = None,
-    hiring_only: bool = True,
-    fully_remote: bool = False,
-    n: int = 15,
-) -> str:
-    """List companies on BuiltInNYC (New York City tech companies) by industry, size or stack.
-
-    Returns company name, BuiltIn profile URL, industries, size, whether it is hiring,
-    and its mission/description.
-    """
-    try:
-        companies = builtin_api.get_companies(
-            CompanyFilter(
-                industries=industries or [],
-                sizes=sizes or [],
-                tech_stack=tech_stack or [],
-                hiring_only=hiring_only,
-                fully_remote=fully_remote,
-            ),
-            n,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return _error(exc)
-    return _dump(
-        [
-            {
-                "name": c.name,
-                "url": c.url,
-                "industries": c.industries,
-                "employees": c.employee_count,
-                "offices": c.office_locations[:5],
-                "is_hiring": c.is_hiring,
-                "mission": _clip(c.mission),
-                "description": _clip(c.description),
-            }
-            for c in companies
-        ]
-    )
+def builtin_companies(company_filter: CompanyFilter, n: int = 15) -> list[dict[str, Any]]:
+    """BuiltInNYC companies (NYC tech companies) matching `company_filter`."""
+    return [
+        {
+            "name": c.name,
+            "url": c.url,
+            "industries": c.industries,
+            "employees": c.employee_count,
+            "offices": c.office_locations[:5],
+            "is_hiring": c.is_hiring,
+            "mission": _clip(c.mission),
+            "description": _clip(c.description),
+        }
+        for c in builtin_api.get_companies(company_filter, n)
+    ]
 
 
 # ------------------------------------------------------------ Conservation Job Board
 
 
-class ConservationJobsArgs(BaseModel):
-    keyword: str | None = Field(
-        default=None, description='Free-text search, e.g. "biologist" or "trail crew".'
-    )
-    categories: list[Category] = Field(default=[], description="Job categories (any of).")
-    locations: list[Location] = Field(
-        default=[], description='US states, "remote", or world regions (any of).'
-    )
-    job_types: list[JobType] = Field(default=[], description="Job types (any of).")
-    experience_levels: list[ConservationExperience] = Field(
-        default=[], description='Minimum experience: "entry" (0-1 yr), "mid" (2-4), "senior" (5+).'
-    )
-    n: int = Field(default=15, ge=1, le=30, description="Maximum jobs to return.")
-
-
-@tool("search_conservation_jobs", args_schema=ConservationJobsArgs)
-def search_conservation_jobs(
-    keyword: str | None = None,
-    categories: list[Category] | None = None,
-    locations: list[Location] | None = None,
-    job_types: list[JobType] | None = None,
-    experience_levels: list[ConservationExperience] | None = None,
-    n: int = 15,
-) -> str:
-    """Search the Conservation Job Board: conservation, environmental, nature, wildlife,
-    forestry, outdoor recreation and sustainability jobs (mostly US, some remote/international).
-
-    Returns jobs with title, posting URL, organization, location, job type, salary, minimum
-    experience, application deadline and posted date. Filters combine (AND); keep the
-    keyword short (1-2 words) or leave it out and filter by category and location.
-    """
-    try:
-        jobs = conservation_api.get_jobs(
-            ConservationJobFilter(
-                keyword=keyword,
-                categories=categories or [],
-                locations=locations or [],
-                job_types=job_types or [],
-                experience_levels=experience_levels or [],
-            ),
-            n,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return _error(exc)
-    return _dump(
-        [
-            {
-                "title": j.title,
-                "url": j.url,
-                "company": j.organization,
-                "location": j.location,
-                "job_type": j.job_type,
-                "salary": j.salary,
-                "experience": j.experience,
-                "deadline": j.deadline,
-                "posted": j.posted,
-            }
-            for j in jobs
-        ]
-    )
+def conservation_jobs(job_filter: ConservationJobFilter, n: int = 15) -> list[dict[str, Any]]:
+    """Conservation Job Board postings (conservation/environmental jobs, mostly US)."""
+    return [
+        {
+            "title": j.title,
+            "url": j.url,
+            "company": j.organization,
+            "location": j.location,
+            "job_type": j.job_type,
+            "salary": j.salary,
+            "experience": j.experience,
+            "deadline": j.deadline,
+            "posted": j.posted,
+        }
+        for j in conservation_api.get_jobs(job_filter, n)
+    ]
 
 
 # --------------------------------------------------------------------------- Google
@@ -385,53 +240,21 @@ def shutdown() -> None:
     read_page_pkg.shutdown()
 
 
-def _safe(fn: Callable[[], T]) -> T | str:
-    try:
-        return fn()
-    except Exception as exc:  # noqa: BLE001
-        return _error(exc)
-
-
-class GoogleSearchArgs(BaseModel):
-    query: str = Field(description="Google query. Operators like site: and quotes work.")
-    n: int = Field(default=10, ge=1, le=10, description="Maximum results to return.")
-
-
-@tool("google_search", args_schema=GoogleSearchArgs)
-def google_search(query: str, n: int = 10) -> str:
-    """Search Google. Returns title, URL, site and snippet for each organic result.
-
-    Good for job postings outside NYC (e.g. `"data analyst" jobs Boston site:greenhouse.io`),
-    company research, and company websites. Each call takes 2-25 seconds (larger n is slower).
-    """
-    response = _safe(lambda: run_google_search(query, pick=lambda results: results[:n]))
-    if isinstance(response, str):
-        return response
-    return _dump(
-        [
-            {
-                "title": r.title,
-                "url": r.url,
-                "site": r.site_name,
-                "snippet": _clip(r.snippet),
-            }
-            for r in response.results[:n]
-        ]
-    )
+def google_search(query: str, n: int = 10) -> list[dict[str, Any]]:
+    """Organic Google results (title, URL, site, snippet). Takes 2-25 s (larger n is slower)."""
+    response = run_google_search(query, pick=lambda results: results[:n])
+    return [
+        {"title": r.title, "url": r.url, "site": r.site_name, "snippet": _clip(r.snippet)}
+        for r in response.results[:n]
+    ]
 
 
 LINKEDIN_RETRY_DELAY_S = 6.0
 """Pause before asking again when Google ignored `site:linkedin.com/in`."""
 
 
-class LinkedInPeopleArgs(BaseModel):
-    company: str = Field(description="Company name, e.g. 'Ramp'.")
-    keywords: str = Field(
-        description='Role/team keywords, e.g. "data science manager" or "recruiter". '
-        'Describe the person, not a job opening (avoid "jobs", "hiring", "opening").'
-    )
-    location: str = Field(default="", description="Optional city, e.g. 'New York'.")
-    n: int = Field(default=5, ge=1, le=10, description="Maximum people to return.")
+class OperatorIgnoredError(RuntimeError):
+    """Google kept serving job listings instead of LinkedIn profiles."""
 
 
 def _search_profiles(query: str, company: str, n: int) -> tuple[list[dict], bool]:
@@ -461,84 +284,36 @@ def _search_profiles(query: str, company: str, n: int) -> tuple[list[dict], bool
     return people[:n], seen["ignored"]
 
 
-@tool("linkedin_people", args_schema=LinkedInPeopleArgs)
-def linkedin_people(company: str, keywords: str, location: str = "", n: int = 5) -> str:
-    """Find people at a company to network with: LinkedIn profiles found through Google.
+def linkedin_people(
+    company: str, keywords: str, location: str = "", n: int = 5
+) -> list[dict[str, Any]]:
+    """LinkedIn profiles of people at `company`, found through Google.
 
-    Returns only linkedin.com/in profiles, current employees first: name, headline, current
-    title and company, at_company (false = may work elsewhere now), location, profile URL and
-    snippet. Each call takes 2-25 seconds (larger n is slower).
+    Only linkedin.com/in profiles, current employees first: name, headline, current title
+    and company, `at_company` (False = may work elsewhere now), location, URL and snippet.
+    Raises `OperatorIgnoredError` if Google ignored `site:` twice. Takes 2-25 s.
     """
-    try:
+    people, ignored = _search_profiles(
+        linkedin.build_query(company, keywords, location), company, n
+    )
+    if ignored:
+        # Google sometimes drops the site: operator and serves job boards instead;
+        # asking again shortly after (operator moved to the end) usually works.
+        log.info("Google ignored site:linkedin.com/in for %r; retrying", company)
+        time.sleep(LINKEDIN_RETRY_DELAY_S)
         people, ignored = _search_profiles(
-            linkedin.build_query(company, keywords, location), company, n
+            linkedin.retry_query(company, keywords, location), company, n
         )
-        if ignored:
-            # Google sometimes drops the site: operator and serves job boards instead;
-            # asking again shortly after (operator moved to the end) usually works.
-            log.info("Google ignored site:linkedin.com/in for %r; retrying", company)
-            time.sleep(LINKEDIN_RETRY_DELAY_S)
-            people, ignored = _search_profiles(
-                linkedin.retry_query(company, keywords, location), company, n
-            )
-    except Exception as exc:  # noqa: BLE001
-        return _error(exc)
     if not people and ignored:
-        return _dump(
-            {
-                "error": "Google returned job listings instead of LinkedIn profiles. "
-                "Try again later or with different keywords."
-            }
+        raise OperatorIgnoredError(
+            "Google returned job listings instead of LinkedIn profiles (asked twice)."
         )
-    return _dump(people)
+    return people
 
 
 # ------------------------------------------------------------------------ read_page
 
-READ_PAGE_MAX_CHARS = 12_000
-"""Default page budget for the agent (about 3k tokens); the model may ask for up to 32k."""
 
-ReadMethod = Literal[
-    "auto", "static", "full", "browser", "jsonld", "greenhouse_api", "lever_api", "ashby_api"
-]
-
-
-class ReadPageArgs(BaseModel):
-    url: str = Field(description="Full http(s) URL of the page, copied from a tool result.")
-    method: ReadMethod = Field(
-        default="auto",
-        description='Leave "auto" (picks the best method for the URL, with fallbacks). Use '
-        '"full" for team/leadership/listing pages if names or cards seem missing, and '
-        '"browser" if the page needs JavaScript.',
-    )
-    max_chars: int = Field(
-        default=READ_PAGE_MAX_CHARS,
-        ge=1_000,
-        le=read_page_pkg.DEFAULT_MAX_CHARS,
-        description="Maximum Markdown characters to return.",
-    )
-
-
-@tool("read_page", args_schema=ReadPageArgs)
-def read_page(url: str, method: ReadMethod = "auto", max_chars: int = READ_PAGE_MAX_CHARS) -> str:
-    """Read a web page as Markdown, with its hyperlinks.
-
-    Use it on a job posting (requirements, salary, team, how to apply) or a company's careers,
-    about or team page. Returns {url, final_url, method, title, markdown, truncated}.
-    LinkedIn profile pages can't be read; use linkedin_people for people. Takes 1-15 seconds.
-    """
-    try:
-        result = read_page_pkg.read_page(url, method=method, max_chars=max_chars)
-    except Exception as exc:  # noqa: BLE001
-        return _error(exc)
-    return _dump(result.model_dump())
-
-
-ALL_TOOLS: list[BaseTool] = [
-    search_builtin_jobs,
-    search_builtin_companies,
-    search_conservation_jobs,
-    google_search,
-    linkedin_people,
-    read_page,
-]
+def read_page(url: str, max_chars: int = 12_000) -> read_page_pkg.PageResult:
+    """`url` as Markdown with links (job postings, careers pages). Not LinkedIn profiles."""
+    return read_page_pkg.read_page(url, max_chars=max_chars)

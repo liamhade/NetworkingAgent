@@ -15,8 +15,8 @@ from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-import agent
 import config
+import pipeline
 import resume
 import tools
 from entities import catalog, keys
@@ -24,10 +24,12 @@ from llm_usage import bind_context, usage_context
 from schemas import (
     AgentEvent,
     CompanyEntity,
+    CompanyResult,
     EntityPin,
     EntityStatus,
     EntityStatusKind,
     ErrorEvent,
+    FindPeopleRequest,
     JobEntity,
     PersonEntity,
     PinKind,
@@ -39,6 +41,8 @@ from schemas import (
     SearchRequest,
     SearchSummary,
     StatusUpdate,
+    TraceEvent,
+    TraceStep,
 )
 from userdata import accounts, history, pins, statuses
 
@@ -102,12 +106,15 @@ def _sse(event: AgentEvent) -> str:
 
 
 def _event_stream(request: SearchRequest, user_id: str, search_id: str) -> Iterator[str]:
+    trace: list[TraceStep] | None = None
     try:
-        for event in agent.run_search(request):
-            if isinstance(event, ResultEvent):
+        for event in pipeline.run_search(request):
+            if isinstance(event, TraceEvent):
+                trace = event.steps  # Saved with the results; not sent to the browser.
+            elif isinstance(event, ResultEvent):
                 event = ResultEvent(data=keys.annotate(event.data))
                 yield _sse(event)
-                yield from _save(user_id, request, event, search_id)
+                yield from _save(user_id, request, event, search_id, trace)
             else:
                 yield _sse(event)
     except Exception as exc:  # noqa: BLE001
@@ -116,11 +123,15 @@ def _event_stream(request: SearchRequest, user_id: str, search_id: str) -> Itera
 
 
 def _save(
-    user_id: str, request: SearchRequest, event: ResultEvent, search_id: str
+    user_id: str,
+    request: SearchRequest,
+    event: ResultEvent,
+    search_id: str,
+    trace: list[TraceStep] | None = None,
 ) -> Iterator[str]:
     """Persist a finished search; a storage failure must not hide the results."""
     try:
-        record = history.save_search(user_id, request, event.data, search_id=search_id)
+        record = history.save_search(user_id, request, event.data, search_id=search_id, trace=trace)
     except Exception:  # noqa: BLE001
         log.exception("Could not save search to history")
         return
@@ -160,6 +171,22 @@ def get_search(search_id: str, user: CurrentUser) -> SavedSearch:
         raise HTTPException(status_code=404, detail="Search not found.")
     # Re-key on read so older searches (and normalization changes) match current statuses.
     return record.model_copy(update={"results": keys.annotate(record.results)})
+
+
+@app.post("/api/searches/{search_id}/people")
+def find_people(search_id: str, body: FindPeopleRequest, user: CurrentUser) -> CompanyResult:
+    """Find people to connect with at one company of a saved search (optionally for one of
+    its jobs), save them into the search and return the updated company.
+
+    A plain `def`, so FastAPI runs it in its threadpool: several requests (other companies,
+    or the same one twice) run at once. Their Google searches queue in the one shared
+    Chrome worker; saving is serialized per search (`history.update_search`).
+    """
+    try:
+        with usage_context(user_id=user.id, request_id=uuid.uuid4().hex, search_id=search_id):
+            return pipeline.find_people(user.id, search_id, body.company_key, body.job_key)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/api/statuses")

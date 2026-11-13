@@ -3,6 +3,7 @@ fastapi>=0.120
 uvicorn[standard]>=0.30
 langchain>=1.0
 langchain-anthropic>=1.0
+langgraph>=1.0  # src/pipeline (also a dependency of langchain)
 python-multipart>=0.0.9
 pypdf>=5.0
 python-dotenv>=1.0

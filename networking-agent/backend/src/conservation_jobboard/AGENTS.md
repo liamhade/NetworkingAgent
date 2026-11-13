@@ -1,7 +1,7 @@
 # conservation_jobboard
 
 Python API for https://www.conservationjobboard.com (conservation and environmental jobs),
-used by the agent's `search_conservation_jobs` tool. The site has no public JSON API or feed:
+used by the search pipeline through `tools.conservation_jobs`. The site has no public JSON API or feed:
 `api.py` builds `/search/kw=<text>&cat=<ids>&state=<ids>&region=<ids>&type=<ids>&experience=<ids>`
 paths (ids joined by `-`, page appended as `/N`) and parses the server-rendered job cards.
 Only `list_name="main-results-page"` cards are results; featured/sidebar/sponsor cards are ads.

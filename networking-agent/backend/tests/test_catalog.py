@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-import agent
+import pipeline
 import server
 from entities import catalog
 from schemas import (
@@ -146,7 +146,7 @@ def test_fallback_keys_for_jobs_and_people_without_urls() -> None:
 
 
 def _run(monkeypatch: pytest.MonkeyPatch, results: SearchResults) -> list[dict]:
-    monkeypatch.setattr(agent, "run_search", lambda request: iter([ResultEvent(data=results)]))
+    monkeypatch.setattr(pipeline, "run_search", lambda request: iter([ResultEvent(data=results)]))
     body = {"background": "Analyst", "location": "", "looking_for": "Data roles"}
     with client.stream("POST", "/api/search", json=body) as response:
         return [

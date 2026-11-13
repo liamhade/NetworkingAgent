@@ -1,71 +1,92 @@
-"""LLM prompts used by the agent, kept in one place so they are easy to read and tune.
+"""LLM prompts used by the search pipeline, kept in one place so they are easy to read and tune.
 
-- `RESEARCH_PROMPT`: system prompt of the tool-calling research agent (`agent.build_agent`).
-- `COMPILE_PROMPT`: system prompt of the structured-output call that writes `SearchResults`.
+The pipeline (`pipeline/`) is a fixed LangGraph graph; the LLM only fills in structured
+outputs, and code runs every search. One prompt per LLM step:
+
+- `PLAN_PROMPT`: `plan` node. Profile -> target roles and which job sources to query with
+  which filters (`pipeline.state.SearchPlan`).
+- `RANK_PROMPT`: `rank_companies` node. Jobs found -> companies scored 0-100 for fit, with
+  their best postings and people-search keywords (`pipeline.state.CompanyRanking`).
+- `COMPILE_PROMPT`: `compile` node. Gathered data -> `SearchResults` with alignment notes.
+- `PEOPLE_NOTES_PROMPT`: on-demand people search ("Find People To Connect With"). People
+  found at one company -> their alignment and connection notes.
 - `LINKEDIN_MESSAGE_PROMPT`: rules for each person's `connect_message`, the example LinkedIn
-  connection note. It is appended to the compile prompt (see `compile_prompt()`), so the
-  notes are written in the same call as the rest of the results; `{max_chars}` comes from
-  `config.LINKEDIN_MESSAGE_MAX_CHARS`.
+  connection note. It is appended to the compile and people-notes prompts (see
+  `compile_prompt()` / `people_notes_prompt()`), so notes are written in the same call as
+  the rest; `{max_chars}` comes from `config.LINKEDIN_MESSAGE_MAX_CHARS`.
 """
 
 import config
 
-RESEARCH_PROMPT = """You are a networking agent that helps job seekers find companies to \
-research, job postings to apply to, and people to network with.
+PLAN_PROMPT = """You plan a job search for a job seeker. From their profile, decide what to \
+search for. Code then runs exactly the searches you plan, so be specific.
 
-Tools:
-- search_builtin_jobs / search_builtin_companies: BuiltInNYC, a directory of New York City \
-tech companies and their jobs (it also lists remote roles).
-- search_conservation_jobs: the Conservation Job Board, jobs at conservation and \
-environmental organizations across the US (plus remote and international): wildlife, \
-ecology, forestry, fisheries, botany, restoration, land trusts, environmental education, \
-outdoor recreation, sustainability and conservation policy.
-- google_search: general Google search, for job postings outside NYC and company research.
-- linkedin_people: LinkedIn profiles of people at a given company (name, headline, current \
-title and company, profile URL). It is the only way to find people; don't use google_search \
-for people.
-- read_page: the text of one web page as Markdown with links, e.g. a job posting (for \
-requirements, salary and how to apply) or a company's careers or team page. It cannot read \
-LinkedIn profiles.
+Decide:
+- role_titles: 2-3 target role titles that fit their background and goals.
+- seniority, industries (1-4) and location (where they want to work).
+- people_location: the city to look for people to network with (e.g. "New York"), or "" if \
+they want remote work or don't care where.
 
-Process:
-1. From the profile, decide on 2-3 target role titles, the seniority level and the \
-industries that fit.
-2. Find job postings. If the user is in or near New York City, or wants remote work, start \
-with search_builtin_jobs (short search phrases, 1-3 words). Otherwise, or if BuiltIn returns \
-little, use google_search (for example `"<role>" jobs <city> site:greenhouse.io OR \
-site:lever.co`). If the user wants conservation, environmental, nature, wildlife or \
-outdoor work, use search_conservation_jobs (anywhere in the US; filter by category and the \
-user's state or "remote", with an optional 1-2 word keyword).
-3. Optionally use search_builtin_companies to find more hiring companies in the right \
-industries.
-4. Choose the 3-5 companies that fit best, preferring ones with relevant open jobs. For each \
-of them, call linkedin_people once or twice: someone on the team the user would join (e.g. a \
-hiring manager or a peer in that role) and/or a recruiter. Use keywords that describe the \
-person ("data science manager", "recruiter"), not job-posting words ("jobs", "hiring").
-5. Optionally call read_page on the 1-3 most promising job postings to confirm they fit \
-(requirements, seniority, location, salary). Only read URLs that tools returned.
-6. Stop calling tools and write a short summary of what you found.
+Job sources. Use one or more; an empty list skips that source:
+- builtin_jobs: BuiltInNYC, a directory of New York City tech companies and their jobs (it \
+also lists remote roles). Use it if the user is in or near New York City, or wants remote \
+work. 1-3 searches, each a short phrase (1-3 words), optionally with a category, experience \
+levels and remote preferences.
+- builtin_companies: BuiltInNYC companies hiring in given industries. At most one, and only \
+together with builtin_jobs, when industry fit matters.
+- conservation_jobs: the Conservation Job Board, jobs at conservation and environmental \
+organizations across the US (plus remote and international): wildlife, ecology, forestry, \
+fisheries, botany, restoration, land trusts, environmental education, outdoor recreation, \
+sustainability and conservation policy. Use it if the user wants conservation, \
+environmental, nature, wildlife or outdoor work. 1-3 searches: categories, the user's \
+state(s) and/or "remote", and an optional 1-2 word keyword. Filters combine with AND, so \
+keep each search to a few filters.
+- google_queries: Google, for job postings outside NYC or roles the sources above don't \
+cover. 0-2 queries such as `"<role>" jobs <city> site:greenhouse.io OR site:lever.co`. \
+Google is slow; skip it when the other sources fit well."""
+
+RANK_PROMPT = """You rank companies for a job seeker, using job postings that were just \
+found. Each posting has an id ("j1", ...).
 
 Rules:
-- Be efficient: about 10-16 tool calls in total. Google-based tools are slow.
-- Never invent companies, jobs, people or URLs. Only report what tools returned.
-- If a tool returns an error, adjust the arguments or use another tool."""
+- Choose up to {max_companies} companies that fit the user best, and score each one 0-100 \
+for overall fit (role, seniority, skills, industry, location, and how many relevant open \
+jobs it has). Use the whole range: 80+ is a strong fit, below 40 a weak one.
+- Only choose companies that appear in the data, with the name exactly as listed. For a \
+Google result without a company, name the employer shown in its title, site or URL.
+- jobs: that company's relevant postings by id, at most 4, each with its own 0-100 score.
+- people_keywords: 1-2 short keyword sets describing people the user should contact there: \
+someone on the team they would join (e.g. "data science manager", "engineering manager") \
+and/or "recruiter". Describe the person, not the job posting (no "jobs", "hiring").
+- reason: one short sentence on the score."""
 
-COMPILE_PROMPT = """You turn a job-search research transcript into the final results.
+COMPILE_PROMPT = """You turn gathered job-search research data into the final results.
 
 Rules:
-- Include 3-5 companies, best fit first; prefer companies with relevant open jobs.
-- For each company, list up to 4 relevant jobs and up to 4 people to contact from the \
-transcript. Include every relevant person found at that company (the team the user would \
-join, data or hiring leaders, recruiters); skip people who clearly no longer work there \
-(`at_company: false`, "Ex-<company>") or are unrelated. Empty lists are allowed if nothing \
-was found.
-- Copy names, titles and URLs exactly as they appear in tool results. Never invent them.
+- Include every company in the research data, in the given order (they are ranked).
+- For each company, list up to 4 relevant jobs and up to 4 people to contact from the data. \
+Include every relevant person found at that company (the team the user would join, hiring \
+leaders, recruiters); skip people who clearly no longer work there (`at_company: false`, \
+"Ex-<company>") or are unrelated. If a company's `people_searched` is false, leave its \
+people empty. Empty lists are allowed if nothing was found.
+- Copy names, titles and URLs exactly as they appear in the data. Never invent them.
+- Use `posting_text`, when present, for requirements, seniority and salary.
 - `alignment` fields speak to the user ("You ...") and point to concrete overlaps between \
 their background/goals and the company, job or person: skills, industry, school, past \
 employers, location, seniority.
 - Keep each alignment to 1-3 sentences."""
+
+PEOPLE_NOTES_PROMPT = """You help a job seeker reach out to people at one company. You get \
+their profile, the company (and the job they are interested in, if any) and LinkedIn \
+profiles that were just found.
+
+Rules:
+- Return up to 4 of the found people, most relevant first: the team the user would join, \
+hiring leaders, recruiters. Skip people who clearly no longer work there \
+(`at_company: false`, "Ex-<company>") or are unrelated.
+- Copy names, titles and profile URLs exactly as they appear in the data. Never invent them.
+- `alignment` speaks to the user ("You ...") in 1-3 sentences: why connect, and what they \
+have in common."""
 
 LINKEDIN_MESSAGE_PROMPT = """Each person's `connect_message` is a LinkedIn connection note \
 the user can send as-is:
@@ -73,13 +94,19 @@ the user can send as-is:
 longer notes are cut off.
 - Written by the user in the first person, addressed to the person by first name \
 ("Hi Jane, ...").
-- Mention one specific, true overlap from the profile and the transcript (their team or \
+- Mention one specific, true overlap from the profile and the research data (their team or \
 role, a shared skill, industry, school or past employer, or a job the user is applying to \
 at their company).
 - End with a light ask: connecting, or a short chat about their team or the role.
 - Friendly and professional. No placeholders like [Name], no emojis, no hashtags, no links, \
 no sign-off with the user's name.
 - Never invent facts about the user or the person."""
+
+
+def rank_prompt(max_companies: int | None = None) -> str:
+    """`RANK_PROMPT` with the company cap (default from config)."""
+    limit = max_companies if max_companies is not None else config.MAX_COMPANIES
+    return RANK_PROMPT.format(max_companies=limit)
 
 
 def linkedin_message_prompt(max_chars: int | None = None) -> str:
@@ -92,3 +119,8 @@ def linkedin_message_prompt(max_chars: int | None = None) -> str:
 def compile_prompt(max_chars: int | None = None) -> str:
     """System prompt of the compile step: results rules plus the LinkedIn note rules."""
     return f"{COMPILE_PROMPT}\n\n{linkedin_message_prompt(max_chars)}"
+
+
+def people_notes_prompt(max_chars: int | None = None) -> str:
+    """System prompt of the on-demand people step: people rules plus LinkedIn note rules."""
+    return f"{PEOPLE_NOTES_PROMPT}\n\n{linkedin_message_prompt(max_chars)}"

@@ -1,0 +1,715 @@
+"""The graph's nodes and the helpers they share with the on-demand people search.
+
+Each node takes the `PipelineState`, returns a partial update, appends `TraceStep`s and
+reports progress through `status()`. Source errors are recorded and skipped; a node only
+sets `error` when nothing usable is left.
+"""
+
+import json
+import logging
+import time
+from collections.abc import Callable, Iterable
+from typing import Any, TypeVar
+
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.config import get_stream_writer
+from pydantic import BaseModel
+
+import config
+import prompts
+import tools
+from builtin_nyc.models import CompanyFilter, JobFilter
+from conservation_jobboard.models import JobFilter as ConservationJobFilter
+from entities.keys import normalize_company_name, normalize_text, normalize_url
+from llm_usage import run_config
+from pipeline.state import (
+    ChosenCompany,
+    CompanyRanking,
+    Job,
+    ListedCompany,
+    Person,
+    PipelineState,
+    SearchPlan,
+)
+from schemas import (
+    CompanyResult,
+    JobResult,
+    PersonResult,
+    SearchRequest,
+    SearchResults,
+    StatusEvent,
+    TraceStep,
+)
+
+log = logging.getLogger(__name__)
+
+T = TypeVar("T", bound=BaseModel)
+
+MAX_JOB_QUERIES = 3
+MAX_GOOGLE_QUERIES = 2
+MIN_JOBS_BEFORE_GOOGLE = 5
+"""Fewer jobs than this from the planned sources (and no Google query planned) adds one."""
+MAX_JOBS_PER_COMPANY = 4
+MAX_PEOPLE_KEYWORDS = 2
+
+
+# --------------------------------------------------------------------------- helpers
+
+
+def status(message: str) -> None:
+    """Report progress as a `StatusEvent` (a no-op outside a running graph)."""
+    try:
+        writer = get_stream_writer()
+    except RuntimeError:
+        return
+    writer(StatusEvent(message=message))
+
+
+def call(
+    step: str, source: str, args: dict[str, Any], fn: Callable[[], Any]
+) -> tuple[Any, TraceStep]:
+    """Run `fn`, timing it; an exception becomes the trace step's `error` (value None)."""
+    started = time.perf_counter()
+    value, error = None, ""
+    try:
+        value = fn()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("%s/%s failed: %s", step, source, exc)
+        error = f"{type(exc).__name__}: {exc}"
+    trace = TraceStep(
+        step=step,
+        source=source,
+        args=args,
+        count=len(value) if isinstance(value, list) else None,
+        error=error,
+        duration_ms=round((time.perf_counter() - started) * 1000),
+    )
+    return value, trace
+
+
+def structured(llm: BaseChatModel, schema: type[T], system: str, human: str, purpose: str) -> T:
+    """One structured-output call, logged under `purpose` in the LLM usage CSV."""
+    model = llm.with_structured_output(schema, method="json_schema")
+    result = model.invoke([SystemMessage(system), HumanMessage(human)], config=run_config(purpose))
+    return result if isinstance(result, schema) else schema.model_validate(result)
+
+
+def format_profile(request: SearchRequest) -> str:
+    return (
+        f"<background>\n{request.background.strip()}\n</background>\n"
+        f"<location>{request.location.strip() or 'not specified'}</location>\n"
+        f"<looking_for>\n{request.looking_for.strip()}\n</looking_for>"
+    )
+
+
+def _short(text: str, limit: int = 60) -> str:
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
+def _url_key(url: str) -> str:
+    return normalize_url(url) or url.strip()
+
+
+def _name_key(name: str) -> str:
+    return normalize_company_name(name)
+
+
+def dump(payload: Any) -> str:
+    return json.dumps(payload, ensure_ascii=False, indent=1)
+
+
+def _scored(value: int) -> int:
+    return max(0, min(100, int(value)))
+
+
+# ------------------------------------------------------------------------------ plan
+
+
+def cap_plan(plan: SearchPlan, request: SearchRequest) -> SearchPlan:
+    """Enforce the plan's limits; with no source at all, fall back to one Google query."""
+    plan = plan.model_copy(
+        update={
+            "role_titles": [t.strip() for t in plan.role_titles if t.strip()][:3],
+            "builtin_jobs": plan.builtin_jobs[:MAX_JOB_QUERIES],
+            "builtin_companies": plan.builtin_companies[:1],
+            "conservation_jobs": plan.conservation_jobs[:MAX_JOB_QUERIES],
+            "google_queries": [q.strip() for q in plan.google_queries if q.strip()][
+                :MAX_GOOGLE_QUERIES
+            ],
+        }
+    )
+    if not (plan.builtin_jobs or plan.conservation_jobs or plan.google_queries):
+        plan.google_queries = [google_fallback_query(plan, request)]
+    return plan
+
+
+def google_fallback_query(plan: SearchPlan, request: SearchRequest) -> str:
+    role = plan.role_titles[0] if plan.role_titles else _short(request.looking_for, 50)
+    location = plan.location or request.location
+    return f'"{role}" jobs {location}'.strip()
+
+
+def plan_node(state: PipelineState, llm: BaseChatModel) -> dict:
+    request = state["request"]
+    plan, trace = call(
+        "plan",
+        "llm",
+        {},
+        lambda: structured(llm, SearchPlan, prompts.PLAN_PROMPT, format_profile(request), "plan"),
+    )
+    if plan is None:
+        return {"error": f"Could not plan the search: {trace.error}", "trace": [trace]}
+    plan = cap_plan(plan, request)
+    trace.args = plan.model_dump(mode="json")
+    roles = ", ".join(plan.role_titles) or "your target roles"
+    status(f"Planning: {roles}" + (f" ({plan.seniority})" if plan.seniority else ""))
+    return {"plan": plan, "trace": [trace]}
+
+
+# ------------------------------------------------------------------------- find_jobs
+
+
+def _job_from(source: str, raw: dict[str, Any]) -> Job:
+    if source == "google_search":
+        return Job(
+            id="",
+            source=source,
+            title=raw.get("title") or "",
+            url=raw.get("url") or "",
+            summary=f"{raw.get('site') or ''}: {raw.get('snippet') or ''}".strip(": "),
+        )
+    details = [raw.get(k) for k in ("job_type", "experience", "deadline", "summary")]
+    return Job(
+        id="",
+        source=source,
+        title=raw.get("title") or "",
+        url=raw.get("url") or "",
+        company=raw.get("company") or "",
+        company_url=raw.get("company_url") or "",
+        location=raw.get("location") or raw.get("work_arrangement") or "",
+        salary=raw.get("salary") or "",
+        summary=" · ".join(str(d) for d in details if d),
+    )
+
+
+def _job_searches(plan: SearchPlan) -> list[tuple[str, str, dict, Callable[[], list]]]:
+    """(source, label, args, run) for every planned job search, in order."""
+    searches: list[tuple[str, str, dict, Callable[[], list]]] = []
+    for q in plan.builtin_jobs:
+        job_filter = JobFilter(
+            search=q.search.strip() or None,
+            category=q.category,
+            experience_levels=q.experience_levels,
+            remote_preferences=q.remote_preferences,
+        )
+        searches.append(
+            (
+                "builtin_jobs",
+                f"BuiltInNYC jobs for “{_short(q.search or 'all roles')}”",
+                q.model_dump(mode="json"),
+                lambda f=job_filter: tools.builtin_jobs(f),
+            )
+        )
+    for q in plan.conservation_jobs:
+        conservation_filter = ConservationJobFilter(
+            keyword=q.keyword.strip() or None,
+            categories=q.categories,
+            locations=q.locations,
+            experience_levels=q.experience_levels,
+        )
+        what = q.keyword or ", ".join(q.categories) or "all roles"
+        searches.append(
+            (
+                "conservation_jobs",
+                f"Conservation Job Board for “{_short(what)}”",
+                q.model_dump(mode="json"),
+                lambda f=conservation_filter: tools.conservation_jobs(f),
+            )
+        )
+    for query in plan.google_queries:
+        searches.append(google_job_search(query))
+    return searches
+
+
+def google_job_search(query: str) -> tuple[str, str, dict, Callable[[], list]]:
+    return (
+        "google_search",
+        f"Google for “{_short(query)}”",
+        {"query": query},
+        lambda: tools.google_search(query),
+    )
+
+
+def find_jobs_node(state: PipelineState) -> dict:
+    plan = state["plan"]
+    jobs: list[Job] = []
+    seen: set[str] = set()
+    trace: list[TraceStep] = []
+
+    def run(source: str, label: str, args: dict, fn: Callable[[], list]) -> None:
+        status(f"Searching {label}")
+        found, step = call("find_jobs", source, args, fn)
+        trace.append(step)
+        if found is None:
+            status(f"{label} failed: {_short(step.error, 120)}")
+            return
+        added = 0
+        for raw in found:
+            job = _job_from(source, raw)
+            key = _url_key(job.url)
+            if not job.url or not job.title or key in seen:
+                continue
+            seen.add(key)
+            jobs.append(job.model_copy(update={"id": f"j{len(jobs) + 1}"}))
+            added += 1
+        step.note = f"{added} new"
+        status(f"{label}: {_plural(len(found), 'job')}")
+
+    for search in _job_searches(plan):
+        run(*search)
+    if len(jobs) < MIN_JOBS_BEFORE_GOOGLE and not plan.google_queries:
+        run(*google_job_search(google_fallback_query(plan, state["request"])))
+        trace[-1].note += "; fallback: too few jobs from the planned sources"
+
+    listed: list[ListedCompany] = []
+    for q in plan.builtin_companies:
+        company_filter = CompanyFilter(
+            industries=q.industries, tech_stack=q.tech_stack, hiring_only=True
+        )
+        status(f"Browsing BuiltInNYC companies in {_short(', '.join(q.industries) or 'all')}")
+        found, step = call(
+            "find_jobs",
+            "builtin_companies",
+            q.model_dump(mode="json"),
+            lambda f=company_filter: tools.builtin_companies(f),
+        )
+        trace.append(step)
+        for raw in found or []:
+            about = raw.get("mission") or raw.get("description") or ""
+            listed.append(ListedCompany(name=raw["name"], url=raw.get("url") or "", about=about))
+
+    update: dict = {"jobs": jobs, "listed_companies": listed, "trace": trace}
+    if not jobs and not listed:
+        update["error"] = (
+            "No job postings found. Every job source failed or returned nothing; "
+            "try broadening what you're looking for."
+        )
+    return update
+
+
+# -------------------------------------------------------------------- rank_companies
+
+
+def _jobs_table(jobs: list[Job]) -> str:
+    rows = [
+        {
+            "id": j.id,
+            "source": j.source,
+            "title": j.title,
+            "company": j.company,
+            "location": j.location,
+            "salary": j.salary,
+            "summary": _short(j.summary, 160),
+            "url": j.url if not j.company else "",
+        }
+        for j in jobs
+    ]
+    return "\n".join(
+        json.dumps({k: v for k, v in r.items() if v}, ensure_ascii=False) for r in rows
+    )
+
+
+def validate_ranking(
+    ranking: CompanyRanking,
+    jobs: list[Job],
+    listed: list[ListedCompany],
+    max_companies: int,
+) -> tuple[list[ChosenCompany], list[str]]:
+    """Keep only companies and job ids that exist in the gathered data; sort by score.
+
+    A job id must exist and, if the job names its company, match the pick. A pick needs at
+    least one valid job or a name that appears in the data. The data's spelling wins.
+    Returns the chosen companies (best first) and what was dropped.
+    """
+    by_id = {j.id: j for j in jobs}
+    known: dict[str, dict[str, str]] = {}
+    for j in jobs:
+        if j.company:
+            known.setdefault(_name_key(j.company), {"name": j.company, "url": j.company_url})
+    for c in listed:
+        entry = known.setdefault(_name_key(c.name), {"name": c.name, "url": c.url})
+        entry["url"] = entry["url"] or c.url
+        entry["about"] = c.about
+
+    chosen: dict[str, ChosenCompany] = {}
+    dropped: list[str] = []
+    for pick in ranking.companies:
+        key = _name_key(pick.name)
+        if not key:
+            continue
+        picked: list[Job] = []
+        scores: dict[str, int] = {}
+        for js in pick.jobs:
+            job = by_id.get(js.id.strip())
+            if job is None or (job.company and _name_key(job.company) != key):
+                dropped.append(f"{pick.name}: job {js.id}")
+                continue
+            if job.id not in scores:
+                picked.append(job)
+                scores[job.id] = _scored(js.score)
+        info = known.get(key)
+        if info is None and not picked:
+            dropped.append(f"{pick.name}: not in the data")
+            continue
+        if key in chosen:
+            dropped.append(f"{pick.name}: duplicate")
+            continue
+        picked.sort(key=lambda j: -scores[j.id])
+        keywords = [k.strip() for k in pick.people_keywords if k.strip()]
+        chosen[key] = ChosenCompany(
+            name=info["name"] if info else pick.name.strip(),
+            url=(info or {}).get("url") or "",
+            about=(info or {}).get("about") or "",
+            score=_scored(pick.score),
+            reason=pick.reason,
+            jobs=picked[:MAX_JOBS_PER_COMPANY],
+            job_scores=scores,
+            people_keywords=keywords[:MAX_PEOPLE_KEYWORDS],
+        )
+    # The LLM's score decides; the number of relevant jobs breaks ties.
+    ranked = sorted(chosen.values(), key=lambda c: (-c.score, -len(c.jobs)))
+    return ranked[:max_companies], dropped
+
+
+def default_ranking(
+    jobs: list[Job], listed: list[ListedCompany], plan: SearchPlan, max_companies: int
+) -> list[ChosenCompany]:
+    """Used when the ranking call fails: companies with the most postings first."""
+    groups: dict[str, list[Job]] = {}
+    for j in jobs:
+        if j.company:
+            groups.setdefault(_name_key(j.company), []).append(j)
+    keywords = [*plan.role_titles[:1], "recruiter"]
+    chosen = [
+        ChosenCompany(
+            name=group[0].company,
+            url=group[0].company_url,
+            score=min(80, 40 + 10 * len(group)),
+            reason="Ranked by number of matching postings.",
+            jobs=group[:MAX_JOBS_PER_COMPANY],
+            job_scores={j.id: 50 for j in group},
+            people_keywords=keywords,
+        )
+        for group in sorted(groups.values(), key=len, reverse=True)
+    ]
+    if not chosen:
+        chosen = [
+            ChosenCompany(name=c.name, url=c.url, about=c.about, score=40, people_keywords=keywords)
+            for c in listed
+        ]
+    return chosen[:max_companies]
+
+
+def rank_companies_node(state: PipelineState, llm: BaseChatModel) -> dict:
+    jobs, listed, plan = state["jobs"], state["listed_companies"], state["plan"]
+    status(f"Ranking companies from {_plural(len(jobs), 'job')}")
+    parts = [
+        format_profile(state["request"]),
+        f"<plan>\nRoles: {', '.join(plan.role_titles)}\nSeniority: {plan.seniority}\n"
+        f"Industries: {', '.join(plan.industries)}\nLocation: {plan.location}\n</plan>",
+        f"<jobs>\n{_jobs_table(jobs)}\n</jobs>",
+    ]
+    if listed:
+        rows = [{"name": c.name, "about": _short(c.about, 160)} for c in listed]
+        parts.append(f"<companies>\n{dump(rows)}\n</companies>")
+    ranking, trace = call(
+        "rank_companies",
+        "llm",
+        {"jobs": len(jobs), "listed_companies": len(listed)},
+        lambda: structured(
+            llm, CompanyRanking, prompts.rank_prompt(), "\n\n".join(parts), "rank_companies"
+        ),
+    )
+    steps = [trace]
+    chosen: list[ChosenCompany] = []
+    if ranking is not None:
+        chosen, dropped = validate_ranking(ranking, jobs, listed, config.MAX_COMPANIES)
+        trace.count = len(ranking.companies)
+        steps.append(
+            TraceStep(
+                step="rank_companies",
+                source="validate",
+                args={"dropped": dropped},
+                count=len(chosen),
+            )
+        )
+    if not chosen:
+        chosen = default_ranking(jobs, listed, plan, config.MAX_COMPANIES)
+        steps.append(
+            TraceStep(
+                step="rank_companies",
+                source="validate",
+                count=len(chosen),
+                note="fallback: ranked by number of postings",
+            )
+        )
+    if not chosen:
+        return {
+            "chosen": [],
+            "error": "No companies could be chosen from the jobs found.",
+            "trace": steps,
+        }
+    status("Top companies: " + ", ".join(f"{c.name} ({c.score})" for c in chosen))
+    return {"chosen": chosen, "trace": steps}
+
+
+# ----------------------------------------------------------------------- find_people
+
+
+def ladder(keywords: Iterable[str], location: str) -> list[tuple[str, str]]:
+    """The people-search fallback ladder: planned keywords, then "recruiter", then the
+    company name only (no keywords, no location)."""
+    rungs = [(k.strip(), location) for k in keywords if k.strip()]
+    rungs += [("recruiter", location), ("", "")]
+    unique: list[tuple[str, str]] = []
+    for rung in rungs:
+        if (rung[0].lower(), rung[1].lower()) not in {
+            (k.lower(), loc.lower()) for k, loc in unique
+        }:
+            unique.append(rung)
+    return unique
+
+
+def search_people(
+    company: str,
+    keywords: Iterable[str],
+    location: str,
+    step: str = "find_people",
+    known_urls: Iterable[str] = (),
+) -> tuple[list[Person], list[TraceStep]]:
+    """Climb the ladder until `PEOPLE_PER_COMPANY` new current employees are found.
+
+    Every rung is a trace step; an error on one rung is recorded and the next one runs.
+    People already in `known_urls` (or found by an earlier rung) are skipped.
+    """
+    seen = {_url_key(u) for u in known_urls}
+    people: list[Person] = []
+    trace: list[TraceStep] = []
+    for words, where in ladder(keywords, location):
+        status(f"Looking for {words or 'anyone'} at {company}")
+        args = {"company": company, "keywords": words, "location": where}
+        found, rung = call(
+            step,
+            "linkedin_people",
+            args,
+            lambda w=words, loc=where: tools.linkedin_people(
+                company, w, loc, n=config.PEOPLE_SEARCH_N
+            ),
+        )
+        trace.append(rung)
+        for raw in found or []:
+            key = _url_key(raw.get("url") or "")
+            if not raw.get("url") or key in seen:
+                continue
+            seen.add(key)
+            people.append(Person.model_validate({**raw, "keywords": words}))
+        current = sum(p.at_company for p in people)
+        rung.note = f"{current} current employees so far"
+        if current >= config.PEOPLE_PER_COMPANY:
+            break
+    return people, trace
+
+
+def find_people_node(state: PipelineState) -> dict:
+    """People search for every one of the top `PEOPLE_AUTO_COMPANIES` companies."""
+    location = state["plan"].people_location
+    people: dict[str, list[Person]] = {}
+    trace: list[TraceStep] = []
+    for company in state["chosen"][: config.PEOPLE_AUTO_COMPANIES]:
+        found, steps = search_people(company.name, company.people_keywords, location)
+        people[company.name] = found
+        trace += steps
+        current = sum(p.at_company for p in found)
+        status(f"{company.name}: {_plural(current, 'current employee')} found")
+    return {"people": people, "trace": trace}
+
+
+# --------------------------------------------------------------------- read_postings
+
+
+def read_postings_node(state: PipelineState) -> dict:
+    """read_page on the best posting of the top companies (`READ_POSTINGS` of them)."""
+    postings: dict[str, str] = {}
+    trace: list[TraceStep] = []
+    urls = [c.jobs[0].url for c in state["chosen"] if c.jobs][: config.READ_POSTINGS]
+    for url in urls:
+        status(f"Reading {_short(url.split('://', 1)[-1].removeprefix('www.'))}")
+        page, step = call(
+            "read_postings",
+            "read_page",
+            {"url": url},
+            lambda u=url: tools.read_page(u, max_chars=config.READ_POSTING_MAX_CHARS),
+        )
+        trace.append(step)
+        if page is not None:
+            postings[url] = page.markdown
+            step.count = len(page.markdown)
+            step.note = "count = characters"
+    return {"postings": postings, "trace": trace}
+
+
+# --------------------------------------------------------------------------- compile
+
+
+def person_data(p: Person) -> dict[str, Any]:
+    return p.model_dump(exclude={"keywords"}) | {"found_with": p.keywords}
+
+
+def research_data(state: PipelineState) -> list[dict[str, Any]]:
+    """The compile step's whole input: chosen companies with what was found for them."""
+    postings = state.get("postings", {})
+    people = state.get("people", {})
+    data = []
+    for c in state["chosen"]:
+        data.append(
+            {
+                "name": c.name,
+                "url": c.url,
+                "about": c.about,
+                "ranking_note": c.reason,
+                "jobs": [
+                    {
+                        "title": j.title,
+                        "url": j.url,
+                        "location": j.location,
+                        "salary": j.salary,
+                        "summary": j.summary,
+                        "posting_text": postings.get(j.url, ""),
+                    }
+                    for j in c.jobs
+                ],
+                "people_searched": c.name in people,
+                "people": [person_data(p) for p in people.get(c.name, [])],
+            }
+        )
+    return data
+
+
+def match_jobs(written: list[JobResult], company: ChosenCompany) -> list[JobResult]:
+    """`written` jobs that were gathered for `company` (by URL, else title), with the
+    gathered URL and the ranking score, best first."""
+    by_url = {_url_key(j.url): j for j in company.jobs}
+    by_title = {normalize_text(j.title): j for j in company.jobs}
+    kept: dict[str, JobResult] = {}
+    for job in written:
+        found = by_url.get(_url_key(job.url)) or by_title.get(normalize_text(job.title))
+        if found is not None and found.id not in kept:
+            score = company.job_scores.get(found.id)
+            kept[found.id] = job.model_copy(update={"url": found.url, "score": score})
+    return sorted(kept.values(), key=lambda j: -(j.score or 0))
+
+
+def match_people(written: list[PersonResult], found: list[Person]) -> list[PersonResult]:
+    """`written` people that were found (by profile URL, else name), with the found URL."""
+    by_url = {_url_key(p.url): p for p in found}
+    by_name = {normalize_text(p.name): p for p in found}
+    kept: dict[str, PersonResult] = {}
+    for person in written:
+        match = by_url.get(_url_key(person.profile_url)) or by_name.get(normalize_text(person.name))
+        if match is not None and match.url not in kept:
+            kept[match.url] = person.model_copy(update={"profile_url": match.url})
+    return list(kept.values())
+
+
+def _fallback_company(c: ChosenCompany, found: list[Person] | None) -> CompanyResult:
+    """A chosen company the compile step left out, built from gathered data only."""
+    return CompanyResult(
+        name=c.name,
+        url=c.url or (c.jobs[0].url if c.jobs else ""),
+        description=c.about or c.reason,
+        alignment=c.reason,
+        jobs=[
+            JobResult(
+                title=j.title,
+                url=j.url,
+                location=j.location,
+                salary=j.salary,
+                alignment="",
+                score=c.job_scores.get(j.id),
+            )
+            for j in c.jobs
+        ],
+        people=[
+            PersonResult(name=p.name, title=p.title or p.headline, profile_url=p.url, alignment="")
+            for p in found or []
+            if p.at_company
+        ][:4],
+        score=c.score,
+        people_searched=found is not None,
+        people_keywords=c.people_keywords,
+    )
+
+
+def restrict_results(
+    results: SearchResults, chosen: list[ChosenCompany], people: dict[str, list[Person]]
+) -> tuple[SearchResults, dict[str, int]]:
+    """Keep only what was gathered: chosen companies, their gathered jobs and found people.
+
+    Companies get their ranking score and are sorted by it; a chosen company the LLM left
+    out is added back from gathered data. Returns the results and drop/add counts.
+    """
+    by_name = {_name_key(c.name): c for c in chosen}
+    out: dict[str, CompanyResult] = {}
+    counts = {"companies_dropped": 0, "jobs_dropped": 0, "people_dropped": 0, "companies_added": 0}
+    for company in results.companies:
+        key = _name_key(company.name)
+        c = by_name.get(key)
+        if c is None or key in out:
+            counts["companies_dropped"] += 1
+            continue
+        found = people.get(c.name)
+        jobs = match_jobs(company.jobs, c)
+        persons = match_people(company.people, found or [])
+        counts["jobs_dropped"] += len(company.jobs) - len(jobs)
+        counts["people_dropped"] += len(company.people) - len(persons)
+        allowed = {_url_key(u) for u in [c.url, *(j.url for j in c.jobs)] if u}
+        url = company.url if _url_key(company.url) in allowed else ""
+        out[key] = company.model_copy(
+            update={
+                "name": c.name,
+                "url": url or c.url or (c.jobs[0].url if c.jobs else ""),
+                "jobs": jobs,
+                "people": persons,
+                "score": c.score,
+                "people_searched": found is not None,
+                "people_keywords": c.people_keywords,
+            }
+        )
+    for key, c in by_name.items():
+        if key not in out:
+            out[key] = _fallback_company(c, people.get(c.name))
+            counts["companies_added"] += 1
+    companies = sorted(out.values(), key=lambda c: -(c.score or 0))
+    return SearchResults(summary=results.summary, companies=companies), counts
+
+
+def compile_node(state: PipelineState, llm: BaseChatModel) -> dict:
+    status("Compiling your results")
+    data = research_data(state)
+    human = f"{format_profile(state['request'])}\n\n<research>\n{dump(data)}\n</research>"
+    results, trace = call(
+        "compile",
+        "llm",
+        {"companies": len(data)},
+        lambda: structured(llm, SearchResults, prompts.compile_prompt(), human, "compile_results"),
+    )
+    if results is None:
+        return {"error": f"Could not compile results: {trace.error}", "trace": [trace]}
+    results, counts = restrict_results(results, state["chosen"], state.get("people", {}))
+    check = TraceStep(step="compile", source="validate", args=counts, count=len(results.companies))
+    return {"results": results, "trace": [trace, check]}

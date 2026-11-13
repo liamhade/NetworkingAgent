@@ -6,11 +6,14 @@ keep all search-history storage access in this module.
 """
 
 import re
+import threading
+import time
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
-from schemas import SavedSearch, SearchRequest, SearchResults, SearchSummary
+from schemas import SavedSearch, SearchRequest, SearchResults, SearchSummary, TraceStep
 from userdata import accounts
 
 TITLE_MAX_CHARS = 40
@@ -56,10 +59,12 @@ def save_search(
     request: SearchRequest,
     results: SearchResults,
     search_id: str | None = None,
+    trace: list[TraceStep] | None = None,
 ) -> SavedSearch:
     """Persist a finished search for `user_id` and return the stored record.
 
     `search_id` lets the caller pick the id up front (so LLM usage logs can reference it).
+    `trace` records how the results were found (see `pipeline`).
     """
     if search_id is not None and not _ID_PATTERN.match(search_id):
         raise ValueError(f"Invalid search id: {search_id!r}")
@@ -70,14 +75,55 @@ def save_search(
         title=make_title(request),
         request=request,
         results=results,
+        trace=trace,
     )
-    folder = _searches_dir(user_id)
+    _write(record)
+    return record
+
+
+def _write(record: SavedSearch) -> None:
+    folder = _searches_dir(record.user_id)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{record.id}.json"
-    tmp = path.with_suffix(".json.tmp")
+    tmp = path.with_suffix(f".{uuid.uuid4().hex}.tmp")
     tmp.write_text(record.model_dump_json(indent=2), encoding="utf-8")
-    tmp.replace(path)
-    return record
+    for attempt in range(5):
+        try:
+            tmp.replace(path)
+            return
+        except PermissionError:
+            # Windows refuses to replace a file another thread is reading; retry briefly.
+            if attempt == 4:
+                tmp.unlink(missing_ok=True)
+                raise
+            time.sleep(0.05)
+
+
+_locks: dict[tuple[str, str], threading.Lock] = {}
+_locks_guard = threading.Lock()
+
+
+def _lock(user_id: str, search_id: str) -> threading.Lock:
+    with _locks_guard:
+        return _locks.setdefault((user_id, search_id), threading.Lock())
+
+
+def update_search(
+    user_id: str, search_id: str, change: Callable[[SavedSearch], SavedSearch]
+) -> SavedSearch | None:
+    """Apply `change` to a saved search and store the result; None if it doesn't exist.
+
+    The read-modify-write runs under a per-search lock, so concurrent updates of the same
+    search (e.g. two on-demand people searches) never overwrite each other. Different
+    searches don't block each other. Keep `change` fast: it runs while holding the lock.
+    """
+    with _lock(user_id, search_id):
+        record = get_search(user_id, search_id)
+        if record is None:
+            return None
+        updated = change(record)
+        _write(updated)
+        return updated
 
 
 def load_searches(user_id: str) -> list[SavedSearch]:

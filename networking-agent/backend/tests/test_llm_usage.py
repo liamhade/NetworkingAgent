@@ -16,11 +16,12 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import RunnableLambda
-from langchain_core.tools import tool
+from pipeline_fakes import DEFAULT_RANKING as RANKING
+from pipeline_fakes import FakeSources, plan
 from pydantic import BaseModel
 
-import agent
 import llm
+import pipeline
 import server
 from llm_usage import (
     bind_context,
@@ -32,6 +33,7 @@ from llm_usage import (
     usage_context,
     usage_handler,
 )
+from pipeline.state import CompanyRanking, SearchPlan
 from schemas import ErrorEvent, ResultEvent, SearchRequest, SearchResults
 
 REQUEST = SearchRequest(background="Analyst", location="NYC", looking_for="Data roles")
@@ -91,40 +93,40 @@ class UsageChatModel(BaseChatModel):
         return self
 
     def with_structured_output(self, schema: type[BaseModel], **kwargs: Any):
-        # Like the real thing: one model call, then a parser.
-        return self | RunnableLambda(lambda _: self.structured)
+        # Like the real thing: one model call, then a parser. `structured` may be a dict
+        # with one answer per schema.
+        answer = self.structured
+        if isinstance(answer, dict) and all(isinstance(k, type) for k in answer):
+            answer = answer.get(schema)
+        return self | RunnableLambda(lambda _: answer)
 
 
 def rows(path) -> list[dict[str, str]]:
     return summary.read_rows(path)
 
 
-@tool
-def search_builtin_jobs(search: str) -> str:
-    """Fake BuiltIn job search."""
-    return json.dumps([{"title": "Data Analyst", "url": "https://www.builtinnyc.com/job/1"}])
-
-
-def _tool_call(i: int) -> list[dict]:
-    return [{"name": "search_builtin_jobs", "args": {"search": "data"}, "id": f"c{i}"}]
-
-
-def test_tool_loop_logs_one_row_per_model_call(usage_log) -> None:
-    model = UsageChatModel(
+def _pipeline_model(**kwargs: Any) -> "UsageChatModel":
+    """A model that answers the pipeline's three structured calls (one row each)."""
+    return UsageChatModel(
         responses=[
-            reply(tool_calls=_tool_call(1), inp=1000, out=50, read=4000, w5=500),
-            reply(tool_calls=_tool_call(2), inp=1200, out=60, read=4500),
-            reply("Found jobs.", inp=1500, out=80, read=5000),
-            reply("{}", inp=6000, out=900),  # compile_results (structured output)
+            reply("{}", inp=1000, out=50, read=4000, w5=500),  # plan
+            reply("{}", inp=1200, out=60, read=4500),  # rank_companies
+            reply("{}", inp=6000, out=900),  # compile_results
         ],
-        structured=RESULTS,
+        structured={SearchPlan: plan(), CompanyRanking: RANKING, SearchResults: RESULTS},
+        **kwargs,
     )
+
+
+def test_pipeline_logs_one_row_per_llm_node(usage_log, monkeypatch) -> None:
+    FakeSources(monkeypatch)
+    model = _pipeline_model()
     with usage_context(user_id="TEST_USER", search_id="s1", request_id="r1"):
-        events = list(agent.run_search(REQUEST, llm=model, tools=[search_builtin_jobs]))
+        events = list(pipeline.run_search(REQUEST, llm=model))
 
     assert isinstance(events[-1], ResultEvent)
     logged = rows(usage_log)
-    assert [r["purpose"] for r in logged] == ["research"] * 3 + ["compile_results"]
+    assert [r["purpose"] for r in logged] == ["plan", "rank_companies", "compile_results"]
     assert {(r["user_id"], r["search_id"], r["request_id"]) for r in logged} == {
         ("TEST_USER", "s1", "r1")
     }
@@ -302,7 +304,7 @@ def test_search_endpoint_tags_rows_with_user_and_saved_search_id(usage_log, monk
         model.invoke("hi", config=run_config("research"))
         yield ResultEvent(data=RESULTS)
 
-    monkeypatch.setattr(agent, "run_search", fake_run_search)
+    monkeypatch.setattr(pipeline, "run_search", fake_run_search)
     body = REQUEST.model_dump()
     with TestClient(server.app).stream("POST", "/api/search", json=body) as response:
         events = [json.loads(x[6:]) for x in response.iter_lines() if x.startswith("data: ")]
@@ -321,8 +323,8 @@ def test_logging_failures_never_break_a_search(usage_log, monkeypatch) -> None:
 
     monkeypatch.setattr(pricing, "cost_usd", boom)  # fails inside the callback
     monkeypatch.setattr(recorder, "log_path", boom)  # and the writer can't find its file
-    model = UsageChatModel(responses=[reply("Done.", inp=5, out=1)], structured=RESULTS)
-    events = list(agent.run_search(REQUEST, llm=model, tools=[search_builtin_jobs]))
+    FakeSources(monkeypatch)
+    events = list(pipeline.run_search(REQUEST, llm=_pipeline_model()))
     assert isinstance(events[-1], ResultEvent)
     assert not any(isinstance(e, ErrorEvent) for e in events)
 

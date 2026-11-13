@@ -1,7 +1,5 @@
 """tools._GoogleWorker: selective link resolution and the results cache (no browser)."""
 
-import json
-
 import pytest
 
 import google_serp
@@ -152,13 +150,11 @@ def test_tools_resolve_only_what_they_return(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(tools, "_google_worker", lambda: w)
     monkeypatch.setattr(tools.config, "GOOGLE_RESOLVE_URLS", True)
     try:
-        out = json.loads(tools.google_search.invoke({"query": "jobs", "n": 2}))
+        out = tools.google_search("jobs", n=2)
         assert len(out) == 2 and len(session.resolved) == 2
 
         session.resolved.clear()
-        people = json.loads(
-            tools.linkedin_people.invoke({"company": "Ramp", "keywords": "x", "n": 3})
-        )
+        people = tools.linkedin_people("Ramp", "x", n=3)
         # Only the LinkedIn profiles (even positions) are resolved, and only 3 of them.
         assert [p["url"] for p in people] == [
             f"https://www.linkedin.com/in/person-{i}" for i in (2, 4, 6)

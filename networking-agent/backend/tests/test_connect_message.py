@@ -4,12 +4,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from anthropic import transform_schema
-from langchain_core.messages import AIMessage
+from pipeline_fakes import COMPANIES, FakeSources, compiled, plan
+from pipeline_fakes import DEFAULT_RANKING as RANKING
 
-import agent
 import config
+import pipeline
 import prompts
 from entities import catalog
+from pipeline.state import CompanyRanking, SearchPlan
 from schemas import (
     CompanyResult,
     PersonResult,
@@ -107,29 +109,28 @@ def test_prompt_uses_configured_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "connect_message" in text and "200 characters" in text
     assert "{" not in text
     assert prompts.compile_prompt().startswith(prompts.COMPILE_PROMPT)
+    assert prompts.people_notes_prompt().startswith(prompts.PEOPLE_NOTES_PROMPT)
+    assert "200 characters" in prompts.people_notes_prompt()
 
 
-def test_compile_step_sends_linkedin_message_rules(scripted_model) -> None:
-    results = SearchResults(
-        summary="s",
-        companies=[
-            CompanyResult(
-                name="Ramp",
-                url="u",
-                description="d",
-                alignment="a",
-                jobs=[],
-                people=[_person("Hi Jane, would love to connect about analytics at Ramp.")],
-            )
-        ],
+def test_compile_step_sends_linkedin_message_rules(scripted_model, monkeypatch) -> None:
+    sources = FakeSources(monkeypatch)
+    found = {c: sources.found(c, "data manager") for c in COMPANIES[:3]}
+    model = scripted_model(
+        structured={
+            SearchPlan: plan(),
+            CompanyRanking: RANKING,
+            SearchResults: compiled(found),
+        }
     )
-    model = scripted_model(responses=[AIMessage(content="Done.")], structured=results)
-    events = list(agent.run_search(REQUEST, llm=model, tools=[]))
+    events = list(pipeline.run_search(REQUEST, llm=model))
 
-    system = model.structured_calls[0]["input"][0].content
+    compile_call = model.structured_calls[-1]
+    assert compile_call["schema"] is SearchResults
+    system = compile_call["input"][0].content
     assert system == prompts.compile_prompt()
     assert f"{config.LINKEDIN_MESSAGE_MAX_CHARS} characters" in system
-    assert events[-1].data.companies[0].people[0].connect_message.startswith("Hi Jane")
+    assert events[-1].data.companies[0].people[0].connect_message.startswith("Hi Ramp")
 
 
 # --- People page -----------------------------------------------------------------------

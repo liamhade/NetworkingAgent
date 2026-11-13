@@ -3,8 +3,6 @@
 The result shapes are copied from live Google results pages (Nov 2026).
 """
 
-import json
-
 import pytest
 
 import linkedin
@@ -223,7 +221,7 @@ def test_similar_company_name_is_not_a_match() -> None:
     assert linkedin.parse_profile(result, "Ramp")["at_company"] is False
 
 
-# ------------------------------------------------------------------------------ tool
+# ------------------------------------------------------------------- tools.linkedin_people
 
 
 def _resolved(result: SearchResult, url: str) -> SearchResult:
@@ -254,12 +252,6 @@ def no_retry_delay(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(tools, "LINKEDIN_RETRY_DELAY_S", 0)
 
 
-def test_tool_is_registered_instead_of_find_people() -> None:
-    names = [t.name for t in tools.ALL_TOOLS]
-    assert "linkedin_people" in names
-    assert "find_people" not in names
-
-
 def test_tool_returns_only_profiles_current_employees_first(monkeypatch) -> None:
     google = FakeGoogle(
         [FORMER, JOB_BOARD, PROFILE, POST, LINKEDIN_JOB, EXPERIENCE_ONLY],
@@ -269,11 +261,7 @@ def test_tool_returns_only_profiles_current_employees_first(monkeypatch) -> None
         },
     )
     monkeypatch.setattr(tools, "run_google_search", google)
-    out = json.loads(
-        tools.linkedin_people.invoke(
-            {"company": "Ramp", "keywords": "data analyst", "location": "New York", "n": 2}
-        )
-    )
+    out = tools.linkedin_people("Ramp", "data analyst", "New York", n=2)
     assert google.queries == ['site:linkedin.com/in "Ramp" data analyst New York']
     assert google.cacheable == [True]
     assert [(p["name"], p["at_company"], p["url"]) for p in out] == [
@@ -286,13 +274,13 @@ def test_tool_returns_only_profiles_current_employees_first(monkeypatch) -> None
 def test_tool_drops_results_that_resolve_off_profile(monkeypatch) -> None:
     google = FakeGoogle([PROFILE], resolve={PROFILE.title: "https://www.linkedin.com/posts/x"})
     monkeypatch.setattr(tools, "run_google_search", google)
-    assert json.loads(tools.linkedin_people.invoke({"company": "Ramp", "keywords": "x"})) == []
+    assert tools.linkedin_people("Ramp", "x") == []
 
 
 def test_tool_retries_when_google_ignores_site_operator(monkeypatch) -> None:
     google = FakeGoogle([JOB_LIST, JOB_BOARD, JOB_BOARD], [PROFILE])
     monkeypatch.setattr(tools, "run_google_search", google)
-    out = json.loads(tools.linkedin_people.invoke({"company": "Ramp", "keywords": "data analyst"}))
+    out = tools.linkedin_people("Ramp", "data analyst")
     assert google.queries == [
         'site:linkedin.com/in "Ramp" data analyst',
         '"Ramp" data analyst site:linkedin.com/in',
@@ -304,8 +292,8 @@ def test_tool_retries_when_google_ignores_site_operator(monkeypatch) -> None:
 def test_tool_reports_when_google_keeps_ignoring_operator(monkeypatch) -> None:
     google = FakeGoogle([JOB_LIST, JOB_BOARD, JOB_BOARD], [JOB_BOARD, JOB_BOARD])
     monkeypatch.setattr(tools, "run_google_search", google)
-    out = json.loads(tools.linkedin_people.invoke({"company": "Ramp", "keywords": "x"}))
-    assert "job listings instead of LinkedIn profiles" in out["error"]
+    with pytest.raises(tools.OperatorIgnoredError, match="job listings instead of LinkedIn"):
+        tools.linkedin_people("Ramp", "x")
     assert len(google.queries) == 2
 
 
@@ -314,5 +302,5 @@ def test_tool_returns_errors(monkeypatch) -> None:
         raise RuntimeError("Chrome not found")
 
     monkeypatch.setattr(tools, "run_google_search", boom)
-    out = json.loads(tools.linkedin_people.invoke({"company": "Ramp", "keywords": "x"}))
-    assert "Chrome not found" in out["error"]
+    with pytest.raises(RuntimeError, match="Chrome not found"):
+        tools.linkedin_people("Ramp", "x")

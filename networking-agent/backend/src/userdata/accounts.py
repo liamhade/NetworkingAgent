@@ -8,6 +8,7 @@ returns TEST_USER for now; real auth (e.g. a Supabase JWT) plugs in there later.
 """
 
 import re
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,6 +19,8 @@ import config
 TEST_USER_ID = "TEST_USER"
 TEST_USER_NAME = "Test User"
 _USER_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+_create_lock = threading.Lock()
+"""Concurrent first requests must not read a half-written `user.json`."""
 
 
 class User(BaseModel):
@@ -46,14 +49,15 @@ def get_user(user_id: str) -> User | None:
 
 def ensure_user(user_id: str, display_name: str) -> User:
     """Return the user, creating their record on first use."""
-    existing = get_user(user_id)
-    if existing is not None:
-        return existing
-    user = User(id=user_id, display_name=display_name, created_at=datetime.now(UTC))
-    folder = user_dir(user_id)
-    folder.mkdir(parents=True, exist_ok=True)
-    (folder / "user.json").write_text(user.model_dump_json(indent=2), encoding="utf-8")
-    return user
+    with _create_lock:
+        existing = get_user(user_id)
+        if existing is not None:
+            return existing
+        user = User(id=user_id, display_name=display_name, created_at=datetime.now(UTC))
+        folder = user_dir(user_id)
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "user.json").write_text(user.model_dump_json(indent=2), encoding="utf-8")
+        return user
 
 
 def seed() -> None:

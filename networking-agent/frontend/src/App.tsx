@@ -8,6 +8,7 @@ import {
   setPin,
   setStatus,
   streamSearch,
+  type CompanyResult,
   type PinKind,
   type PinMap,
   type SearchRequest,
@@ -48,6 +49,11 @@ export default function App() {
   const [historyLoading, setHistoryLoading] = useState(true)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
+  /** The search on screen, for on-demand people searches that finish later. */
+  const shownId = useRef<string | null>(null)
+  useEffect(() => {
+    shownId.current = activeId
+  }, [activeId])
 
   /** APPLIED / CONNECTED marks and pins, by entity key; toggled optimistically. */
   const marks = useKeyedToggles<StatusKind>(
@@ -189,6 +195,23 @@ export default function App() {
 
   const pinProps = { pins, pinError, onTogglePin: togglePin }
 
+  /**
+   * An on-demand people search finished: swap in the updated company, unless another search
+   * is on screen by now. The People page re-fetches to show the new people.
+   */
+  const companyFound = (searchId: string, company: CompanyResult) => {
+    setEntitiesVersion((current) => current + 1)
+    if (shownId.current !== searchId) return
+    setResults((current) =>
+      current && {
+        ...current,
+        companies: current.companies.map((existing) =>
+          existing.key === company.key ? company : existing,
+        ),
+      },
+    )
+  }
+
   return (
     <div className="flex min-h-svh bg-background-full">
       <SearchHistory
@@ -238,6 +261,8 @@ export default function App() {
             statusError={statusError}
             onToggleStatus={toggleStatus}
             {...pinProps}
+            searchId={activeId}
+            onCompanyFound={(company) => activeId && companyFound(activeId, company)}
             onBack={back}
           />
         )}

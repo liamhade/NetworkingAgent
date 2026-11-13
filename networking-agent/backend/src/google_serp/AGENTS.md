@@ -2,7 +2,8 @@
 
 Runs Google searches by driving a real Chrome browser, then parses the results page. Results
 come from `GET https://www.google.com/search?q=...` as server-rendered HTML. It is the backend
-of the agent's `google_search` and `linkedin_people` tools and holds only what they need.
+of the search pipeline's `tools.google_search` and `tools.linkedin_people` and holds only what
+they need.
 Developer docs: `networking-agent/docs/google_serp/README.md`. Research write-up:
 `networking-agent/docs/google_serp/results.md`.
 
@@ -16,7 +17,7 @@ tag `archive/find-google-serp-url`.
 - `models.py`: `SearchResult`, `SearchResponse`
 
 Public API is exported from `__init__.py`. The 15-minute query cache, the single search thread
-and "resolve only the results a tool returns" live in `tools._GoogleWorker`, not here.
+and "resolve only the results a caller uses" live in `tools._GoogleWorker`, not here.
 
 ```powershell
 cd networking-agent\backend
