@@ -49,7 +49,7 @@ const TASKS = [
   { title: "Example LinkedIn connection message", status: "done", commit: "8ba97d1", note: "connect_message generated in the existing compile call (no extra LLM calls), clamped to LINKEDIN_MESSAGE_MAX_CHARS (300); prompts in prompts.py; copyable bubble." },
   { title: "Pin entities for later", status: "done", commit: "c83637f", note: "Pushpin toggle on all cards, per-user pins.json + GET/PUT /api/pins, \"Pinned first\" sort on every page; shared use-keyed-toggles hook." },
   { title: "Clean up google_serp (and builtin_nyc) modules", status: "done", commit: "cf65f13", note: "Removed cli/__main__/errors/metadata/pagination; google_serp 643 → 337 lines, builtin_nyc 427 → 381; agent behavior (profile, CAPTCHA, /goto, cache) unchanged." },
-  { title: "Frontend test runner + pinned-behavior tests", status: "done", note: "Vitest + jsdom + Testing Library (npm run test): 52 tests across sort, counts, toggle hook, PinToggle, and App-level pin/sort/rollback flows." },
+  { title: "Frontend test runner + pinned-behavior tests", status: "done", commit: "fcb9736", note: "Vitest + jsdom + Testing Library (npm run test): 52 tests across sort, counts, toggle hook, PinToggle, and App-level pin/sort/rollback flows." },
 ];
 
 function render() {
