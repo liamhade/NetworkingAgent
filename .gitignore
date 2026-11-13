@@ -1,0 +1,2 @@
+# Per-user generated data (search history etc.) — local POC database
+database/users/*/searches/

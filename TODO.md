@@ -2,7 +2,7 @@
 
 ## In-Queue
 
-- [ ] (**Store previous searchs**) User should see a side-panel on the left of the different searches they've done, ordered by the most recent. Each chat bubble should have a short the time it was created, and a short title.
+- [x] (**Store previous searchs**) User should see a side-panel on the left of the different searches they've done, ordered by the most recent. Each chat bubble should have a short the time it was created, and a short title.
 
 - [ ] (**Keep log of which jobs we've applied to**) Every job that shows up for a user should have a toggle that says "APPLIED" or "NOT APPLIED". And every person that shows up should have a toggle that says "CONNECTED" or "NOT CONNECTED". That toggle is persisted across runs. So if the user applies to a job, does another search, and the same job appears, it should stay as "APPLIED".
 

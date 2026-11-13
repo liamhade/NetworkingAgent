@@ -10,15 +10,26 @@ from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+import accounts
 import agent
 import config
+import history
 import resume
 import tools
-from schemas import AgentEvent, ErrorEvent, ResumeProfile, SearchRequest
+from schemas import (
+    AgentEvent,
+    ErrorEvent,
+    ResultEvent,
+    ResumeProfile,
+    SavedEvent,
+    SavedSearch,
+    SearchRequest,
+    SearchSummary,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -28,6 +39,7 @@ MAX_RESUME_BYTES = 10 * 1024 * 1024
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    accounts.seed()
     yield
     tools.shutdown()
 
@@ -39,6 +51,16 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+CurrentUser = Annotated[accounts.User, Depends(accounts.get_current_user)]
+"""Who is calling. Every per-user endpoint takes this, so auth plugs in at one place."""
+
+
+@app.get("/api/me")
+def me(user: CurrentUser) -> accounts.User:
+    """The account the app is running as (always TEST_USER until auth exists)."""
+    return user
 
 
 @app.get("/api/health")
@@ -67,20 +89,48 @@ def _sse(event: AgentEvent) -> str:
     return f"data: {event.model_dump_json()}\n\n"
 
 
-def _event_stream(request: SearchRequest) -> Iterator[str]:
+def _event_stream(request: SearchRequest, user_id: str) -> Iterator[str]:
     try:
         for event in agent.run_search(request):
             yield _sse(event)
+            if isinstance(event, ResultEvent):
+                yield from _save(user_id, request, event)
     except Exception as exc:  # noqa: BLE001
         log.exception("Search failed")
         yield _sse(ErrorEvent(message=f"Search failed: {exc}"))
 
 
+def _save(user_id: str, request: SearchRequest, event: ResultEvent) -> Iterator[str]:
+    """Persist a finished search; a storage failure must not hide the results."""
+    try:
+        record = history.save_search(user_id, request, event.data)
+    except Exception:  # noqa: BLE001
+        log.exception("Could not save search to history")
+        return
+    summary = SearchSummary(id=record.id, title=record.title, created_at=record.created_at)
+    yield _sse(SavedEvent(search=summary))
+
+
 @app.post("/api/search")
-def search(request: SearchRequest) -> StreamingResponse:
+def search(request: SearchRequest, user: CurrentUser) -> StreamingResponse:
     """Run the networking agent. Streams Server-Sent Events (`data: <json>` lines)."""
     return StreamingResponse(
-        _event_stream(request),
+        _event_stream(request, user.id),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/searches")
+def list_searches(user: CurrentUser) -> list[SearchSummary]:
+    """The current user's previous searches, most recent first."""
+    return history.list_searches(user.id)
+
+
+@app.get("/api/searches/{search_id}")
+def get_search(search_id: str, user: CurrentUser) -> SavedSearch:
+    """One of the current user's previous searches, with the results to reopen it."""
+    record = history.get_search(user.id, search_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Search not found.")
+    return record

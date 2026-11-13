@@ -1,5 +1,6 @@
 """Request, response and result models shared by the agent and the server."""
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -58,6 +59,22 @@ class SearchResults(BaseModel):
     companies: list[CompanyResult]
 
 
+class SearchSummary(BaseModel):
+    """One entry in the search-history side panel."""
+
+    id: str
+    title: str
+    created_at: datetime
+
+
+class SavedSearch(SearchSummary):
+    """A persisted search: what was asked and what came back."""
+
+    user_id: str
+    request: SearchRequest
+    results: SearchResults
+
+
 class StatusEvent(BaseModel):
     type: Literal["status"] = "status"
     message: str
@@ -73,4 +90,9 @@ class ErrorEvent(BaseModel):
     message: str
 
 
-AgentEvent = StatusEvent | ResultEvent | ErrorEvent
+class SavedEvent(BaseModel):
+    type: Literal["saved"] = "saved"
+    search: SearchSummary
+
+
+AgentEvent = StatusEvent | ResultEvent | ErrorEvent | SavedEvent

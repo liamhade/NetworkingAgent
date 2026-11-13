@@ -41,6 +41,7 @@ export type AgentEvent =
   | { type: 'status'; message: string }
   | { type: 'result'; data: SearchResults }
   | { type: 'error'; message: string }
+  | { type: 'saved'; search: SearchSummary }
 
 async function errorMessage(response: Response): Promise<string> {
   try {
@@ -92,3 +93,37 @@ export async function streamSearch(
     }
   }
 }
+
+export interface User {
+  id: string
+  display_name: string
+  created_at: string
+}
+
+/** One entry in the search-history side panel. */
+export interface SearchSummary {
+  id: string
+  title: string
+  /** ISO-8601 UTC timestamp. */
+  created_at: string
+}
+
+export interface SavedSearch extends SearchSummary {
+  user_id: string
+  request: SearchRequest
+  results: SearchResults
+}
+
+async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(url, { signal })
+  if (!response.ok) throw new Error(await errorMessage(response))
+  return response.json()
+}
+
+export const getCurrentUser = (signal?: AbortSignal) => getJson<User>('/api/me', signal)
+
+export const listSearches = (signal?: AbortSignal) =>
+  getJson<SearchSummary[]>('/api/searches', signal)
+
+export const getSearch = (id: string, signal?: AbortSignal) =>
+  getJson<SavedSearch>(`/api/searches/${encodeURIComponent(id)}`, signal)

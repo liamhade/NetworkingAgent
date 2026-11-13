@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Networking Agent — Progress Dashboard</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#fff; --ink:#1f2328; --muted:#6b7280; --done:#2f7d4f; --cur:#2563eb; --next:#9ca3af; --line:#e5e7eb; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16181c; --card:#1f2228; --ink:#e6e6e6; --muted:#9aa0a6; --line:#2e323a; } }
+  body { margin:0; font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width:860px; margin:40px auto; padding:0 20px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin-bottom:24px; }
+  .meter { background:var(--line); border-radius:999px; height:14px; overflow:hidden; }
+  .meter > div { height:100%; background:var(--done); transition:width .4s; }
+  .meter-label { display:flex; justify-content:space-between; color:var(--muted); font-size:13px; margin:6px 0 28px; }
+  section { margin-bottom:28px; }
+  h2 { font-size:14px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 10px; }
+  .item { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--next); border-radius:8px; padding:12px 14px; margin-bottom:8px; }
+  .item.done { border-left-color:var(--done); }
+  .item.current { border-left-color:var(--cur); }
+  .item .t { font-weight:600; }
+  .item .n { color:var(--muted); font-size:13px; margin-top:2px; }
+  .item .c { font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--muted); }
+  .empty { color:var(--muted); font-style:italic; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Networking Agent — Progress</h1>
+  <div class="sub" id="updated"></div>
+  <div class="meter"><div id="bar"></div></div>
+  <div class="meter-label"><span id="count"></span><span id="pct"></span></div>
+  <section><h2>Current</h2><div id="current"></div></section>
+  <section><h2>Next</h2><div id="next"></div></section>
+  <section><h2>Done</h2><div id="done"></div></section>
+</main>
+<script>
+// Edit this block to update the dashboard. status: "done" | "current" | "next"
+const UPDATED = "2026-11-12";
+const TASKS = [
+  { title: "Store previous searches", status: "done", note: "Left side-panel of past searches + minimal TEST_USER account layer (get_current_user, /api/me, database/users/<id>/)." },
+  { title: "Keep log of applied jobs / connected people", status: "current", note: "Persistent APPLIED / CONNECTED toggles across searches." },
+  { title: "Companies / Jobs / People pages in menu bar", status: "next", note: "Widget-box lists of every entity encountered, updated per search." },
+  { title: "Add read_page() tool", status: "next", note: "URL → Markdown with links. Experiment → plan → implement." },
+  { title: "Investigate speeding up Google SERP", status: "next", note: "Faster results without bot detection, keep full redirect links." },
+  { title: "Log token usage for each LLM", status: "next", note: "CSV of token usage + cost in logs/." },
+];
+
+function render() {
+  const done = TASKS.filter(t => t.status === "done").length;
+  const pct = Math.round(100 * done / TASKS.length);
+  document.getElementById("bar").style.width = pct + "%";
+  document.getElementById("count").textContent = `${done} of ${TASKS.length} tasks complete`;
+  document.getElementById("pct").textContent = pct + "%";
+  document.getElementById("updated").textContent = "Last updated " + UPDATED;
+  for (const s of ["current", "next", "done"]) {
+    const el = document.getElementById(s);
+    const items = TASKS.filter(t => t.status === s);
+    el.innerHTML = items.length ? "" : '<div class="empty">Nothing here.</div>';
+    for (const t of items) {
+      const d = document.createElement("div");
+      d.className = "item " + s;
+      d.innerHTML = `<div class="t"></div><div class="n"></div>` + (t.commit ? `<div class="c"></div>` : "");
+      d.querySelector(".t").textContent = t.title;
+      d.querySelector(".n").textContent = t.note;
+      if (t.commit) d.querySelector(".c").textContent = "commit " + t.commit;
+      el.appendChild(d);
+    }
+  }
+}
+render();
+</script>
+</body>
+</html>

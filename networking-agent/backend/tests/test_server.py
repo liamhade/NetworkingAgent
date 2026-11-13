@@ -12,6 +12,13 @@ from schemas import ResultEvent, ResumeProfile, SearchResults, StatusEvent
 client = TestClient(server.app)
 
 
+def test_me_returns_test_user() -> None:
+    body = client.get("/api/me").json()
+    assert body["id"] == "TEST_USER"
+    assert body["display_name"] == "Test User"
+    assert "created_at" in body
+
+
 def test_health() -> None:
     assert client.get("/api/health").json()["status"] == "ok"
 
@@ -53,10 +60,44 @@ def test_search_streams_sse(monkeypatch: pytest.MonkeyPatch) -> None:
             for line in response.iter_lines()
             if line.startswith("data: ")
         ]
-    assert events == [
+    assert events[:2] == [
         {"type": "status", "message": "Working"},
         {"type": "result", "data": {"summary": "ok", "companies": []}},
     ]
+    assert len(events) == 3
+    saved = events[2]
+    assert saved["type"] == "saved"
+    assert saved["search"]["title"] == "Data roles · NYC"
+
+    listed = client.get("/api/searches").json()
+    assert [entry["id"] for entry in listed] == [saved["search"]["id"]]
+
+    record = client.get(f"/api/searches/{saved['search']['id']}").json()
+    assert record["user_id"] == "TEST_USER"
+    assert record["request"] == body
+    assert record["results"] == {"summary": "ok", "companies": []}
+
+
+def test_search_error_is_not_saved(monkeypatch: pytest.MonkeyPatch) -> None:
+    def failing_run_search(request):
+        yield StatusEvent(message="Working")
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(agent, "run_search", failing_run_search)
+    body = {"background": "Analyst", "location": "", "looking_for": "Data roles"}
+    with client.stream("POST", "/api/search", json=body) as response:
+        types = [
+            json.loads(line.removeprefix("data: "))["type"]
+            for line in response.iter_lines()
+            if line.startswith("data: ")
+        ]
+    assert types == ["status", "error"]
+    assert client.get("/api/searches").json() == []
+
+
+def test_get_search_unknown_or_malformed_id_is_404() -> None:
+    assert client.get(f"/api/searches/{'0' * 32}").status_code == 404
+    assert client.get("/api/searches/..%2F..%2Fsecrets").status_code == 404
 
 
 def test_search_validates_input() -> None:

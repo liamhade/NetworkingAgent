@@ -54,3 +54,12 @@ def scripted_model():
         )
 
     return make
+
+
+@pytest.fixture(autouse=True)
+def isolated_database(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    """Never let tests write into the real `database/` folder."""
+    import config
+
+    monkeypatch.setattr(config, "DATABASE_DIR", tmp_path / "database")
+    return tmp_path / "database"
