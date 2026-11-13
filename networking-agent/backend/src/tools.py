@@ -1,9 +1,7 @@
-"""LangChain tools that expose the two backbone modules to the agent.
+"""LangChain tools that expose the two backbone packages (both in `src/`) to the agent.
 
-- `built-in-nyc-api` (BuiltInNYC jobs and companies). It is a flat module folder, not
-  an installable package, so its `src/` directory is put on `sys.path` and its `api`
-  and `models` modules are imported from there.
-- `find-google-serp-url` (`google_serp` package: Google search through real Chrome).
+- `builtin_nyc`: BuiltInNYC jobs and companies.
+- `google_serp`: Google search through real Chrome.
 
 Every tool returns a compact JSON string. Errors are returned as `{"error": ...}`
 instead of raised, so the agent can change its query and keep going.
@@ -13,7 +11,6 @@ import atexit
 import json
 import logging
 import re
-import sys
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -23,13 +20,9 @@ from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
 import config
-
-if str(config.BUILTIN_NYC_SRC) not in sys.path:
-    sys.path.insert(0, str(config.BUILTIN_NYC_SRC))
-
-import api as builtin_api  # noqa: E402  (built-in-nyc-api/src/api.py)
-import google_serp  # noqa: E402
-from models import (  # noqa: E402  (built-in-nyc-api/src/models.py)
+import google_serp
+from builtin_nyc import api as builtin_api
+from builtin_nyc.models import (
     CompanyFilter,
     CompanySize,
     ExperienceLevel,

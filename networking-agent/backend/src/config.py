@@ -7,16 +7,11 @@ from dotenv import load_dotenv
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 PROJECT_DIR = BACKEND_DIR.parent
-WORKSPACE_DIR = PROJECT_DIR.parent
 
 load_dotenv(PROJECT_DIR / ".env")
 
 LLM_MODEL = os.environ.get("LLM_MODEL", "anthropic:claude-haiku-5-5")
 """`<provider>:<model>` string understood by LangChain's `init_chat_model`."""
-
-BUILTIN_NYC_SRC = Path(
-    os.environ.get("BUILTIN_NYC_SRC", WORKSPACE_DIR / "built-in-nyc-api" / "src")
-)
 
 CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(
     ","

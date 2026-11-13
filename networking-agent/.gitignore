@@ -1,1 +1,10 @@
 .env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+dist/
+# Research output (HAR captures contain session cookies)
+research/google_serp/captures/
+research/builtin_nyc/out/

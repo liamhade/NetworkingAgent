@@ -7,11 +7,10 @@ python-multipart>=0.0.9
 pypdf>=5.0
 python-dotenv>=1.0
 pydantic>=2.7
-# built-in-nyc-api (flat module, loaded from ../../built-in-nyc-api/src via sys.path)
+# src/builtin_nyc and src/google_serp
 requests>=2.32
 beautifulsoup4>=4.12
-# find-google-serp-url package
--e ../../find-google-serp-url
+playwright>=1.40
 # dev
 pytest>=8
 httpx>=0.27

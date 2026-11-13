@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!-- Hand-written fixture that mirrors the structure of a Google results page
+     captured on 2026-11-10 (class names, /goto links, cite/site-name layout). -->
+<html lang="en">
+<head><title>python requests library - Google Search</title></head>
+<body>
+<div id="result-stats">About 10,500 results<nobr> (0.19s)&nbsp;</nobr></div>
+<div id="search">
+  <div id="rso">
+    <!-- AI Mode heading: an h3 with no link, must be skipped -->
+    <div><h3>AI Mode reply for python requests library</h3></div>
+
+    <!-- 1: normal result with breadcrumb cite -->
+    <div class="MjjYud">
+      <div data-hveid="CAEQAA">
+        <a jsname="UWckNb" href="/goto?url=CAESabc1&amp;gsessionid=x" ping="/url?sa=t&amp;url=CAESabc1">
+          <h3>Requests: HTTP for Humans™ — Requests documentation</h3>
+        </a>
+        <span class="VuuXrf">Read the Docs</span>
+        <cite>https://requests.readthedocs.io</cite>
+        <div class="VwiC3b">Requests is an elegant and simple HTTP library for Python, built for human beings.</div>
+      </div>
+    </div>
+
+    <!-- 2: forum result: cite holds metadata, not a URL -->
+    <div class="MjjYud">
+      <div data-hveid="CAIQAA">
+        <a jsname="UWckNb" href="/goto?url=CAESabc2">
+          <h3>installation - Python requests library</h3>
+        </a>
+        <span class="VuuXrf">Stack Overflow</span>
+        <cite>1 answer · 12 years ago</cite>
+        <div data-sncf="1">I am not all that familiar with Python, but I am trying to write a simple script.</div>
+      </div>
+    </div>
+
+    <!-- 3: duplicate of result 1's link, must be dropped -->
+    <div class="MjjYud">
+      <a href="/goto?url=CAESabc1&amp;gsessionid=x"><h3>Duplicate</h3></a>
+    </div>
+
+    <!-- 4: Google-internal link (maps), must be skipped -->
+    <div class="MjjYud">
+      <a href="https://maps.google.com/maps?q=python"><h3>Places</h3></a>
+    </div>
+
+    <!-- 5: old-style /url?q= link, unwrapped to the destination -->
+    <div class="g">
+      <a href="/url?q=https://pypi.org/project/requests/&amp;sa=U"><h3>requests · PyPI</h3></a>
+      <span class="VuuXrf">PyPI</span>
+      <cite>https://pypi.org › project › requests</cite>
+    </div>
+
+    <!-- 6: direct link, site name with non-breaking spaces -->
+    <div class="MjjYud">
+      <a href="https://www.reddit.com/r/learnpython/comments/abc/"><h3>I don't really understand requests</h3></a>
+      <span class="VuuXrf">Reddit&nbsp;·&nbsp;r/learnpython</span>
+      <cite>8 comments · 3 years ago</cite>
+    </div>
+  </div>
+</div>
+</body>
+</html>

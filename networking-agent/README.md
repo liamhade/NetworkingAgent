@@ -1,0 +1,67 @@
+# Networking Agent
+
+Type in your background, where you live and what you're looking for (or upload a resume
+PDF), and the agent returns companies to research, open jobs, and people to network
+with, each with a note on how you align. Design: [docs/v1/plan.md](docs/v1/plan.md).
+
+- `backend/`: FastAPI + LangChain agent (Python 3.11). Tools wrap two packages in
+  `backend/src/`: `builtin_nyc` (BuiltInNYC jobs/companies) and `google_serp` (Google
+  search through Chrome, used for LinkedIn people and non-NYC jobs).
+- `research/`: scripts used to reverse-engineer those two sites (not used at runtime).
+- `docs/`: plans, plus module docs (`docs/google_serp/`, `docs/builtin_nyc/`).
+- `frontend/`: Vite + React + TypeScript + Tailwind v4 + BoardUI components.
+
+## Setup
+
+`networking-agent/.env` needs an Anthropic key:
+
+```
+ANTHROPIC_KEY=sk-ant-...
+# optional: any LangChain "<provider>:<model>" string
+LLM_MODEL=anthropic:claude-haiku-5-5
+```
+
+Google Chrome must be installed (see `docs/google_serp/README.md`). If Google
+shows a CAPTCHA, the Chrome window comes on-screen and someone has 3 minutes to solve it.
+
+```powershell
+cd backend
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+cd ..\frontend
+npm install
+```
+
+## Run
+
+```powershell
+# terminal 1
+cd backend
+.\.venv\Scripts\python.exe -m uvicorn server:app --app-dir src --port 8000
+
+# terminal 2
+cd frontend
+npm run dev          # http://localhost:5173 (proxies /api to :8000)
+```
+
+## Test
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m pytest      # offline, no LLM or browser
+.\.venv\Scripts\ruff.exe check .
+
+cd ..\frontend
+npm run build
+```
+
+## Settings (environment variables)
+
+| Name | Default | Meaning |
+|---|---|---|
+| `LLM_MODEL` | `anthropic:claude-haiku-5-5` | Model used by the agent and resume parser |
+| `ANTHROPIC_KEY` / `ANTHROPIC_API_KEY` | | API key (`<PROVIDER>_KEY` works for other providers) |
+| `AGENT_RECURSION_LIMIT` | `40` | Max agent steps before compiling results |
+| `GOOGLE_RESOLVE_URLS` | `true` | Follow Google redirects to real URLs (slower) |
+| `CORS_ORIGINS` | `http://localhost:5173,...` | Allowed browser origins |

@@ -2,9 +2,9 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from models import Company, ExperienceLevel, Job, JobCategory
 
 import tools
+from builtin_nyc.models import Company, ExperienceLevel, Job, JobCategory
 
 
 def _job(i: int) -> Job:
