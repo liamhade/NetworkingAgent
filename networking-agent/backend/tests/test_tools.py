@@ -98,56 +98,9 @@ def test_google_search(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
 
 
-def test_find_people_builds_linkedin_query_and_parses(monkeypatch: pytest.MonkeyPatch) -> None:
-    queries = []
-
-    def fake(q, pick=None):
-        queries.append(q)
-        return _serp(
-            {
-                "title": "Jane Doe - Data Science Manager - Ramp | LinkedIn",
-                "url": "https://www.linkedin.com/in/janedoe",
-                "site_name": "LinkedIn",
-                "snippet": "NYC",
-            },
-            {
-                "title": "Ramp careers",
-                "url": "https://ramp.com/careers",
-                "site_name": "Ramp",
-                "snippet": "",
-            },
-        )
-
-    monkeypatch.setattr(tools, "run_google_search", fake)
-    out = json.loads(
-        tools.find_people.invoke({"company": "Ramp", "keywords": "data science", "location": "NYC"})
-    )
-    assert queries == ['site:linkedin.com/in "Ramp" data science NYC']
-    assert out == [
-        {
-            "name": "Jane Doe",
-            "headline": "Data Science Manager - Ramp",
-            "url": "https://www.linkedin.com/in/janedoe",
-            "snippet": "NYC",
-        }
-    ]
-
-
 def test_google_errors_are_returned(monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(q, pick=None):
         raise RuntimeError("Chrome not found")
 
     monkeypatch.setattr(tools, "run_google_search", boom)
     assert "Chrome not found" in json.loads(tools.google_search.invoke({"query": "x"}))["error"]
-
-
-@pytest.mark.parametrize(
-    ("title", "expected"),
-    [
-        ("Jane Doe - Engineer - Acme | LinkedIn", ("Jane Doe", "Engineer - Acme")),
-        ("John Smith · LinkedIn", ("John Smith", "")),
-        ("Ana Li - Recruiter", ("Ana Li", "Recruiter")),
-    ],
-)
-def test_parse_linkedin_title(title: str, expected: tuple[str, str]) -> None:
-    assert tools.parse_linkedin_title(title) == expected

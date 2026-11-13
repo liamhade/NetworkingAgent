@@ -11,7 +11,6 @@ instead of raised, so the agent can change its query and keep going.
 import atexit
 import json
 import logging
-import re
 import threading
 import time
 from collections.abc import Callable
@@ -23,6 +22,7 @@ from pydantic import BaseModel, Field
 
 import config
 import google_serp
+import linkedin
 import read_page as read_page_pkg
 from builtin_nyc import api as builtin_api
 from builtin_nyc.models import (
@@ -182,6 +182,9 @@ def search_builtin_companies(
 ResultPicker = Callable[[list[google_serp.SearchResult]], list[google_serp.SearchResult]]
 """Chooses which results a tool will use, before their links are resolved."""
 
+PageCheck = Callable[[google_serp.SearchResponse], bool]
+"""Says whether a results page is good enough to cache."""
+
 
 class _GoogleWorker:
     """Runs every Google search on one dedicated thread with one reusable browser.
@@ -217,8 +220,12 @@ class _GoogleWorker:
                 log.debug("Ignoring error while closing Google session", exc_info=True)
             self._session = None
 
-    def _fetch(self, query: str) -> google_serp.SearchResponse:
-        """The results page for `query`, links unresolved, from the cache if fresh."""
+    def _fetch(self, query: str, cacheable: PageCheck | None = None) -> google_serp.SearchResponse:
+        """The results page for `query`, links unresolved, from the cache if fresh.
+
+        A page that `cacheable` rejects (e.g. Google ignored an operator) isn't cached,
+        so asking again really asks Google again.
+        """
         now = time.monotonic()
         cached = self._cache.get(query)
         if cached is not None and now - cached[0] < self._cache_ttl:
@@ -233,7 +240,7 @@ class _GoogleWorker:
             log.warning("Google search failed; restarting browser", exc_info=True)
             self._reset()
             response = self._ensure_session().search(query, resolve_urls=False)
-        if response.results and self._cache_ttl > 0:
+        if response.results and self._cache_ttl > 0 and (cacheable is None or cacheable(response)):
             self._cache = {q: e for q, e in self._cache.items() if now - e[0] < self._cache_ttl}
             if len(self._cache) >= self.MAX_CACHED:
                 self._cache.pop(min(self._cache, key=lambda q: self._cache[q][0]))
@@ -241,9 +248,13 @@ class _GoogleWorker:
         return response
 
     def _search(
-        self, query: str, resolve_urls: bool, pick: ResultPicker | None
+        self,
+        query: str,
+        resolve_urls: bool,
+        pick: ResultPicker | None,
+        cacheable: PageCheck | None = None,
     ) -> google_serp.SearchResponse:
-        response = self._fetch(query)
+        response = self._fetch(query, cacheable)
         results = pick(list(response.results)) if pick else list(response.results)
         if resolve_urls:
             # Resolved in place, so a cached page keeps its resolved links.
@@ -251,11 +262,17 @@ class _GoogleWorker:
         return google_serp.SearchResponse(results=results, metadata=response.metadata)
 
     def search(
-        self, query: str, resolve_urls: bool = True, pick: ResultPicker | None = None
+        self,
+        query: str,
+        resolve_urls: bool = True,
+        pick: ResultPicker | None = None,
+        cacheable: PageCheck | None = None,
     ) -> google_serp.SearchResponse:
         """Search Google; resolve the links of only the results `pick` keeps."""
         with self._lock:
-            return self._executor.submit(self._search, query, resolve_urls, pick).result()
+            return self._executor.submit(
+                self._search, query, resolve_urls, pick, cacheable
+            ).result()
 
     def close(self) -> None:
         self._executor.submit(self._reset).result()
@@ -275,12 +292,17 @@ def _google_worker() -> _GoogleWorker:
         return _google
 
 
-def run_google_search(query: str, pick: ResultPicker | None = None) -> google_serp.SearchResponse:
+def run_google_search(
+    query: str, pick: ResultPicker | None = None, cacheable: PageCheck | None = None
+) -> google_serp.SearchResponse:
     """Run one Google search through the shared worker (patched in tests).
 
     `pick` chooses the results the caller will use; only their links are resolved.
+    `cacheable` rejects results pages that shouldn't be reused for a repeated query.
     """
-    return _google_worker().search(query, resolve_urls=config.GOOGLE_RESOLVE_URLS, pick=pick)
+    return _google_worker().search(
+        query, resolve_urls=config.GOOGLE_RESOLVE_URLS, pick=pick, cacheable=cacheable
+    )
 
 
 def shutdown() -> None:
@@ -328,61 +350,77 @@ def google_search(query: str, n: int = 10) -> str:
     )
 
 
-_LINKEDIN_TITLE = re.compile(r"\s*[|·]\s*LinkedIn\s*$", re.IGNORECASE)
+LINKEDIN_RETRY_DELAY_S = 6.0
+"""Pause before asking again when Google ignored `site:linkedin.com/in`."""
 
 
-def parse_linkedin_title(title: str) -> tuple[str, str]:
-    """Split a LinkedIn result title into (name, headline).
-
-    `"Jane Doe - Data Scientist - Acme | LinkedIn"` -> `("Jane Doe", "Data Scientist - Acme")`.
-    """
-    title = _LINKEDIN_TITLE.sub("", title).strip()
-    name, _, headline = (part.strip() for part in title.partition(" - "))
-    return name, headline
-
-
-def _looks_like_linkedin(result: google_serp.SearchResult) -> bool:
-    """True for a LinkedIn result. Works before its /goto link is resolved too."""
-    return (
-        "linkedin.com/in/" in result.url
-        or "linkedin.com" in result.display_url
-        or "LinkedIn" in (result.site_name + result.title)
-    )
-
-
-class FindPeopleArgs(BaseModel):
+class LinkedInPeopleArgs(BaseModel):
     company: str = Field(description="Company name, e.g. 'Ramp'.")
     keywords: str = Field(
-        description='Role/team keywords, e.g. "data science manager" or "recruiter".'
+        description='Role/team keywords, e.g. "data science manager" or "recruiter". '
+        'Describe the person, not a job opening (avoid "jobs", "hiring", "opening").'
     )
     location: str = Field(default="", description="Optional city, e.g. 'New York'.")
     n: int = Field(default=5, ge=1, le=10, description="Maximum people to return.")
 
 
-@tool("find_people", args_schema=FindPeopleArgs)
-def find_people(company: str, keywords: str, location: str = "", n: int = 5) -> str:
-    """Find people at a company to network with, via Google search of LinkedIn profiles.
+def _search_profiles(query: str, company: str, n: int) -> tuple[list[dict], bool]:
+    """Up to `n` profiles for `query`, current employees of `company` first, and whether
+    Google ignored the `site:` operator."""
+    seen = {"ignored": False}
 
-    Returns name, headline, LinkedIn profile URL and snippet.
-    Each call takes 2-25 seconds (larger n is slower).
-    """
-    query = f'site:linkedin.com/in "{company}" {keywords} {location}'.strip()
-    response = _safe(
-        lambda: run_google_search(
-            query, pick=lambda results: [r for r in results if _looks_like_linkedin(r)][:n]
-        )
+    def elsewhere(result: google_serp.SearchResult) -> bool:
+        return not linkedin.parse_profile(result, company)["at_company"]
+
+    def pick(results: list[google_serp.SearchResult]) -> list[google_serp.SearchResult]:
+        seen["ignored"] = linkedin.operator_ignored(results)
+        profiles = [r for r in results if linkedin.looks_like_profile(r)]
+        # Stable sort keeps Google's order within each group. Only these get resolved.
+        return sorted(profiles, key=elsewhere)[:n]
+
+    response = run_google_search(
+        query, pick=pick, cacheable=lambda page: not linkedin.operator_ignored(page.results)
     )
-    if isinstance(response, str):
-        return response
     people = []
     for r in response.results:
-        if not _looks_like_linkedin(r):
-            continue
-        name, headline = parse_linkedin_title(r.title)
-        people.append(
-            {"name": name, "headline": headline, "url": r.url, "snippet": _clip(r.snippet)}
+        # Checked again after resolving: only linkedin.com/in/ links are kept.
+        if linkedin.looks_like_profile(r):
+            person = linkedin.parse_profile(r, company)
+            person["snippet"] = _clip(r.snippet)
+            people.append(person)
+    return people[:n], seen["ignored"]
+
+
+@tool("linkedin_people", args_schema=LinkedInPeopleArgs)
+def linkedin_people(company: str, keywords: str, location: str = "", n: int = 5) -> str:
+    """Find people at a company to network with: LinkedIn profiles found through Google.
+
+    Returns only linkedin.com/in profiles, current employees first: name, headline, current
+    title and company, at_company (false = may work elsewhere now), location, profile URL and
+    snippet. Each call takes 2-25 seconds (larger n is slower).
+    """
+    try:
+        people, ignored = _search_profiles(
+            linkedin.build_query(company, keywords, location), company, n
         )
-    return _dump(people[:n])
+        if ignored:
+            # Google sometimes drops the site: operator and serves job boards instead;
+            # asking again shortly after (operator moved to the end) usually works.
+            log.info("Google ignored site:linkedin.com/in for %r; retrying", company)
+            time.sleep(LINKEDIN_RETRY_DELAY_S)
+            people, ignored = _search_profiles(
+                linkedin.retry_query(company, keywords, location), company, n
+            )
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc)
+    if not people and ignored:
+        return _dump(
+            {
+                "error": "Google returned job listings instead of LinkedIn profiles. "
+                "Try again later or with different keywords."
+            }
+        )
+    return _dump(people)
 
 
 # ------------------------------------------------------------------------ read_page
@@ -417,7 +455,7 @@ def read_page(url: str, method: ReadMethod = "auto", max_chars: int = READ_PAGE_
 
     Use it on a job posting (requirements, salary, team, how to apply) or a company's careers,
     about or team page. Returns {url, final_url, method, title, markdown, truncated}.
-    LinkedIn profile pages can't be read; use find_people for people. Takes 1-15 seconds.
+    LinkedIn profile pages can't be read; use linkedin_people for people. Takes 1-15 seconds.
     """
     try:
         result = read_page_pkg.read_page(url, method=method, max_chars=max_chars)
@@ -430,6 +468,6 @@ ALL_TOOLS: list[BaseTool] = [
     search_builtin_jobs,
     search_builtin_companies,
     google_search,
-    find_people,
+    linkedin_people,
     read_page,
 ]

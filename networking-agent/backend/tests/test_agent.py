@@ -86,7 +86,7 @@ def test_run_search_reports_compile_failure(scripted_model) -> None:
 
 def test_describe_tool_call() -> None:
     assert (
-        agent.describe_tool_call("find_people", {"company": "Ramp", "keywords": "recruiter"})
+        agent.describe_tool_call("linkedin_people", {"company": "Ramp", "keywords": "recruiter"})
         == "Looking for recruiter at Ramp"
     )
     assert agent.describe_tool_call("google_search", {"query": "q"}) == "Searching Google for “q”"

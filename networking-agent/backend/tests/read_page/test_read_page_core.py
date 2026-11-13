@@ -45,7 +45,7 @@ def test_registered_method_is_used_by_auto(web: FakeWeb) -> None:
 
 def test_linkedin_profiles_are_refused_for_every_method(web: FakeWeb) -> None:
     for method in (None, "static", "browser"):
-        with pytest.raises(PageBlocked, match="find_people"):
+        with pytest.raises(PageBlocked, match="linkedin_people"):
             read_page.read_page("https://www.linkedin.com/in/williamhgates/", method=method)
     assert web.calls == []
 

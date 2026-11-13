@@ -18,7 +18,7 @@ CACHE_SIZE = 64
 
 LINKEDIN_PROFILE_MESSAGE = (
     "LinkedIn profiles can't be read (LinkedIn blocks it and its terms forbid scraping); "
-    "use find_people to get people's names and headlines instead."
+    "use linkedin_people to get people's names and headlines instead."
 )
 
 _cache: OrderedDict[tuple[str, str], tuple[float, PageResult]] = OrderedDict()

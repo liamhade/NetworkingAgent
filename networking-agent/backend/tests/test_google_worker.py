@@ -33,9 +33,11 @@ class FakeSession:
         results = []
         for i in range(1, self.n_results + 1):
             goto = f"https://www.google.com/goto?url={query}-{i}"
-            site = "LinkedIn" if i % 2 == 0 else "Indeed"
+            # Even positions look like LinkedIn profiles, odd ones like job boards.
+            site = f"LinkedIn · Person {i}" if i % 2 == 0 else "Indeed"
+            title = f"Person {i} - Recruiter at Ramp" if i % 2 == 0 else f"r{i}"
             results.append(
-                SearchResult(title=f"r{i}", url=goto, google_url=goto, site_name=site, position=i)
+                SearchResult(title=title, url=goto, google_url=goto, site_name=site, position=i)
             )
         return SearchResponse(results=results, metadata=SearchMetadata(query=query))
 
@@ -43,7 +45,10 @@ class FakeSession:
         for r in results:
             if r.google_url and r.url == r.google_url:
                 self.resolved.append(r.google_url)
-                r.url = f"https://real.example/{r.position}"
+                if r.site_name.startswith("LinkedIn"):
+                    r.url = f"https://www.linkedin.com/in/person-{r.position}"
+                else:
+                    r.url = f"https://real.example/{r.position}"
 
 
 @pytest.fixture
@@ -66,7 +71,11 @@ def test_only_picked_results_are_resolved(worker):
     session = worker.sessions[0]
     assert session.searches == [("q", False)]
     assert len(session.resolved) == 3
-    assert [r.url for r in response.results] == [f"https://real.example/{i}" for i in (1, 2, 3)]
+    assert [r.url for r in response.results] == [
+        "https://real.example/1",
+        "https://www.linkedin.com/in/person-2",
+        "https://real.example/3",
+    ]
 
 
 def test_no_pick_resolves_everything(worker):
@@ -148,10 +157,22 @@ def test_tools_resolve_only_what_they_return(monkeypatch: pytest.MonkeyPatch):
         assert len(out) == 2 and len(session.resolved) == 2
 
         session.resolved.clear()
-        people = json.loads(tools.find_people.invoke({"company": "Ramp", "keywords": "x", "n": 3}))
-        # Only the LinkedIn results (even positions) are resolved, and only 3 of them.
-        assert len(people) == 3
-        assert [p["url"] for p in people] == [f"https://real.example/{i}" for i in (2, 4, 6)]
+        people = json.loads(
+            tools.linkedin_people.invoke({"company": "Ramp", "keywords": "x", "n": 3})
+        )
+        # Only the LinkedIn profiles (even positions) are resolved, and only 3 of them.
+        assert [p["url"] for p in people] == [
+            f"https://www.linkedin.com/in/person-{i}" for i in (2, 4, 6)
+        ]
         assert len(session.resolved) == 3
     finally:
         w.close()
+
+
+def test_rejected_pages_are_not_cached(worker):
+    worker.search("q", cacheable=lambda page: False)
+    worker.search("q", cacheable=lambda page: False)
+    assert len(worker.sessions[0].searches) == 2
+    worker.search("q", cacheable=lambda page: True)
+    worker.search("q", cacheable=lambda page: True)
+    assert len(worker.sessions[0].searches) == 3

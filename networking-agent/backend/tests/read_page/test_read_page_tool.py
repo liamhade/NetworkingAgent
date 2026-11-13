@@ -36,7 +36,7 @@ def test_tool_default_budget_and_max_chars(web: FakeWeb) -> None:
 def test_tool_returns_linkedin_refusal_as_error(web: FakeWeb) -> None:
     out = json.loads(tools.read_page.invoke({"url": "https://www.linkedin.com/in/janedoe"}))
     assert "PageBlocked" in out["error"]
-    assert "find_people" in out["error"]
+    assert "linkedin_people" in out["error"]
 
 
 def test_tool_returns_fetch_errors(web: FakeWeb) -> None:

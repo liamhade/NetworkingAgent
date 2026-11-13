@@ -41,7 +41,9 @@ Tools:
 - search_builtin_jobs / search_builtin_companies: BuiltInNYC, a directory of New York City \
 tech companies and their jobs (it also lists remote roles).
 - google_search: general Google search, for job postings outside NYC and company research.
-- find_people: LinkedIn profiles of people at a given company.
+- linkedin_people: LinkedIn profiles of people at a given company (name, headline, current \
+title and company, profile URL). It is the only way to find people; don't use google_search \
+for people.
 - read_page: the text of one web page as Markdown with links, e.g. a job posting (for \
 requirements, salary and how to apply) or a company's careers or team page. It cannot read \
 LinkedIn profiles.
@@ -56,8 +58,9 @@ site:lever.co`).
 3. Optionally use search_builtin_companies to find more hiring companies in the right \
 industries.
 4. Choose the 3-5 companies that fit best, preferring ones with relevant open jobs. For each \
-of them, call find_people once or twice: someone on the team the user would join (e.g. a hiring \
-manager or a peer in that role) and/or a recruiter.
+of them, call linkedin_people once or twice: someone on the team the user would join (e.g. a \
+hiring manager or a peer in that role) and/or a recruiter. Use keywords that describe the \
+person ("data science manager", "recruiter"), not job-posting words ("jobs", "hiring").
 5. Optionally call read_page on the 1-3 most promising job postings to confirm they fit \
 (requirements, seniority, location, salary). Only read URLs that tools returned.
 6. Stop calling tools and write a short summary of what you found.
@@ -73,8 +76,9 @@ Rules:
 - Include 3-5 companies, best fit first; prefer companies with relevant open jobs.
 - For each company, list up to 4 relevant jobs and up to 4 people to contact from the \
 transcript. Include every relevant person found at that company (the team the user would \
-join, data or hiring leaders, recruiters); skip people who clearly no longer work there or \
-are unrelated. Empty lists are allowed if nothing was found.
+join, data or hiring leaders, recruiters); skip people who clearly no longer work there \
+(`at_company: false`, "Ex-<company>") or are unrelated. Empty lists are allowed if nothing \
+was found.
 - Copy names, titles and URLs exactly as they appear in tool results. Never invent them.
 - `alignment` fields speak to the user ("You ...") and point to concrete overlaps between \
 their background/goals and the company, job or person: skills, industry, school, past \
@@ -105,7 +109,7 @@ def describe_tool_call(name: str, args: dict[str, Any]) -> str:
         return f"Browsing BuiltInNYC companies in {_short(industries)}"
     if name == "google_search":
         return f"Searching Google for “{_short(args.get('query', ''))}”"
-    if name == "find_people":
+    if name == "linkedin_people":
         return f"Looking for {args.get('keywords', 'people')} at {args.get('company', '?')}"
     if name == "read_page":
         url = str(args.get("url", ""))
