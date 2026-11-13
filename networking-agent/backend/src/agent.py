@@ -41,6 +41,9 @@ Tools:
 tech companies and their jobs (it also lists remote roles).
 - google_search: general Google search, for job postings outside NYC and company research.
 - find_people: LinkedIn profiles of people at a given company.
+- read_page: the text of one web page as Markdown with links, e.g. a job posting (for \
+requirements, salary and how to apply) or a company's careers or team page. It cannot read \
+LinkedIn profiles.
 
 Process:
 1. From the profile, decide on 2-3 target role titles, the seniority level and the \
@@ -54,10 +57,12 @@ industries.
 4. Choose the 3-5 companies that fit best, preferring ones with relevant open jobs. For each \
 of them, call find_people once or twice: someone on the team the user would join (e.g. a hiring \
 manager or a peer in that role) and/or a recruiter.
-5. Stop calling tools and write a short summary of what you found.
+5. Optionally call read_page on the 1-3 most promising job postings to confirm they fit \
+(requirements, seniority, location, salary). Only read URLs that tools returned.
+6. Stop calling tools and write a short summary of what you found.
 
 Rules:
-- Be efficient: about 10-14 tool calls in total. Google-based tools are slow.
+- Be efficient: about 10-16 tool calls in total. Google-based tools are slow.
 - Never invent companies, jobs, people or URLs. Only report what tools returned.
 - If a tool returns an error, adjust the arguments or use another tool."""
 
@@ -101,6 +106,9 @@ def describe_tool_call(name: str, args: dict[str, Any]) -> str:
         return f"Searching Google for “{_short(args.get('query', ''))}”"
     if name == "find_people":
         return f"Looking for {args.get('keywords', 'people')} at {args.get('company', '?')}"
+    if name == "read_page":
+        url = str(args.get("url", ""))
+        return f"Reading {_short(url.split('://', 1)[-1].removeprefix('www.'))}"
     return f"Running {name}"
 
 
@@ -112,6 +120,9 @@ def describe_tool_result(message: ToolMessage) -> str:
         payload = None
     if isinstance(payload, dict) and "error" in payload:
         return f"{message.name} failed: {_short(payload['error'], 120)}"
+    if isinstance(payload, dict) and "markdown" in payload:
+        title = payload.get("title") or payload.get("final_url") or "page"
+        return f"Read “{_short(title)}” ({len(payload['markdown']):,} characters)"
     if isinstance(payload, list):
         return f"{message.name}: {len(payload)} result{'s' if len(payload) != 1 else ''}"
     return f"{message.name} finished"

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head><title>How We Build Data Pipelines | Acme Blog</title></head>
+<body>
+<header><nav><a href="/">Home</a> <a href="/pricing">Pricing</a> <a href="/login">Sign in</a></nav></header>
+<div id="cookie-banner">We use cookies. Accept all cookies to continue. Privacy policy.</div>
+<main>
+<article>
+<h1>How We Build Data Pipelines</h1>
+<p>At Acme, we’re building the data platform that powers analytics for thousands of customers. This post explains how our pipelines ingest events, validate them, and load them into the warehouse every few minutes.</p>
+<p>Our team uses <a href="/docs/airflow">Airflow</a> for orchestration and <a href="https://www.getdbt.com/">dbt</a> for transformations. Each pipeline is owned by a small squad with a clear on-call rotation, and every model has tests that run before deployment.</p>
+<h2>Validation</h2>
+<p>Events are validated against a schema registry. Bad events are quarantined and reported to the owning team, who can replay them once the producer is fixed. This keeps the warehouse clean without dropping data.</p>
+<p>Interested? See our <a href="/careers">open roles</a> and apply today. We’re hiring data engineers and analysts in New York.</p>
+</article>
+</main>
+<footer>© 2026 Acme Inc. All rights reserved. <a href="/terms">Terms of service</a></footer>
+</body>
+</html>

@@ -2,6 +2,7 @@
 
 - `builtin_nyc`: BuiltInNYC jobs and companies.
 - `google_serp`: Google search through real Chrome.
+- `read_page`: read any web page (job posting, careers/team page) as Markdown.
 
 Every tool returns a compact JSON string. Errors are returned as `{"error": ...}`
 instead of raised, so the agent can change its query and keep going.
@@ -14,13 +15,14 @@ import re
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
 import config
 import google_serp
+import read_page as read_page_pkg
 from builtin_nyc import api as builtin_api
 from builtin_nyc.models import (
     CompanyFilter,
@@ -240,12 +242,13 @@ def run_google_search(query: str) -> google_serp.SearchResponse:
 
 
 def shutdown() -> None:
-    """Close the Google browser if one was started."""
+    """Close the Google browser and the read_page browser if they were started."""
     global _google
     with _google_lock:
         if _google is not None:
             _google.close()
             _google = None
+    read_page_pkg.shutdown()
 
 
 def _safe(fn: Callable[[], T]) -> T | str:
@@ -326,9 +329,51 @@ def find_people(company: str, keywords: str, location: str = "", n: int = 5) -> 
     return _dump(people[:n])
 
 
+# ------------------------------------------------------------------------ read_page
+
+READ_PAGE_MAX_CHARS = 12_000
+"""Default page budget for the agent (about 3k tokens); the model may ask for up to 32k."""
+
+ReadMethod = Literal[
+    "auto", "static", "full", "browser", "jsonld", "greenhouse_api", "lever_api", "ashby_api"
+]
+
+
+class ReadPageArgs(BaseModel):
+    url: str = Field(description="Full http(s) URL of the page, copied from a tool result.")
+    method: ReadMethod = Field(
+        default="auto",
+        description='Leave "auto" (picks the best method for the URL, with fallbacks). Use '
+        '"full" for team/leadership/listing pages if names or cards seem missing, and '
+        '"browser" if the page needs JavaScript.',
+    )
+    max_chars: int = Field(
+        default=READ_PAGE_MAX_CHARS,
+        ge=1_000,
+        le=read_page_pkg.DEFAULT_MAX_CHARS,
+        description="Maximum Markdown characters to return.",
+    )
+
+
+@tool("read_page", args_schema=ReadPageArgs)
+def read_page(url: str, method: ReadMethod = "auto", max_chars: int = READ_PAGE_MAX_CHARS) -> str:
+    """Read a web page as Markdown, with its hyperlinks.
+
+    Use it on a job posting (requirements, salary, team, how to apply) or a company's careers,
+    about or team page. Returns {url, final_url, method, title, markdown, truncated}.
+    LinkedIn profile pages can't be read; use find_people for people. Takes 1-15 seconds.
+    """
+    try:
+        result = read_page_pkg.read_page(url, method=method, max_chars=max_chars)
+    except Exception as exc:  # noqa: BLE001
+        return _error(exc)
+    return _dump(result.model_dump())
+
+
 ALL_TOOLS: list[BaseTool] = [
     search_builtin_jobs,
     search_builtin_companies,
     google_search,
     find_people,
+    read_page,
 ]

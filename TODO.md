@@ -8,10 +8,10 @@
 
 - [x] (**Add company + jobs + person to menu bar**) In the menu bar, there should be three pages we can navigate to: `Companies`, `Jobs`, and `People`. Each page shows a list of the respective entities that we have encountered through our search. Each entity (company, job, or person) should be in it's own widget box.. Every time we make a new search, these lists are updated to include them. 
 
-- [ ] (**Add read_page() tool**) Given a URL, the Agent should get the text of the webpage rendered as Markdown, including with hyperlinks. The tool should use a default method for pages, but we should add the option to use a more efficient method if we discover one that is particulary suited for a page or group of pages.
+- [x] (**Add read_page() tool**) Given a URL, the Agent should get the text of the webpage rendered as Markdown, including with hyperlinks. The tool should use a default method for pages, but we should add the option to use a more efficient method if we discover one that is particulary suited for a page or group of pages.
     - [x] (*experiment*) Figure out what Python modules or tools are best suited for crawling converting a web-page into an easy to read format. Some suggestions are using tools like `Crawl4AI`, `trafilatura`, or `markdownify`.
-    - [ ] (*plan*) Create a plant to implement this module and tool
-    - [ ] (*implement*) Implement the plan
+    - [x] (*plan*) Create a plant to implement this module and tool
+    - [x] (*implement*) Implement the plan
 
 - [ ] (**investigate speeding up Google SERP results**) Check if there's a way to speed up the Google SERP results without flagging the bot-detection radar, while still keeping full redirect links.
 
