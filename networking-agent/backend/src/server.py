@@ -14,14 +14,15 @@ from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-import accounts
 import agent
 import config
-import history
 import resume
 import tools
+from entities import keys
 from schemas import (
     AgentEvent,
+    EntityStatus,
+    EntityStatusKind,
     ErrorEvent,
     ResultEvent,
     ResumeProfile,
@@ -29,7 +30,9 @@ from schemas import (
     SavedSearch,
     SearchRequest,
     SearchSummary,
+    StatusUpdate,
 )
+from userdata import accounts, history, statuses
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -48,7 +51,7 @@ app = FastAPI(title="Networking Agent", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT"],
     allow_headers=["*"],
 )
 
@@ -92,9 +95,12 @@ def _sse(event: AgentEvent) -> str:
 def _event_stream(request: SearchRequest, user_id: str) -> Iterator[str]:
     try:
         for event in agent.run_search(request):
-            yield _sse(event)
             if isinstance(event, ResultEvent):
+                event = ResultEvent(data=keys.annotate(event.data))
+                yield _sse(event)
                 yield from _save(user_id, request, event)
+            else:
+                yield _sse(event)
     except Exception as exc:  # noqa: BLE001
         log.exception("Search failed")
         yield _sse(ErrorEvent(message=f"Search failed: {exc}"))
@@ -133,4 +139,20 @@ def get_search(search_id: str, user: CurrentUser) -> SavedSearch:
     record = history.get_search(user.id, search_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Search not found.")
-    return record
+    # Re-key on read so older searches (and normalization changes) match current statuses.
+    return record.model_copy(update={"results": keys.annotate(record.results)})
+
+
+@app.get("/api/statuses")
+def get_statuses(user: CurrentUser) -> dict[EntityStatusKind, dict[str, bool]]:
+    """The current user's APPLIED (jobs) / CONNECTED (people) toggles, by entity key."""
+    return statuses.get_statuses(user.id)
+
+
+@app.put("/api/statuses")
+def set_status(update: StatusUpdate, user: CurrentUser) -> EntityStatus:
+    """Set one toggle. Keys come from the `key` field on jobs/people in search results."""
+    try:
+        return statuses.set_status(user.id, update)
+    except statuses.InvalidStatusKey as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

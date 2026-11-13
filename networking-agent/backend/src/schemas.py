@@ -4,6 +4,12 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
+from pydantic.json_schema import SkipJsonSchema
+
+ENTITY_KEY_DESCRIPTION = (
+    "Stable identity across searches, filled in by the server (`entities.keys`). "
+    "Hidden from the LLM's structured-output schema."
+)
 
 
 class SearchRequest(BaseModel):
@@ -33,6 +39,7 @@ class JobResult(BaseModel):
     location: str = Field(description="Location / work arrangement, or empty string.")
     salary: str = Field(description="Salary text if listed, else empty string.")
     alignment: str = Field(description="1-3 sentences on why this job fits the user.")
+    key: SkipJsonSchema[str] = Field(default="", description=ENTITY_KEY_DESCRIPTION)
 
 
 class PersonResult(BaseModel):
@@ -43,6 +50,7 @@ class PersonResult(BaseModel):
         description="1-3 sentences on why the user should connect with them and what "
         "they have in common."
     )
+    key: SkipJsonSchema[str] = Field(default="", description=ENTITY_KEY_DESCRIPTION)
 
 
 class CompanyResult(BaseModel):
@@ -73,6 +81,22 @@ class SavedSearch(SearchSummary):
     user_id: str
     request: SearchRequest
     results: SearchResults
+
+
+EntityStatusKind = Literal["job", "person"]
+"""Entities that carry a toggle: jobs (APPLIED) and people (CONNECTED)."""
+
+
+class StatusUpdate(BaseModel):
+    """Set one toggle: `active` means APPLIED (jobs) / CONNECTED (people)."""
+
+    kind: EntityStatusKind
+    key: str = Field(min_length=1, max_length=1000)
+    active: bool
+
+
+class EntityStatus(StatusUpdate):
+    updated_at: datetime
 
 
 class StatusEvent(BaseModel):

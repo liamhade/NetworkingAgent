@@ -3,9 +3,8 @@ from datetime import timedelta
 
 import pytest
 
-import accounts
-import history
 from schemas import CompanyResult, SearchRequest, SearchResults
+from userdata import accounts, history
 
 
 def _request(looking_for: str, location: str = "") -> SearchRequest:

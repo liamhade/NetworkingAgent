@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import {
   getCurrentUser,
   getSearch,
+  getStatuses,
   listSearches,
+  setStatus,
   streamSearch,
   type SearchRequest,
   type SearchResults,
   type SearchSummary,
+  type StatusKind,
+  type StatusMap,
   type User,
 } from '@/api'
 import { SearchHistory } from '@/components/search-history'
@@ -14,6 +18,7 @@ import { Hero } from '@/pages/hero'
 import { Results } from '@/pages/results'
 
 const EMPTY_FORM: SearchRequest = { background: '', location: '', looking_for: '' }
+const EMPTY_STATUSES: StatusMap = { job: {}, person: {} }
 
 export default function App() {
   const [page, setPage] = useState<'hero' | 'results'>('hero')
@@ -29,6 +34,11 @@ export default function App() {
   const [historyLoading, setHistoryLoading] = useState(true)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
+
+  const [entityStatuses, setEntityStatuses] = useState<StatusMap>(EMPTY_STATUSES)
+  const [statusError, setStatusError] = useState<string | null>(null)
+  /** Latest change per entity, so a stale failed request doesn't roll back a newer one. */
+  const statusVersions = useRef(new Map<string, number>())
 
   useEffect(() => {
     const controller = new AbortController()
@@ -48,6 +58,12 @@ export default function App() {
       })
       .finally(() => {
         if (!controller.signal.aborted) setHistoryLoading(false)
+      })
+    getStatuses(controller.signal)
+      .then((loaded) => setEntityStatuses({ ...EMPTY_STATUSES, ...loaded }))
+      .catch((caught: Error) => {
+        if (!controller.signal.aborted) setStatusError('Could not load APPLIED / CONNECTED marks.')
+        console.error(caught)
       })
     return () => controller.abort()
   }, [])
@@ -109,6 +125,27 @@ export default function App() {
     }
   }
 
+  /** Optimistically flip a job/person toggle; roll back if saving fails. */
+  const toggleStatus = async (kind: StatusKind, key: string, active: boolean) => {
+    const previous = entityStatuses[kind][key] ?? false
+    const versionKey = `${kind}:${key}`
+    const version = (statusVersions.current.get(versionKey) ?? 0) + 1
+    statusVersions.current.set(versionKey, version)
+    const apply = (value: boolean) =>
+      setEntityStatuses((current) => ({ ...current, [kind]: { ...current[kind], [key]: value } }))
+
+    apply(active)
+    try {
+      await setStatus(kind, key, active)
+      if (statusVersions.current.get(versionKey) === version) setStatusError(null)
+    } catch (caught) {
+      console.error(caught)
+      if (statusVersions.current.get(versionKey) !== version) return
+      apply(previous)
+      setStatusError('Could not save that change. Please try again.')
+    }
+  }
+
   const back = () => {
     abort.current?.abort()
     setRunning(false)
@@ -136,6 +173,9 @@ export default function App() {
             results={results}
             error={error}
             running={running}
+            entityStatuses={entityStatuses}
+            statusError={statusError}
+            onToggleStatus={toggleStatus}
             onBack={back}
           />
         )}

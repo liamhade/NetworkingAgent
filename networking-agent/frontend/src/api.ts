@@ -14,6 +14,8 @@ export interface JobResult {
   location: string
   salary: string
   alignment: string
+  /** Stable identity across searches (server-computed); keys the APPLIED toggle. */
+  key: string
 }
 
 export interface PersonResult {
@@ -21,6 +23,8 @@ export interface PersonResult {
   title: string
   profile_url: string
   alignment: string
+  /** Stable identity across searches (server-computed); keys the CONNECTED toggle. */
+  key: string
 }
 
 export interface CompanyResult {
@@ -127,3 +131,20 @@ export const listSearches = (signal?: AbortSignal) =>
 
 export const getSearch = (id: string, signal?: AbortSignal) =>
   getJson<SavedSearch>(`/api/searches/${encodeURIComponent(id)}`, signal)
+
+/** Entities with a toggle: jobs (APPLIED) and people (CONNECTED). */
+export type StatusKind = 'job' | 'person'
+
+/** `{kind: {entityKey: active}}`; a missing key means NOT APPLIED / NOT CONNECTED. */
+export type StatusMap = Record<StatusKind, Record<string, boolean>>
+
+export const getStatuses = (signal?: AbortSignal) => getJson<StatusMap>('/api/statuses', signal)
+
+export async function setStatus(kind: StatusKind, key: string, active: boolean): Promise<void> {
+  const response = await fetch('/api/statuses', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, key, active }),
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
+}

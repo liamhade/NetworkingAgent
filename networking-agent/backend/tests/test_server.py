@@ -7,7 +7,17 @@ from pdf_utils import make_pdf
 import agent
 import resume
 import server
-from schemas import ResultEvent, ResumeProfile, SearchResults, StatusEvent
+from schemas import (
+    CompanyResult,
+    JobResult,
+    PersonResult,
+    ResultEvent,
+    ResumeProfile,
+    SearchRequest,
+    SearchResults,
+    StatusEvent,
+)
+from userdata import history
 
 client = TestClient(server.app)
 
@@ -103,3 +113,97 @@ def test_get_search_unknown_or_malformed_id_is_404() -> None:
 def test_search_validates_input() -> None:
     response = client.post("/api/search", json={"background": "", "looking_for": "x"})
     assert response.status_code == 422
+
+
+def _company(job_url: str, person_url: str) -> CompanyResult:
+    return CompanyResult(
+        name="Acme",
+        url="https://acme.com",
+        description="d",
+        alignment="a",
+        jobs=[JobResult(title="Data Analyst", url=job_url, location="", salary="", alignment="a")],
+        people=[PersonResult(name="Jane Doe", title="", profile_url=person_url, alignment="a")],
+    )
+
+
+def _run(monkeypatch: pytest.MonkeyPatch, results: SearchResults) -> list[dict]:
+    monkeypatch.setattr(agent, "run_search", lambda request: iter([ResultEvent(data=results)]))
+    body = {"background": "Analyst", "location": "", "looking_for": "Data roles"}
+    with client.stream("POST", "/api/search", json=body) as response:
+        return [
+            json.loads(line.removeprefix("data: "))
+            for line in response.iter_lines()
+            if line.startswith("data: ")
+        ]
+
+
+def test_applied_job_stays_applied_in_a_new_search(monkeypatch: pytest.MonkeyPatch) -> None:
+    first = _run(
+        monkeypatch,
+        SearchResults(
+            summary="1",
+            companies=[
+                _company(
+                    "https://www.linkedin.com/jobs/view/data-analyst-at-acme-123?trk=a",
+                    "https://www.linkedin.com/in/jane-doe?trk=a",
+                )
+            ],
+        ),
+    )
+    company = first[0]["data"]["companies"][0]
+    job_key, person_key = company["jobs"][0]["key"], company["people"][0]["key"]
+    assert job_key == "job:url:linkedin.com/jobs/view/123"
+    assert person_key == "person:linkedin:jane-doe"
+    assert client.get("/api/statuses").json() == {"job": {}, "person": {}}
+
+    response = client.put("/api/statuses", json={"kind": "job", "key": job_key, "active": True})
+    assert response.status_code == 200
+    assert response.json()["active"] is True
+    client.put("/api/statuses", json={"kind": "person", "key": person_key, "active": True})
+
+    # A later search returns the same job and person with different tracking junk.
+    second = _run(
+        monkeypatch,
+        SearchResults(
+            summary="2",
+            companies=[
+                _company(
+                    "https://uk.linkedin.com/jobs/view/123/?refId=b",
+                    "https://linkedin.com/in/Jane-Doe/",
+                )
+            ],
+        ),
+    )
+    company = second[0]["data"]["companies"][0]
+    current = client.get("/api/statuses").json()
+    assert current["job"][company["jobs"][0]["key"]] is True
+    assert current["person"][company["people"][0]["key"]] is True
+
+    # Reopened saved searches carry the same keys.
+    saved = client.get(f"/api/searches/{first[1]['search']['id']}").json()
+    assert saved["results"]["companies"][0]["jobs"][0]["key"] == job_key
+
+    client.put("/api/statuses", json={"kind": "job", "key": job_key, "active": False})
+    assert client.get("/api/statuses").json()["job"][job_key] is False
+
+
+def test_saved_search_without_keys_is_rekeyed_on_read() -> None:
+    record = history.save_search(
+        "TEST_USER",
+        SearchRequest(background="a", looking_for="b"),
+        SearchResults(summary="s", companies=[_company("https://acme.com/j/1", "")]),
+    )
+    body = client.get(f"/api/searches/{record.id}").json()
+    assert body["results"]["companies"][0]["jobs"][0]["key"] == "job:url:acme.com/j/1"
+    assert body["results"]["companies"][0]["people"][0]["key"] == "person:name:jane doe|acme"
+
+
+def test_set_status_validates_input() -> None:
+    bad_kind = client.put("/api/statuses", json={"kind": "company", "key": "x", "active": True})
+    assert bad_kind.status_code == 422
+    wrong_prefix = client.put(
+        "/api/statuses", json={"kind": "job", "key": "person:x", "active": True}
+    )
+    assert wrong_prefix.status_code == 422
+    empty = client.put("/api/statuses", json={"kind": "job", "key": "", "active": True})
+    assert empty.status_code == 422

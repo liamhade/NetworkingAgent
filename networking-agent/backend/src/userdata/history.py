@@ -10,8 +10,8 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-import accounts
 from schemas import SavedSearch, SearchRequest, SearchResults, SearchSummary
+from userdata import accounts
 
 TITLE_MAX_CHARS = 40
 LOCATION_MAX_CHARS = 24

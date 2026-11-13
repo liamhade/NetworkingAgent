@@ -6,7 +6,9 @@ with, each with a note on how you align. Design: [docs/v1/plan.md](docs/v1/plan.
 
 - `backend/`: FastAPI + LangChain agent (Python 3.11). Tools wrap two packages in
   `backend/src/`: `builtin_nyc` (BuiltInNYC jobs/companies) and `google_serp` (Google
-  search through Chrome, used for LinkedIn people and non-NYC jobs).
+  search through Chrome, used for LinkedIn people and non-NYC jobs). Per-user data
+  (accounts, search history, APPLIED/CONNECTED statuses) lives in `backend/src/userdata/`;
+  stable job/person/company keys in `backend/src/entities/keys.py`.
 - `research/`: scripts used to reverse-engineer those two sites (not used at runtime).
 - `docs/`: plans, plus module docs (`docs/google_serp/`, `docs/builtin_nyc/`).
 - `frontend/`: Vite + React + TypeScript + Tailwind v4 + BoardUI components.

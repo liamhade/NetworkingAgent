@@ -38,9 +38,9 @@
 // Edit this block to update the dashboard. status: "done" | "current" | "next"
 const UPDATED = "2026-11-12";
 const TASKS = [
-  { title: "Store previous searches", status: "done", note: "Left side-panel of past searches + minimal TEST_USER account layer (get_current_user, /api/me, database/users/<id>/)." },
-  { title: "Keep log of applied jobs / connected people", status: "current", note: "Persistent APPLIED / CONNECTED toggles across searches." },
-  { title: "Companies / Jobs / People pages in menu bar", status: "next", note: "Widget-box lists of every entity encountered, updated per search." },
+  { title: "Store previous searches", status: "done", commit: "15be6ff", note: "Left side-panel of past searches + minimal TEST_USER account layer (get_current_user, /api/me, database/users/<id>/)." },
+  { title: "Keep log of applied jobs / connected people", status: "done", note: "APPLIED / CONNECTED toggles keyed by stable entity IDs (normalized URL / LinkedIn slug), persisted per user.", commit: "15be6ff+" },
+  { title: "Companies / Jobs / People pages in menu bar", status: "current", note: "Widget-box lists of every entity encountered, updated per search." },
   { title: "Add read_page() tool", status: "next", note: "URL → Markdown with links. Experiment → plan → implement." },
   { title: "Investigate speeding up Google SERP", status: "next", note: "Faster results without bot detection, keep full redirect links." },
   { title: "Log token usage for each LLM", status: "next", note: "CSV of token usage + cost in logs/." },

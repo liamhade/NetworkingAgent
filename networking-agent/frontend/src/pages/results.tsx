@@ -6,21 +6,44 @@ import {
   RiExternalLinkLine,
   RiUserLine,
 } from '@remixicon/react'
-import type { CompanyResult, JobResult, PersonResult, SearchResults } from '@/api'
+import type {
+  CompanyResult,
+  JobResult,
+  PersonResult,
+  SearchResults,
+  StatusKind,
+  StatusMap,
+} from '@/api'
 import { AlignmentBox } from '@/components/alignment-box'
 import { AgentThinking } from '@/components/application/agent-thinking/agent-thinking'
 import { Chip } from '@/components/base/badges/chip'
 import { Button } from '@/components/base/buttons/button'
+import { StatusToggle } from '@/components/status-toggle'
+
+type ToggleStatus = (kind: StatusKind, key: string, active: boolean) => void
 
 interface ResultsProps {
   statuses: string[]
   results: SearchResults | null
   error: string | null
   running: boolean
+  /** APPLIED / CONNECTED marks for the current user, by entity key. */
+  entityStatuses: StatusMap
+  statusError: string | null
+  onToggleStatus: ToggleStatus
   onBack: () => void
 }
 
-export function Results({ statuses, results, error, running, onBack }: ResultsProps) {
+export function Results({
+  statuses,
+  results,
+  error,
+  running,
+  entityStatuses,
+  statusError,
+  onToggleStatus,
+  onBack,
+}: ResultsProps) {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
       <div>
@@ -31,15 +54,8 @@ export function Results({ statuses, results, error, running, onBack }: ResultsPr
 
       {running && <Progress statuses={statuses} />}
 
-      {error && (
-        <div
-          role="alert"
-          className="flex items-start gap-2 rounded-2xl border border-border-error-default p-4 text-body-regular text-text-error-primary"
-        >
-          <RiErrorWarningLine aria-hidden className="mt-0.5 size-5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
+      {statusError && <ErrorBanner message={statusError} />}
 
       {results && (
         <>
@@ -55,7 +71,12 @@ export function Results({ statuses, results, error, running, onBack }: ResultsPr
             <ol className="flex flex-col gap-4">
               {results.companies.map((company, index) => (
                 <li key={`${company.name}-${index}`}>
-                  <CompanyCard company={company} rank={index + 1} />
+                  <CompanyCard
+                    company={company}
+                    rank={index + 1}
+                    entityStatuses={entityStatuses}
+                    onToggleStatus={onToggleStatus}
+                  />
                 </li>
               ))}
             </ol>
@@ -63,6 +84,18 @@ export function Results({ statuses, results, error, running, onBack }: ResultsPr
         </>
       )}
     </main>
+  )
+}
+
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-2 rounded-2xl border border-border-error-default p-4 text-body-regular text-text-error-primary"
+    >
+      <RiErrorWarningLine aria-hidden className="mt-0.5 size-5 shrink-0" />
+      <span>{message}</span>
+    </div>
   )
 }
 
@@ -102,7 +135,14 @@ function ExternalLink({ href, children }: { href: string; children: React.ReactN
   )
 }
 
-function CompanyCard({ company, rank }: { company: CompanyResult; rank: number }) {
+interface CompanyCardProps {
+  company: CompanyResult
+  rank: number
+  entityStatuses: StatusMap
+  onToggleStatus: ToggleStatus
+}
+
+function CompanyCard({ company, rank, entityStatuses, onToggleStatus }: CompanyCardProps) {
   return (
     <article className="flex flex-col gap-4 rounded-3xl border border-border-button-default bg-background-primary-default p-5">
       <div className="flex flex-col gap-2">
@@ -132,7 +172,12 @@ function CompanyCard({ company, rank }: { company: CompanyResult; rank: number }
       {company.jobs.length > 0 && (
         <Section icon={RiBriefcaseLine} title="Job openings">
           {company.jobs.map((job, index) => (
-            <JobRow key={`${job.url}-${index}`} job={job} />
+            <JobRow
+              key={`${job.key || job.url}-${index}`}
+              job={job}
+              applied={entityStatuses.job[job.key] ?? false}
+              onToggle={(active) => onToggleStatus('job', job.key, active)}
+            />
           ))}
         </Section>
       )}
@@ -140,7 +185,12 @@ function CompanyCard({ company, rank }: { company: CompanyResult; rank: number }
       {company.people.length > 0 && (
         <Section icon={RiUserLine} title="People to connect with">
           {company.people.map((person, index) => (
-            <PersonRow key={`${person.profile_url}-${index}`} person={person} />
+            <PersonRow
+              key={`${person.key || person.profile_url}-${index}`}
+              person={person}
+              connected={entityStatuses.person[person.key] ?? false}
+              onToggle={(active) => onToggleStatus('person', person.key, active)}
+            />
           ))}
         </Section>
       )}
@@ -168,31 +218,45 @@ function Section({
   )
 }
 
-function JobRow({ job }: { job: JobResult }) {
+interface RowToggleProps {
+  onToggle: (active: boolean) => void
+}
+
+function JobRow({ job, applied, onToggle }: { job: JobResult; applied: boolean } & RowToggleProps) {
   const meta = [job.location, job.salary].filter(Boolean).join(' · ')
   return (
     <li className="flex flex-col gap-1.5">
-      <div className="flex flex-col">
-        <span className="text-body-medium text-text-primary">
-          <ExternalLink href={job.url}>{job.title}</ExternalLink>
-        </span>
-        {meta && <span className="text-body-2-regular text-text-tertiary">{meta}</span>}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col">
+          <span className="text-body-medium text-text-primary">
+            <ExternalLink href={job.url}>{job.title}</ExternalLink>
+          </span>
+          {meta && <span className="text-body-2-regular text-text-tertiary">{meta}</span>}
+        </div>
+        {job.key && <StatusToggle kind="job" isSelected={applied} onChange={onToggle} />}
       </div>
       <AlignmentBox text={job.alignment} />
     </li>
   )
 }
 
-function PersonRow({ person }: { person: PersonResult }) {
+function PersonRow({
+  person,
+  connected,
+  onToggle,
+}: { person: PersonResult; connected: boolean } & RowToggleProps) {
   return (
     <li className="flex flex-col gap-1.5">
-      <div className="flex flex-col">
-        <span className="text-body-medium text-text-primary">
-          <ExternalLink href={person.profile_url}>{person.name}</ExternalLink>
-        </span>
-        {person.title && (
-          <span className="text-body-2-regular text-text-tertiary">{person.title}</span>
-        )}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col">
+          <span className="text-body-medium text-text-primary">
+            <ExternalLink href={person.profile_url}>{person.name}</ExternalLink>
+          </span>
+          {person.title && (
+            <span className="text-body-2-regular text-text-tertiary">{person.title}</span>
+          )}
+        </div>
+        {person.key && <StatusToggle kind="person" isSelected={connected} onChange={onToggle} />}
       </div>
       <AlignmentBox text={person.alignment} label="Why connect" />
     </li>
