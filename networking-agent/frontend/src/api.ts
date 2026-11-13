@@ -148,3 +148,54 @@ export async function setStatus(kind: StatusKind, key: string, active: boolean):
   })
   if (!response.ok) throw new Error(await errorMessage(response))
 }
+
+/** Where and when an entity was seen across the user's searches. */
+export interface Sighting {
+  /** Entity key; matches `key` on jobs/people in search results (and the status map). */
+  key: string
+  /** ISO-8601 UTC timestamps of the oldest / newest search it appeared in. */
+  first_seen: string
+  last_seen: string
+  /** Searches it appeared in, most recent first. */
+  searches: SearchSummary[]
+}
+
+export interface CompanyEntity extends Sighting {
+  name: string
+  url: string
+  description: string
+  alignment: string
+  job_count: number
+  person_count: number
+}
+
+export interface JobEntity extends Sighting {
+  title: string
+  url: string
+  location: string
+  salary: string
+  alignment: string
+  company: string
+  company_key: string
+}
+
+export interface PersonEntity extends Sighting {
+  name: string
+  title: string
+  profile_url: string
+  alignment: string
+  company: string
+  company_key: string
+}
+
+export interface EntityMap {
+  companies: CompanyEntity
+  jobs: JobEntity
+  people: PersonEntity
+}
+
+export type EntityKind = keyof EntityMap
+
+/** Everything of one kind seen across the user's searches, most recently seen first. */
+export const listEntities = <K extends EntityKind>(kind: K, signal?: AbortSignal) =>
+  getJson<EntityMap[K][]>(`/api/entities/${kind}`, signal)

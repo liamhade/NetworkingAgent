@@ -18,12 +18,15 @@ import agent
 import config
 import resume
 import tools
-from entities import keys
+from entities import catalog, keys
 from schemas import (
     AgentEvent,
+    CompanyEntity,
     EntityStatus,
     EntityStatusKind,
     ErrorEvent,
+    JobEntity,
+    PersonEntity,
     ResultEvent,
     ResumeProfile,
     SavedEvent,
@@ -156,3 +159,21 @@ def set_status(update: StatusUpdate, user: CurrentUser) -> EntityStatus:
         return statuses.set_status(user.id, update)
     except statuses.InvalidStatusKey as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/entities/companies")
+def list_companies(user: CurrentUser) -> list[CompanyEntity]:
+    """Every company in the current user's searches, de-duplicated, most recently seen first."""
+    return catalog.companies(history.load_searches(user.id))
+
+
+@app.get("/api/entities/jobs")
+def list_jobs(user: CurrentUser) -> list[JobEntity]:
+    """Every job in the current user's searches, de-duplicated, most recently seen first."""
+    return catalog.jobs(history.load_searches(user.id))
+
+
+@app.get("/api/entities/people")
+def list_people(user: CurrentUser) -> list[PersonEntity]:
+    """Every person in the current user's searches, de-duplicated, most recently seen first."""
+    return catalog.people(history.load_searches(user.id))

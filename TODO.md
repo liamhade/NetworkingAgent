@@ -6,7 +6,7 @@
 
 - [x] (**Keep log of which jobs we've applied to**) Every job that shows up for a user should have a toggle that says "APPLIED" or "NOT APPLIED". And every person that shows up should have a toggle that says "CONNECTED" or "NOT CONNECTED". That toggle is persisted across runs. So if the user applies to a job, does another search, and the same job appears, it should stay as "APPLIED".
 
-- [ ] (**Add company + jobs + person to menu bar**) In the menu bar, there should be three pages we can navigate to: `Companies`, `Jobs`, and `People`. Each page shows a list of the respective entities that we have encountered through our search. Each entity (company, job, or person) should be in it's own widget box.. Every time we make a new search, these lists are updated to include them. 
+- [x] (**Add company + jobs + person to menu bar**) In the menu bar, there should be three pages we can navigate to: `Companies`, `Jobs`, and `People`. Each page shows a list of the respective entities that we have encountered through our search. Each entity (company, job, or person) should be in it's own widget box.. Every time we make a new search, these lists are updated to include them. 
 
 - [ ] (**Add read_page() tool**) Given a URL, the Agent should get the text of the webpage rendered as Markdown, including with hyperlinks. The tool should use a default method for pages, but we should add the option to use a more efficient method if we discover one that is particulary suited for a page or group of pages.
     - [ ] (*experiment*) Figure out what Python modules or tools are best suited for crawling converting a web-page into an easy to read format. Some suggestions are using tools like `Crawl4AI`, `trafilatura`, or `markdownify`.

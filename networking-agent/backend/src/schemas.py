@@ -120,3 +120,48 @@ class SavedEvent(BaseModel):
 
 
 AgentEvent = StatusEvent | ResultEvent | ErrorEvent | SavedEvent
+
+
+class Sighting(BaseModel):
+    """Where and when an entity was seen across the user's searches (Companies/Jobs/People)."""
+
+    key: str = Field(description="Entity key from `entities.keys`.")
+    first_seen: datetime
+    last_seen: datetime
+    searches: list[SearchSummary] = Field(
+        description="Searches the entity appeared in, most recent first."
+    )
+
+
+class CompanyEntity(Sighting):
+    """A company seen in any search; fields come from the most recent sighting."""
+
+    name: str
+    url: str
+    description: str
+    alignment: str
+    job_count: int = Field(description="Distinct jobs seen at this company across searches.")
+    person_count: int = Field(description="Distinct people seen at this company.")
+
+
+class JobEntity(Sighting):
+    """A job seen in any search; fields come from the most recent sighting."""
+
+    title: str
+    url: str
+    location: str
+    salary: str
+    alignment: str
+    company: str
+    company_key: str
+
+
+class PersonEntity(Sighting):
+    """A person seen in any search; fields come from the most recent sighting."""
+
+    name: str
+    title: str
+    profile_url: str
+    alignment: str
+    company: str
+    company_key: str

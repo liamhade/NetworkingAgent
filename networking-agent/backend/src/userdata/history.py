@@ -66,22 +66,27 @@ def save_search(user_id: str, request: SearchRequest, results: SearchResults) ->
     return record
 
 
-def list_searches(user_id: str) -> list[SearchSummary]:
-    """All of a user's searches, most recent first."""
+def load_searches(user_id: str) -> list[SavedSearch]:
+    """All of a user's saved searches (full records), most recent first."""
     folder = _searches_dir(user_id)
     if not folder.is_dir():
         return []
-    summaries = []
+    records = []
     for path in folder.glob("*.json"):
         try:
-            record = SavedSearch.model_validate_json(path.read_text(encoding="utf-8"))
+            records.append(SavedSearch.model_validate_json(path.read_text(encoding="utf-8")))
         except (OSError, ValueError):
-            continue  # Skip unreadable/corrupt files rather than breaking the panel.
-        summaries.append(
-            SearchSummary(id=record.id, title=record.title, created_at=record.created_at)
-        )
-    summaries.sort(key=lambda summary: summary.created_at, reverse=True)
-    return summaries
+            continue  # Skip unreadable/corrupt files rather than breaking the page.
+    records.sort(key=lambda record: record.created_at, reverse=True)
+    return records
+
+
+def list_searches(user_id: str) -> list[SearchSummary]:
+    """All of a user's searches, most recent first."""
+    return [
+        SearchSummary(id=record.id, title=record.title, created_at=record.created_at)
+        for record in load_searches(user_id)
+    ]
 
 
 def get_search(user_id: str, search_id: str) -> SavedSearch | None:

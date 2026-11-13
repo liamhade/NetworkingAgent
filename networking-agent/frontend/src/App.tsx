@@ -14,13 +14,20 @@ import {
   type User,
 } from '@/api'
 import { SearchHistory } from '@/components/search-history'
+import { TopNav } from '@/components/top-nav'
+import { CompaniesPage, JobsPage, PeoplePage } from '@/pages/entities'
 import { Hero } from '@/pages/hero'
 import { Results } from '@/pages/results'
+import { type View, viewFromHash, viewHash } from '@/utils/view'
 
 const EMPTY_FORM: SearchRequest = { background: '', location: '', looking_for: '' }
 const EMPTY_STATUSES: StatusMap = { job: {}, person: {} }
 
 export default function App() {
+  /** Top-level page, mirrored in the URL hash (`#/companies`, `#/jobs`, `#/people`). */
+  const [view, setView] = useState<View>(() => viewFromHash(window.location.hash))
+  /** Bumped whenever a search is saved, so the Companies/Jobs/People lists re-fetch. */
+  const [entitiesVersion, setEntitiesVersion] = useState(0)
   const [page, setPage] = useState<'hero' | 'results'>('hero')
   const [form, setForm] = useState<SearchRequest>(EMPTY_FORM)
   const [statuses, setStatuses] = useState<string[]>([])
@@ -39,6 +46,17 @@ export default function App() {
   const [statusError, setStatusError] = useState<string | null>(null)
   /** Latest change per entity, so a stale failed request doesn't roll back a newer one. */
   const statusVersions = useRef(new Map<string, number>())
+
+  useEffect(() => {
+    const onHashChange = () => setView(viewFromHash(window.location.hash))
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  const navigate = (target: View) => {
+    setView(target)
+    if (viewFromHash(window.location.hash) !== target) window.location.hash = viewHash(target)
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -77,6 +95,7 @@ export default function App() {
     setResults(null)
     setError(null)
     setPage('results')
+    navigate('search')
     window.scrollTo({ top: 0 })
     return controller
   }
@@ -99,6 +118,7 @@ export default function App() {
               ...current.filter((entry) => entry.id !== event.search.id),
             ])
             setHistoryError(null)
+            setEntitiesVersion((current) => current + 1)
             if (!controller.signal.aborted) setActiveId(event.search.id)
           } else setError(event.message)
         },
@@ -151,6 +171,7 @@ export default function App() {
     setRunning(false)
     setActiveId(null)
     setPage('hero')
+    navigate('search')
   }
 
   return (
@@ -165,7 +186,26 @@ export default function App() {
         onNewSearch={back}
       />
       <div className="min-w-0 flex-1">
-        {page === 'hero' ? (
+        <TopNav view={view} />
+        {view === 'companies' ? (
+          <CompaniesPage refreshKey={entitiesVersion} onOpenSearch={openSaved} />
+        ) : view === 'jobs' ? (
+          <JobsPage
+            refreshKey={entitiesVersion}
+            onOpenSearch={openSaved}
+            entityStatuses={entityStatuses}
+            statusError={statusError}
+            onToggleStatus={toggleStatus}
+          />
+        ) : view === 'people' ? (
+          <PeoplePage
+            refreshKey={entitiesVersion}
+            onOpenSearch={openSaved}
+            entityStatuses={entityStatuses}
+            statusError={statusError}
+            onToggleStatus={toggleStatus}
+          />
+        ) : page === 'hero' ? (
           <Hero initial={form} onSubmit={search} />
         ) : (
           <Results

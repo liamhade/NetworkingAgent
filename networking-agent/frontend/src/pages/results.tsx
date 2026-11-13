@@ -87,7 +87,7 @@ export function Results({
   )
 }
 
-function ErrorBanner({ message }: { message: string }) {
+export function ErrorBanner({ message }: { message: string }) {
   return (
     <div
       role="alert"
@@ -120,7 +120,7 @@ function Progress({ statuses }: { statuses: string[] }) {
   )
 }
 
-function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
+export function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
   if (!href) return <span>{children}</span>
   return (
     <a

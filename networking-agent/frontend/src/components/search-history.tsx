@@ -4,6 +4,7 @@ import { Button } from '@/components/base/buttons/button'
 import { Spinner } from '@/components/base/spinner/spinner'
 import { ScrollFade, useScrollFade } from '@/components/foundations/scroll-fade/scroll-fade'
 import { cx } from '@/utils/cx'
+import { formatRelativeDate, fullDateFormat } from '@/utils/format-date'
 
 interface SearchHistoryProps {
   searches: SearchSummary[]
@@ -13,25 +14,6 @@ interface SearchHistoryProps {
   user: User | null
   onSelect: (id: string) => void
   onNewSearch: () => void
-}
-
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
-const dateTimeFormat = new Intl.DateTimeFormat(undefined, {
-  month: 'short',
-  day: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-})
-const fullFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'short' })
-
-/** "3:41 PM" for today, "Yesterday, 3:41 PM", otherwise "Nov 3, 3:41 PM". */
-function formatCreated(date: Date, now = new Date()): string {
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const startOfYesterday = new Date(startOfToday)
-  startOfYesterday.setDate(startOfYesterday.getDate() - 1)
-  if (date >= startOfToday) return timeFormat.format(date)
-  if (date >= startOfYesterday) return `Yesterday, ${timeFormat.format(date)}`
-  return dateTimeFormat.format(date)
 }
 
 /** Left side panel listing the user's previous searches, most recent first. */
@@ -137,10 +119,10 @@ function HistoryBubble({
       <span className="line-clamp-2 text-body-2-medium text-text-primary">{search.title}</span>
       <time
         dateTime={search.created_at}
-        title={fullFormat.format(created)}
+        title={fullDateFormat.format(created)}
         className="text-caption-1-medium text-text-tertiary"
       >
-        {formatCreated(created)}
+        {formatRelativeDate(created)}
       </time>
     </button>
   )
