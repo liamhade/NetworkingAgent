@@ -1,0 +1,38 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend: FastAPI (uvicorn)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["server:app", "--app-dir", "src", "--port", "8000", "--reload"],
+      "cwd": "${workspaceFolder}/networking-agent/backend",
+      "python": "${workspaceFolder}/networking-agent/backend/.venv/Scripts/python.exe",
+      "envFile": "${workspaceFolder}/networking-agent/.env",
+      "jinja": true,
+      "justMyCode": true,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Frontend: Vite dev server",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}/networking-agent/frontend",
+      "env": { "NO_COLOR": "1" },
+      "serverReadyAction": {
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Networking Agent: Backend + Frontend",
+      "configurations": ["Backend: FastAPI (uvicorn)", "Frontend: Vite dev server"],
+      "stopAll": true
+    }
+  ]
+}
