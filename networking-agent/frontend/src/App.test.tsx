@@ -1,0 +1,103 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as api from '@/api'
+import App from '@/App'
+import { BOARDS } from '@/test/boards'
+
+vi.mock('@/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/api')>()),
+  getCurrentUser: vi.fn(),
+  listSearches: vi.fn(),
+  getStatuses: vi.fn(),
+  getPins: vi.fn(),
+  getSearchBoards: vi.fn(),
+  getSearchParams: vi.fn(),
+  getSavedResume: vi.fn(),
+  getSearch: vi.fn(),
+  streamSearch: vi.fn(),
+}))
+
+const m = vi.mocked(api)
+
+beforeEach(() => {
+  m.getCurrentUser.mockResolvedValue({ id: 'TEST_USER', display_name: 'Test', created_at: '' })
+  m.listSearches.mockResolvedValue([])
+  m.getStatuses.mockResolvedValue({ job: {}, person: {} })
+  m.getPins.mockResolvedValue({ company: {}, job: {}, person: {} })
+  m.getSearchBoards.mockResolvedValue(BOARDS)
+  m.getSearchParams.mockResolvedValue(null)
+  m.getSavedResume.mockResolvedValue(null)
+  m.streamSearch.mockResolvedValue()
+  window.location.hash = ''
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
+})
+
+describe('App restores the saved search page state', () => {
+  it('fills the form and boards from the saved parameters', async () => {
+    m.getSearchParams.mockResolvedValue({
+      background: 'Saved background',
+      location: 'Boston',
+      looking_for: 'Saved goal',
+      boards: { greenhouse: { enabled: false, max_jobs: 3 } },
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    expect(await screen.findByDisplayValue('Saved background')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Boston')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Saved goal')).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: /search boards/i }))
+    expect(screen.getByRole('switch', { name: 'Greenhouse' })).not.toBeChecked()
+    expect(screen.getByRole('textbox', { name: 'Jobs from Greenhouse' })).toHaveValue('3')
+  })
+
+  it('shows the saved resume as a chip', async () => {
+    m.getSavedResume.mockResolvedValue({
+      filename: 'cv.pdf',
+      size: 2048,
+      stored_size: 900,
+      uploaded_at: '2026-11-01T15:30:00Z',
+      profile: { background: '', location: '', looking_for: '' },
+    })
+    render(<App />)
+    expect(await screen.findByRole('link', { name: 'cv.pdf' })).toBeInTheDocument()
+  })
+
+  it('uses empty defaults when nothing is saved', async () => {
+    render(<App />)
+    await screen.findByText('2 of 3 boards on')
+    expect(screen.getByRole('textbox', { name: /your background/i })).toHaveValue('')
+    expect(screen.queryByRole('link', { name: /\.pdf$/ })).not.toBeInTheDocument()
+  })
+
+  it('does not clobber a reopened past search with late saved params', async () => {
+    let resolveParams: (value: api.SearchParams) => void = () => {}
+    m.getSearchParams.mockReturnValue(new Promise((resolve) => (resolveParams = resolve)))
+    m.listSearches.mockResolvedValue([
+      { id: 'a', title: 'Past search', created_at: '2026-11-01T00:00:00Z' },
+    ])
+    m.getSearch.mockResolvedValue({
+      id: 'a',
+      title: 'Past search',
+      created_at: '2026-11-01T00:00:00Z',
+      user_id: 'TEST_USER',
+      request: { background: 'Past bg', location: '', looking_for: 'Past goal' },
+      results: { summary: 'All done', companies: [] },
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByText('Past search'))
+    await screen.findByText('All done')
+    resolveParams({ background: 'Late', location: '', looking_for: 'Late goal' })
+    await user.click(screen.getAllByRole('button', { name: /new search/i })[0])
+    expect(await screen.findByDisplayValue('Past bg')).toBeInTheDocument()
+    expect(screen.queryByDisplayValue('Late')).not.toBeInTheDocument()
+  })
+})

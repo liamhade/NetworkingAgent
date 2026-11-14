@@ -13,7 +13,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 import boards
 import config
@@ -45,7 +45,7 @@ from schemas import (
     TraceEvent,
     TraceStep,
 )
-from userdata import accounts, history, pins, statuses
+from userdata import accounts, history, pins, saved_resume, search_params, statuses
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ app = FastAPI(title="Networking Agent", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
-    allow_methods=["GET", "POST", "PUT"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -86,7 +86,11 @@ def health() -> dict[str, str]:
 
 @app.post("/api/resume")
 def parse_resume(file: Annotated[UploadFile, File()], user: CurrentUser) -> ResumeProfile:
-    """Read an uploaded PDF resume and return pre-filled hero form fields."""
+    """Read an uploaded PDF resume and return pre-filled hero form fields.
+
+    A readable resume is also saved (compressed) as the user's latest, with its parsed
+    profile, so returning to the search page needs no re-upload (`GET /api/resume/saved`).
+    """
     is_pdf = file.content_type == "application/pdf" or (file.filename or "").lower().endswith(
         ".pdf"
     )
@@ -97,9 +101,42 @@ def parse_resume(file: Annotated[UploadFile, File()], user: CurrentUser) -> Resu
         raise HTTPException(status_code=413, detail="PDF is larger than 10 MB.")
     try:
         with usage_context(user_id=user.id, request_id=uuid.uuid4().hex):
-            return resume.parse_resume(data)
+            profile = resume.parse_resume(data)
     except resume.ResumeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        saved_resume.save(user.id, file.filename or "resume.pdf", data, profile)
+    except Exception:  # noqa: BLE001
+        log.exception("Could not save the resume")  # The parsed fields still go back.
+    return profile
+
+
+@app.get("/api/resume/saved")
+def get_saved_resume(user: CurrentUser) -> saved_resume.SavedResume | None:
+    """The user's saved resume (file name, sizes, upload time, parsed profile), or null."""
+    return saved_resume.get(user.id)
+
+
+@app.get("/api/resume/saved/file")
+def download_saved_resume(user: CurrentUser) -> Response:
+    """The saved resume as the original PDF."""
+    meta = saved_resume.get(user.id)
+    data = saved_resume.read_pdf(user.id) if meta else None
+    if meta is None or data is None:
+        raise HTTPException(status_code=404, detail="No saved resume.")
+    name = "".join(c for c in meta.filename if c.isprintable() and c not in '"' + chr(92))
+    return Response(
+        data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
+
+
+@app.delete("/api/resume/saved", status_code=204)
+def delete_saved_resume(user: CurrentUser) -> Response:
+    """Forget the saved resume. Idempotent."""
+    saved_resume.delete(user.id)
+    return Response(status_code=204)
 
 
 def _sse(event: AgentEvent) -> str:
@@ -144,6 +181,10 @@ def _save(
 def search(request: SearchRequest, user: CurrentUser) -> StreamingResponse:
     """Run the networking agent. Streams Server-Sent Events (`data: <json>` lines)."""
     search_id = history.new_search_id()
+    try:
+        search_params.save(user.id, request)
+    except Exception:  # noqa: BLE001
+        log.exception("Could not save search parameters")  # Never block the search.
     # LLM usage rows are tagged with this user and the id the search is saved under.
     events = bind_context(
         _event_stream(request, user.id, search_id),
@@ -166,6 +207,20 @@ def search_boards() -> list[boards.BoardInfo]:
     `boards: {board_id: {enabled, max_jobs}}` in `POST /api/search`.
     """
     return boards.catalog()
+
+
+@app.get("/api/search/params")
+def get_search_params(user: CurrentUser) -> search_params.SearchParams | None:
+    """The user's last saved search parameters (a `SearchRequest`-shaped draft), or null."""
+    return search_params.get(user.id)
+
+
+@app.put("/api/search/params")
+def put_search_params(
+    params: search_params.SearchParams, user: CurrentUser
+) -> search_params.SearchParams:
+    """Save the current search parameters; `boards` is normalized. Fields may be empty."""
+    return search_params.save(user.id, params)
 
 
 @app.get("/api/searches")

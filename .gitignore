@@ -1,3 +1,5 @@
 # Per-user generated data (search history etc.) — local POC database
 database/users/*/searches/
 database/users/*/statuses.json
+# Uploaded resume PDFs are personal data
+database/users/*/resume/

@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import {
   getCurrentUser,
   getPins,
+  getSavedResume,
   getSearch,
+  getSearchParams,
   getStatuses,
   listSearches,
   setPin,
@@ -11,6 +13,7 @@ import {
   type CompanyResult,
   type PinKind,
   type PinMap,
+  type SavedResume,
   type SearchRequest,
   type SearchResults,
   type SearchSummary,
@@ -38,6 +41,12 @@ export default function App() {
   const [entitiesVersion, setEntitiesVersion] = useState(0)
   const [page, setPage] = useState<'hero' | 'results'>('hero')
   const [form, setForm] = useState<SearchRequest>(EMPTY_FORM)
+  /** The resume saved on the server (null: none); shown on the search page as a file chip. */
+  const [savedResume, setSavedResume] = useState<SavedResume | null>(null)
+  /** Remounts the search form when the saved parameters arrive (it reads `initial` once). */
+  const [formVersion, setFormVersion] = useState(0)
+  /** Set once the user searches or reopens a past search, so a late restore can't clobber it. */
+  const touched = useRef(false)
   const [statuses, setStatuses] = useState<string[]>([])
   const [results, setResults] = useState<SearchResults | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -103,6 +112,16 @@ export default function App() {
       .finally(() => {
         if (!signal.aborted) setHistoryLoading(false)
       })
+    withRetry(getSearchParams, signal)
+      .then((params) => {
+        if (!params || touched.current) return
+        setForm(params)
+        setFormVersion((current) => current + 1)
+      })
+      .catch((caught: Error) => console.error(caught)) // Defaults apply.
+    withRetry(getSavedResume, signal)
+      .then(setSavedResume)
+      .catch((caught: Error) => console.error(caught))
     withRetry(getStatuses, signal)
       .then(marks.load)
       .catch((caught: Error) => {
@@ -138,6 +157,7 @@ export default function App() {
   }
 
   const search = async (request: SearchRequest) => {
+    touched.current = true
     const controller = restart()
     setForm(request)
     setActiveId(null)
@@ -172,6 +192,7 @@ export default function App() {
   }
 
   const openSaved = async (id: string) => {
+    touched.current = true
     const controller = restart()
     setActiveId(id)
     setRunning(false)
@@ -250,7 +271,13 @@ export default function App() {
             {...pinProps}
           />
         ) : page === 'hero' ? (
-          <Hero initial={form} onSubmit={search} />
+          <Hero
+            key={formVersion}
+            initial={form}
+            onSubmit={search}
+            savedResume={savedResume}
+            onSavedResumeChange={setSavedResume}
+          />
         ) : (
           <Results
             statuses={statuses}

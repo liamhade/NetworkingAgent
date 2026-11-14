@@ -32,6 +32,24 @@ export interface SearchRequest {
 
 export type ResumeProfile = Pick<SearchRequest, 'background' | 'location' | 'looking_for'>
 
+/**
+ * The search parameters as saved for the user (`GET`/`PUT /api/search/params`): a
+ * `SearchRequest` whose text fields may be empty (a draft). Boards come back normalized.
+ */
+export type SearchParams = SearchRequest
+
+/** The user's saved resume (`GET /api/resume/saved`); the PDF itself is at `savedResumeUrl`. */
+export interface SavedResume {
+  filename: string
+  /** Bytes of the original PDF. */
+  size: number
+  /** Bytes stored after compression. */
+  stored_size: number
+  /** ISO-8601 UTC timestamp. */
+  uploaded_at: string
+  profile: ResumeProfile
+}
+
 export interface JobResult {
   title: string
   url: string
@@ -99,6 +117,32 @@ export async function parseResume(file: File): Promise<ResumeProfile> {
   const form = new FormData()
   form.append('file', file)
   const response = await fetch('/api/resume', { method: 'POST', body: form })
+  if (!response.ok) throw new Error(await errorMessage(response))
+  return response.json()
+}
+
+/** Download link for the saved resume PDF. */
+export const savedResumeUrl = '/api/resume/saved/file'
+
+/** The saved resume, or null when none was uploaded yet. */
+export const getSavedResume = (signal?: AbortSignal) =>
+  getJson<SavedResume | null>('/api/resume/saved', signal)
+
+export async function deleteSavedResume(): Promise<void> {
+  const response = await fetch('/api/resume/saved', { method: 'DELETE' })
+  if (!response.ok) throw new Error(await errorMessage(response))
+}
+
+/** The last saved search parameters, or null when none were saved yet. */
+export const getSearchParams = (signal?: AbortSignal) =>
+  getJson<SearchParams | null>('/api/search/params', signal)
+
+export async function saveSearchParams(params: SearchParams): Promise<SearchParams> {
+  const response = await fetch('/api/search/params', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
   if (!response.ok) throw new Error(await errorMessage(response))
   return response.json()
 }
