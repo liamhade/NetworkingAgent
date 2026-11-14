@@ -45,6 +45,24 @@ ATS_JOBS_PER_BOARD = max(1, int(os.environ.get("ATS_JOBS_PER_BOARD", "4")))
 ATS_RESOLVE_LINKS = max(0, int(os.environ.get("ATS_RESOLVE_LINKS", "3")))
 """Google links resolved per ATS board search when the breadcrumb doesn't show the board."""
 
+USAJOBS_API_KEY = os.environ.get("USAJOBS_API_KEY", "").strip()
+"""Free USAJOBS API key (https://developer.usajobs.gov/apirequest). Never log or trace it."""
+
+USAJOBS_EMAIL = os.environ.get("USAJOBS_EMAIL", "").strip()
+"""The email the USAJOBS key was registered with (sent as the User-Agent)."""
+
+USAJOBS_MAX_QUERIES = max(0, int(os.environ.get("USAJOBS_MAX_QUERIES", "2")))
+"""Most USAJOBS searches per search run (0 turns USAJOBS off)."""
+
+USAJOBS_RESULTS = max(1, min(500, int(os.environ.get("USAJOBS_RESULTS", "10"))))
+"""Jobs kept from each USAJOBS search."""
+
+
+def usajobs_configured() -> bool:
+    """True when both USAJOBS credentials are set and the source isn't turned off."""
+    return bool(USAJOBS_API_KEY and USAJOBS_EMAIL and USAJOBS_MAX_QUERIES)
+
+
 LINKEDIN_MESSAGE_MAX_CHARS = max(1, int(os.environ.get("LINKEDIN_MESSAGE_MAX_CHARS", "300")))
 """Upper bound on each person's example LinkedIn connection note (LinkedIn allows 300)."""
 

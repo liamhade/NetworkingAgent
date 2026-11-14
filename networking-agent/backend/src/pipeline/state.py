@@ -14,6 +14,7 @@ from builtin_nyc.models import ExperienceLevel, JobCategory, RemotePreference
 from conservation_jobboard.models import Category, Location
 from conservation_jobboard.models import ExperienceLevel as ConservationExperience
 from schemas import PersonResult, SearchRequest, SearchResults, TraceStep
+from usajobs.models import Agency
 
 # ------------------------------------------------------------------------ plan (LLM)
 
@@ -47,6 +48,19 @@ class ConservationJobQuery(BaseModel):
     )
 
 
+class UsajobsQuery(BaseModel):
+    keywords: str = Field(
+        description='Role words, e.g. "wildlife biologist" or "park ranger", or "".'
+    )
+    location: str = Field(
+        description='City and state, e.g. "Denver, Colorado", "remote", or "" for anywhere.'
+    )
+    agencies: list[Agency] = Field(
+        description='Federal agencies: "nps" (National Park Service), "usfws" (Fish and '
+        'Wildlife Service), "usfs" (Forest Service), "epa"; or [] for any agency.'
+    )
+
+
 class AtsJobQuery(BaseModel):
     keywords: str = Field(
         description='Role phrase, 1-3 words, matched against posting titles, e.g. "data '
@@ -70,6 +84,9 @@ class SearchPlan(BaseModel):
     )
     conservation_jobs: list[ConservationJobQuery] = Field(
         description="0-3 Conservation Job Board searches."
+    )
+    usajobs: list[UsajobsQuery] = Field(
+        description="0-2 USAJOBS federal job searches; [] unless the prompt offers USAJOBS."
     )
     ats_jobs: list[AtsJobQuery] = Field(
         description=(

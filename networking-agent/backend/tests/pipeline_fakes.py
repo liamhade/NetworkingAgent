@@ -62,6 +62,7 @@ def plan(**changes: Any) -> SearchPlan:
         ],
         builtin_companies=[],
         conservation_jobs=[],
+        usajobs=[],
         ats_jobs=[],
         google_queries=[],
     )
@@ -143,6 +144,7 @@ class FakeSources:
     """Patches the `tools` source functions. Records every call.
 
     `jobs`: BuiltIn jobs returned for every query (default: one job per company).
+    `usajobs`: jobs (or an Exception) returned by `tools.usajobs_jobs`.
     `people`: `{(company, keywords): list[profile] | Exception}`; anything else returns
     `default_people` profiles (all current employees).
     `ats_boards`: boards (or an Exception) for ATS board searches; each provider's search
@@ -163,6 +165,7 @@ class FakeSources:
             }
             for i, c in enumerate(COMPANIES)
         ]
+        self.usajobs: list[dict] | Exception = []
         self.google: list[dict] | Exception = []
         self.people: dict[tuple[str, str], list[dict] | Exception] = {}
         self.default_people = default_people
@@ -170,7 +173,13 @@ class FakeSources:
         self.people_calls: list[tuple[str, str, str]] = []
         self.ats_boards: list[dict] | Exception = []
         self.ats_board_jobs: dict[str, list[dict] | Exception] = {}
-        for name in ("builtin_jobs", "builtin_companies", "conservation_jobs", "google_search"):
+        for name in (
+            "builtin_jobs",
+            "builtin_companies",
+            "conservation_jobs",
+            "usajobs_jobs",
+            "google_search",
+        ):
             monkeypatch.setattr(tools, name, self._source(name))
         monkeypatch.setattr(tools, "linkedin_people", self.linkedin_people)
         monkeypatch.setattr(tools, "read_page", self.read_page)
@@ -180,7 +189,11 @@ class FakeSources:
     def _source(self, name: str):
         def run(arg: Any, n: int = 15) -> list[dict]:
             self.calls.append((name, arg))
-            result = {"builtin_jobs": self.jobs, "google_search": self.google}.get(name, [])
+            result = {
+                "builtin_jobs": self.jobs,
+                "usajobs_jobs": self.usajobs,
+                "google_search": self.google,
+            }.get(name, [])
             if isinstance(result, Exception):
                 raise result
             return result

@@ -32,6 +32,7 @@ from pipeline.state import (
     Person,
     PipelineState,
     SearchPlan,
+    UsajobsQuery,
 )
 from schemas import (
     CompanyResult,
@@ -42,6 +43,7 @@ from schemas import (
     StatusEvent,
     TraceStep,
 )
+from usajobs.models import JobFilter as UsajobsFilter
 
 log = logging.getLogger(__name__)
 
@@ -132,6 +134,10 @@ def _scored(value: int) -> int:
 # ------------------------------------------------------------------------------ plan
 
 
+def _usajobs_wanted(q: UsajobsQuery) -> bool:
+    return bool(q.keywords.strip() or q.location.strip() or q.agencies)
+
+
 def cap_plan(plan: SearchPlan, request: SearchRequest) -> SearchPlan:
     """Enforce the plan's limits; with no source at all, fall back to one Google query."""
     plan = plan.model_copy(
@@ -140,13 +146,23 @@ def cap_plan(plan: SearchPlan, request: SearchRequest) -> SearchPlan:
             "builtin_jobs": plan.builtin_jobs[:MAX_JOB_QUERIES],
             "builtin_companies": plan.builtin_companies[:1],
             "conservation_jobs": plan.conservation_jobs[:MAX_JOB_QUERIES],
+            "usajobs": [q for q in plan.usajobs if _usajobs_wanted(q)][
+                : config.USAJOBS_MAX_QUERIES
+            ],
             "ats_jobs": [q for q in plan.ats_jobs if q.keywords.strip()][:MAX_ATS_QUERIES],
             "google_queries": [q.strip() for q in plan.google_queries if q.strip()][
                 :MAX_GOOGLE_QUERIES
             ],
         }
     )
-    if not (plan.builtin_jobs or plan.conservation_jobs or plan.ats_jobs or plan.google_queries):
+    usajobs_usable = bool(plan.usajobs) and config.usajobs_configured()
+    if not (
+        plan.builtin_jobs
+        or plan.conservation_jobs
+        or usajobs_usable
+        or plan.ats_jobs
+        or plan.google_queries
+    ):
         plan.google_queries = [google_fallback_query(plan, request)]
     return plan
 
@@ -163,7 +179,7 @@ def plan_node(state: PipelineState, llm: BaseChatModel) -> dict:
         "plan",
         "llm",
         {},
-        lambda: structured(llm, SearchPlan, prompts.PLAN_PROMPT, format_profile(request), "plan"),
+        lambda: structured(llm, SearchPlan, prompts.plan_prompt(), format_profile(request), "plan"),
     )
     if plan is None:
         return {"error": f"Could not plan the search: {trace.error}", "trace": [trace]}
@@ -234,6 +250,25 @@ def _job_searches(plan: SearchPlan) -> list[tuple[str, str, dict, Callable[[], l
                 lambda f=conservation_filter: tools.conservation_jobs(f),
             )
         )
+    if config.usajobs_configured():
+        for uq in plan.usajobs:
+            location = uq.location.strip()
+            remote = location.lower() == "remote"
+            usajobs_filter = UsajobsFilter(
+                keyword=uq.keywords.strip() or None,
+                location=None if remote else location or None,
+                agencies=uq.agencies,
+                remote=True if remote else None,
+            )
+            what = uq.keywords or ", ".join(uq.agencies) or "federal jobs"
+            searches.append(
+                (
+                    "usajobs",
+                    f"USAJOBS for “{_short(what)}”",
+                    uq.model_dump(mode="json"),
+                    lambda f=usajobs_filter: tools.usajobs_jobs(f, config.USAJOBS_RESULTS),
+                )
+            )
     for query in plan.google_queries:
         searches.append(google_job_search(query))
     return searches
@@ -321,6 +356,15 @@ def find_jobs_node(state: PipelineState) -> dict:
         step.note = f"{added} new"
         status(f"{label}: {_plural(len(found), 'job')}")
 
+    if plan.usajobs and not config.usajobs_configured():
+        trace.append(
+            TraceStep(
+                step="find_jobs",
+                source="usajobs",
+                args={"queries": len(plan.usajobs)},
+                note="skipped: USAJOBS_API_KEY and USAJOBS_EMAIL are not both configured",
+            )
+        )
     for search in _job_searches(plan):
         run(*search)
     _ats_searches(plan, run, trace)

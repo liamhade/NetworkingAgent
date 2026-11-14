@@ -1,0 +1,101 @@
+{
+  "LanguageCode": "EN",
+  "SearchParameters": {
+    "NumberOfPages": 1,
+    "ResultsPerPage": 25,
+    "Keyword": "wildlife biologist"
+  },
+  "SearchResult": {
+    "SearchResultCount": 4,
+    "SearchResultCountAll": 4,
+    "SearchResultItems": [
+      {
+        "MatchedObjectId": "800000001",
+        "MatchedObjectDescriptor": {
+          "PositionID": "NPS-26-WB-001",
+          "PositionTitle": "Wildlife Biologist",
+          "PositionURI": "https://www.usajobs.gov/job/800000001",
+          "ApplyURI": ["https://www.usajobs.gov/job/800000001?PostingChannelID=RESTAPI"],
+          "PositionLocationDisplay": "Yellowstone National Park, Wyoming",
+          "PositionLocation": [
+            {
+              "LocationName": "Yellowstone National Park, Wyoming",
+              "CountryCode": "United States",
+              "CountrySubDivisionCode": "Wyoming",
+              "CityName": "Yellowstone National Park, Wyoming",
+              "Longitude": -110.5,
+              "Latitude": 44.4
+            }
+          ],
+          "OrganizationName": "National Park Service",
+          "DepartmentName": "Department of the Interior",
+          "JobCategory": [{"Name": "Biological Sciences", "Code": "0400"}],
+          "JobGrade": [{"Code": "GS"}],
+          "PositionSchedule": [{"Name": "Full-time", "Code": "1"}],
+          "PositionOfferingType": [{"Name": "Permanent", "Code": "15317"}],
+          "QualificationSummary": "You must have one year of specialized experience equivalent to the GS-09 level in wildlife biology, including field surveys and population monitoring.",
+          "PositionRemuneration": [
+            {
+              "MinimumRange": "64957.0",
+              "MaximumRange": "84447.0",
+              "RateIntervalCode": "PA",
+              "Description": "Per Year"
+            }
+          ],
+          "PositionStartDate": "2026-11-03T00:00:00.0000",
+          "PositionEndDate": "2026-11-24T23:59:59.9970",
+          "PublicationStartDate": "2026-11-03T00:00:00.0000",
+          "ApplicationCloseDate": "2026-11-24T23:59:59.9970",
+          "PositionFormattedDescription": [{"Content": "<p>Long description...</p>", "Label": "Dynamic Teaser"}],
+          "UserArea": {"Details": {"JobSummary": "Serve as a wildlife biologist.", "LowGrade": "09", "HighGrade": "11"}}
+        },
+        "RelevanceRank": 0.0
+      },
+      {
+        "MatchedObjectId": "800000002",
+        "MatchedObjectDescriptor": {
+          "PositionID": "FWS-26-FB-002",
+          "PositionTitle": "Fish and Wildlife Biologist (Pathway Intern)",
+          "PositionURI": "https://www.usajobs.gov/job/800000002",
+          "ApplyURI": ["https://www.usajobs.gov/job/800000002?PostingChannelID=RESTAPI"],
+          "PositionLocationDisplay": "Multiple Locations in the U.S.",
+          "OrganizationName": "U.S. Fish and Wildlife Service",
+          "DepartmentName": "Department of the Interior",
+          "PositionSchedule": [{"Name": "Part-time", "Code": "2"}],
+          "PositionOfferingType": [{"Name": "Temporary", "Code": "15318"}],
+          "QualificationSummary": "Currently enrolled student.",
+          "PositionRemuneration": [
+            {
+              "MinimumRange": "23.5",
+              "MaximumRange": "23.5",
+              "RateIntervalCode": "PH",
+              "Description": "Per Hour"
+            }
+          ],
+          "PublicationStartDate": "2026-11-05T00:00:00.0000",
+          "ApplicationCloseDate": "2026-12-05T23:59:59.9970"
+        },
+        "RelevanceRank": 0.0
+      },
+      {
+        "MatchedObjectId": "800000003",
+        "MatchedObjectDescriptor": {
+          "PositionTitle": "Forestry Technician",
+          "PositionURI": "https://www.usajobs.gov/job/800000003",
+          "OrganizationName": "",
+          "DepartmentName": "Department of Agriculture",
+          "PositionRemuneration": []
+        },
+        "RelevanceRank": 0.0
+      },
+      {
+        "MatchedObjectId": "800000004",
+        "MatchedObjectDescriptor": {
+          "PositionTitle": "Posting without a link",
+          "OrganizationName": "Environmental Protection Agency"
+        },
+        "RelevanceRank": 0.0
+      }
+    ]
+  }
+}

@@ -2,6 +2,7 @@
 
 - `builtin_jobs` / `builtin_companies`: BuiltInNYC jobs and companies (`builtin_nyc`).
 - `conservation_jobs`: Conservation Job Board jobs (`conservation_jobboard`).
+- `usajobs_jobs`: federal jobs from the official USAJOBS API (`usajobs`).
 - `ats_boards` / `ats_jobs`: companies' ATS boards (Greenhouse, Lever, ...) found through Google,
   and their matching postings from the board's public API (`ats`).
 - `google_search`: Google search through real Chrome (`google_serp`), one shared worker.
@@ -29,6 +30,8 @@ from builtin_nyc import api as builtin_api
 from builtin_nyc.models import CompanyFilter, JobFilter
 from conservation_jobboard import api as conservation_api
 from conservation_jobboard.models import JobFilter as ConservationJobFilter
+from usajobs import api as usajobs_api
+from usajobs.models import JobFilter as UsajobsFilter
 
 log = logging.getLogger(__name__)
 
@@ -101,6 +104,33 @@ def conservation_jobs(job_filter: ConservationJobFilter, n: int = 15) -> list[di
             "posted": j.posted,
         }
         for j in conservation_api.get_jobs(job_filter, n)
+    ]
+
+
+# -------------------------------------------------------------------------- USAJOBS
+
+
+def usajobs_jobs(job_filter: UsajobsFilter, n: int | None = None) -> list[dict[str, Any]]:
+    """Federal job announcements from USAJOBS (needs `USAJOBS_API_KEY` and `USAJOBS_EMAIL`)."""
+    if not (config.USAJOBS_API_KEY and config.USAJOBS_EMAIL):
+        raise RuntimeError("USAJOBS is not configured")
+    jobs = usajobs_api.search_jobs(
+        job_filter, n or config.USAJOBS_RESULTS, config.USAJOBS_API_KEY, config.USAJOBS_EMAIL
+    )
+    return [
+        {
+            "title": j.title,
+            "url": j.url,
+            "apply_url": j.apply_url,
+            "company": j.agency or j.department,
+            "location": j.location,
+            "job_type": j.job_type,
+            "salary": j.salary,
+            "deadline": f"closes {j.closes}" if j.closes else None,
+            "posted": j.posted,
+            "summary": _clip(j.summary),
+        }
+        for j in jobs
     ]
 
 

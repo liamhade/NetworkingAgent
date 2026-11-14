@@ -5,6 +5,8 @@ outputs, and code runs every search. One prompt per LLM step:
 
 - `PLAN_PROMPT`: `plan` node. Profile -> target roles and which job sources to query with
   which filters (`pipeline.state.SearchPlan`).
+- `USAJOBS_PLAN_PROMPT`: the USAJOBS paragraph of the plan prompt, added by `plan_prompt()`
+  only when `config.usajobs_configured()`.
 - `RANK_PROMPT`: `rank_companies` node. Jobs found -> companies scored 0-100 for fit, with
   their best postings and people-search keywords (`pipeline.state.CompanyRanking`).
 - `COMPILE_PROMPT`: `compile` node. Gathered data -> `SearchResults` with alignment notes.
@@ -41,6 +43,7 @@ sustainability and conservation policy. Use it if the user wants conservation, \
 environmental, nature, wildlife or outdoor work. 1-3 searches: categories, the user's \
 state(s) and/or "remote", and an optional 1-2 word keyword. Filters combine with AND, so \
 keep each search to a few filters.
+{usajobs}
 - ats_jobs: companies' own career boards on Greenhouse, Lever and Ashby, found through Google; \
 postings come straight from the employer, in any city or industry. 0-2 searches, each a \
 role phrase of 1-3 words matched against posting titles (e.g. "data analyst"; no seniority \
@@ -51,6 +54,15 @@ fit well.
 - google_queries: Google, for job postings the sources above don't cover. 0-2 queries such \
 as `"<role>" jobs <city> site:ashbyhq.com`. Google is slow; skip it when \
 the other sources fit well."""
+
+USAJOBS_PLAN_PROMPT = """- usajobs: USAJOBS, the official US federal job site. Use it for \
+federal and government roles, and especially for conservation, environmental, wildlife, \
+forestry and park jobs (National Park Service, Fish and Wildlife Service, Forest Service, \
+EPA). 0-2 searches, each with role keywords (e.g. "wildlife biologist"), a city and state \
+(e.g. "Denver, Colorado"), "remote" or "" for anywhere, and optionally agencies ("nps", \
+"usfws", "usfs", "epa"; [] for any agency). Federal pay is public and structured; hiring \
+is slow and formal.
+"""
 
 RANK_PROMPT = """You rank companies for a job seeker, using job postings that were just \
 found. Each posting has an id ("j1", ...).
@@ -121,6 +133,13 @@ def linkedin_message_prompt(max_chars: int | None = None) -> str:
     limit = max_chars if max_chars is not None else config.LINKEDIN_MESSAGE_MAX_CHARS
     # Ask for a bit less than the hard limit: models count characters loosely.
     return LINKEDIN_MESSAGE_PROMPT.format(max_chars=limit, target_chars=max(1, limit * 5 // 6))
+
+
+def plan_prompt(usajobs: bool | None = None) -> str:
+    """System prompt of the plan step. USAJOBS is only offered when its key is configured
+    (`usajobs` overrides `config.usajobs_configured()`)."""
+    offer = config.usajobs_configured() if usajobs is None else usajobs
+    return PLAN_PROMPT.replace("{usajobs}\n", USAJOBS_PLAN_PROMPT if offer else "")
 
 
 def compile_prompt(max_chars: int | None = None) -> str:
