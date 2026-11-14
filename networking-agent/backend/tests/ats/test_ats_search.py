@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from ats import AtsJob, Board, boards_from_results, filter_jobs, needs_resolving, site_query
+from ats.ashby import ASHBY
 from ats.greenhouse import GREENHOUSE
 from ats.lever import LEVER
 from ats.search import breadcrumb_url, matches_keywords, matches_location
@@ -78,6 +79,12 @@ def test_site_query(keywords: str, location: str, query: str) -> None:
             "https://jobs.lever.co/spotify/2a55d6c9-c564-443a-be3e-a3851db5a93b",
         ),
         ("https://jobs.lever.co › spotify › 2a55d6c9-c5…", "https://jobs.lever.co/spotify"),
+        (
+            "https://jobs.ashbyhq.com › ramp › 34413f8d-26bf-4bbc-8ade-eb309a0e2245",
+            "https://jobs.ashbyhq.com/ramp/34413f8d-26bf-4bbc-8ade-eb309a0e2245",
+        ),
+        ("https://jobs.ashbyhq.com › ramp › 34413f8d-26bf…", "https://jobs.ashbyhq.com/ramp"),
+        ("https://jobs.ashbyhq.com › …", "https://jobs.ashbyhq.com"),
         ("8 comments · 3 years ago", ""),
         ("", ""),
     ],
@@ -121,6 +128,29 @@ def test_lever_boards_are_read_from_breadcrumbs() -> None:
         b.provider == "greenhouse" and b.slug not in {"spotify", "plaid"}
         for b in boards_from_results(results, GREENHOUSE)
     )
+
+
+def test_ashby_boards_are_read_from_breadcrumbs() -> None:
+    results = google_results()
+    assert boards_from_results(results, ASHBY) == [
+        # The truncated, capitalised Ramp crumb still names the board and merges with the others.
+        Board(provider="ashby", slug="ramp", job_ids=["34413f8d-26bf-4bbc-8ade-eb309a0e2245"]),
+        # With the /application suffix.
+        Board(provider="ashby", slug="notion", job_ids=["1fc309c8-0000-4000-8000-000000000000"]),
+    ]
+    # Only the fully truncated crumb hides its board; other providers' results are off-provider.
+    assert [r.url for r in results if needs_resolving(r, ASHBY)] == [
+        "https://www.google.com/goto?url=SSS5"
+    ]
+    assert not any(needs_resolving(r, GREENHOUSE) for r in results if "SSS" in r.url)
+
+
+def test_ashby_site_query() -> None:
+    assert (
+        site_query(ASHBY, "data analyst", "New York, NY")
+        == 'site:jobs.ashbyhq.com "data analyst" "New York"'
+    )
+    assert site_query(ASHBY, "designer", "Remote") == 'site:jobs.ashbyhq.com "designer" remote'
 
 
 def test_lever_site_query() -> None:

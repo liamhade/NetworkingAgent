@@ -24,18 +24,25 @@ Flow per planned query and provider:
 - `models.py`: `BoardRef` (parsed URL), `Board` (found through Google), `AtsJob`
 - `greenhouse.py`: the Greenhouse provider (`GREENHOUSE`)
 - `lever.py`: the Lever provider (`LEVER`); EU boards are found by retrying a 404 on the EU API
+- `ashby.py`: the Ashby provider (`ASHBY`), `jobs.ashbyhq.com` + the public job-board API
 - `registry.py`: `PROVIDERS`, `get_provider()`, `parse_url()`
 - `search.py`: pure helpers: `site_query`, breadcrumbs -> boards, keyword/location matching
 
 `read_page.methods.greenhouse_ids` uses `GREENHOUSE.parse_url` and
-`read_page.methods.lever_api_url` uses `LEVER.parse_url` / `LEVER.api_base`, so those URL
+`read_page.methods.lever_api_url` uses `LEVER.parse_url` / `LEVER.api_base` and
+`read_page.methods.read_ashby` uses `ASHBY.parse_url`, so those URL
 rules live only here. `ats` must not import `read_page` (that would be an import cycle).
 
 Provider quirks: Lever's API has no company name (`lever.company_name` title-cases the slug)
 and always includes full descriptions (~10 KB per posting); remote postings get "(Remote)"
-appended to their location so a "remote" search matches them.
+appended to their location so a "remote" search matches them. Ashby also has no company
+name (it reuses `lever.company_name`) and always includes descriptions (Ramp: 179 postings,
+3 MB); `list_jobs` leaves `includeCompensation` off (no pay field in `AtsJob`, +7% payload).
+Ashby's `isRemote` is true for most hybrid postings, so only `workplaceType == "Remote"` adds
+"(Remote)"; secondary locations are joined into `location`, and `isListed: false` postings are
+skipped.
 
-## Adding a provider (Ashby, Workable, ...)
+## Adding a provider (Workable, ...)
 
 1. New module `ats/<name>.py` with a `Provider` subclass: `name`, `label`, `site_domains`
    (hosts for `site:`), `host_pattern` (every board host), `parse_url` (board slug and
@@ -50,9 +57,11 @@ appended to their location so a "remote" search matches them.
    `parse_url` too.
 
 Every registered provider costs one more Google search per planned ATS query (Greenhouse +
-Lever = 2 per query, up to 4 per pipeline run), unless `ATS_MAX_BOARDS` is reached first.
+Lever + Ashby = 3 per query, up to 6 per pipeline run), unless `ATS_MAX_BOARDS` is reached
+first. The board cap is shared and providers are searched in `PROVIDERS` order, so a
+Greenhouse search that fills it leaves Lever and Ashby unsearched.
 
-Known public APIs: Ashby `https://api.ashbyhq.com/posting-api/job-board/<slug>`, Workable
+Known public API still to add: Workable
 `https://apply.workable.com/api/v1/widget/accounts/<slug>`. Check the shape with a few spaced
 live requests before relying on it.
 

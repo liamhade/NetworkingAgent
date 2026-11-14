@@ -1,11 +1,12 @@
 """The registered ATS providers. Adding one = one module + one entry in `PROVIDERS`."""
 
+from .ashby import ASHBY
 from .base import Provider
 from .greenhouse import GREENHOUSE
 from .lever import LEVER
 from .models import BoardRef
 
-PROVIDERS: dict[str, Provider] = {p.name: p for p in (GREENHOUSE, LEVER)}
+PROVIDERS: dict[str, Provider] = {p.name: p for p in (GREENHOUSE, LEVER, ASHBY)}
 """Provider name -> provider, in the order the pipeline searches them."""
 
 

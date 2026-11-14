@@ -197,3 +197,66 @@ truncated UUID, EU `/apply`, fully truncated) used by `test_ats_search.py` and
   real name at the cost of one more request per board.
 - EU fallback costs a second request for unknown/closed boards; EU boards were not
   verified live.
+
+## Ashby (third provider)
+
+Goal: add Ashby (`jobs.ashbyhq.com`, public job-board API) as `ats/ashby.py` + one
+`PROVIDERS` entry, without changing the pipeline design.
+
+### Findings (2026-11-13, 3 requests to the job-board API, spaced 6 s, none limited)
+
+- `GET https://api.ashbyhq.com/posting-api/job-board/<org>` returns
+  `{"apiVersion": "1", "jobs": [...]}`. Each job has `id` (UUID), `title` (sometimes with
+  leading/trailing spaces), `department`, `team`, `employmentType`, `location` (primary),
+  `secondaryLocations` (`[{"location", "address"}]`), `publishedAt` (ISO timestamp),
+  `isListed`, `isRemote`, `workplaceType` (`OnSite` / `Hybrid` / `Remote`), `address`,
+  `jobUrl`, `applyUrl` (`jobUrl` + `/application`) and the full description
+  (`descriptionHtml`, `descriptionPlain`). Ramp: 179 postings, 3.0 MB.
+- `?includeCompensation=true` adds pay data: 3.24 MB vs 3.02 MB (+7%). Not requested by
+  `list_jobs` since `AtsJob` has no pay field; `read_page.read_ashby` still asks for it
+  (it shows pay on a single posting).
+- `isRemote` is true for most hybrid NYC postings (any remote-capable secondary location),
+  so it is not a good "remote" signal; `workplaceType` is.
+- No company name in the response. Unknown board: `404` with plain-text `Not Found`.
+
+### Design
+
+- `Ashby` provider: `site_domains = ("jobs.ashbyhq.com",)`, host `jobs.ashbyhq.com`.
+  `parse_url` reads `/<org>` and `/<org>/<uuid>` (trailing `/application`, query string and
+  fragment ignored; a non-UUID second segment gives a board-only ref).
+- `list_jobs(org)`: one request, no params; HTTP errors (404 = unknown board) are raised.
+- Normalization: `title` stripped, `url` = `jobUrl` (else built), `company` = slug
+  title-cased (`lever.company_name`), `location` = primary + secondary locations joined with
+  " / " plus " (Remote)" for `workplaceType == "Remote"` when not already said,
+  `departments` = `[department, team]` deduplicated, `posted` = date part of `publishedAt`.
+  `isListed: false` postings are skipped.
+- `read_page.methods.read_ashby` now uses `ASHBY.parse_url` (the `_ASHBY` regex is gone) and
+  compares posting ids case-insensitively. `read_page`'s registry regex still routes
+  `jobs.ashbyhq.com/<org>/<uuid>` URLs to `ashby_api`.
+- Breadcrumbs: `jobs.ashbyhq.com › ramp › <uuid>` and `› ramp › 34413f8d-26bf…` both give the
+  board through the existing `search.breadcrumb_url`; `jobs.ashbyhq.com › …` is resolved.
+- `PLAN_PROMPT`: `ats_jobs` names Greenhouse, Lever and Ashby; the `google_queries` example
+  is now `"<role>" jobs <city> "<company>" careers` (no ATS `site:` suggestion).
+  `SearchPlan.ats_jobs` description updated.
+
+### Google searches per pipeline run
+
+One `site:` search per (ATS query, provider): with `cap_plan`'s 2 ATS queries and 3
+providers, at most **6** ATS searches per run (was 4), fewer once `ATS_MAX_BOARDS` (6) is
+reached; plus the 0-2 `google_queries`, i.e. up to 8 Google searches per run in total.
+
+### Tests (offline)
+
+`test_ats_ashby.py` (URL forms incl. `/application`, query strings, fragments, rejections;
+registry order; normalization from a trimmed live Ramp fixture `ashby_job_board.json`;
+missing fields, unlisted postings, empty/odd responses; 404). `google_results.json` gained
+Ashby results (full crumb, board crumb, "…" truncated UUID, `/application`, fully
+truncated) used by `test_ats_search.py` and `test_ats_tools.py`. `test_ats_pipeline.py`
+expects a Greenhouse, a Lever and an Ashby search per query.
+
+### Caveats / deferred
+
+- Payloads are large (descriptions can't be excluded): 6 Ashby boards can be ~10 MB+.
+- The shared board cap starves later providers more now (Ashby is searched last).
+- No EU Ashby host is known; only `jobs.ashbyhq.com` is handled. Ashby boards embedded on
+  company domains (`?ashby_jid=...`) are not recognised.

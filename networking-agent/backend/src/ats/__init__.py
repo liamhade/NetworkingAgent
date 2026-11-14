@@ -1,4 +1,4 @@
-"""Employer-direct job postings from applicant tracking systems (ATS) such as Greenhouse and Lever.
+"""Employer-direct job postings from applicant tracking systems (Greenhouse, Lever, Ashby).
 
 Google `site:` searches find which companies have a board for a role; each board's public
 JSON API then lists its open postings, which are matched to the user's keywords and

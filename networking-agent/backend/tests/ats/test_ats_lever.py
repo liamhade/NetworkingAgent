@@ -101,7 +101,7 @@ def test_api_base_follows_the_board_host() -> None:
 
 
 def test_registry() -> None:
-    assert list(PROVIDERS) == ["greenhouse", "lever"]
+    assert list(PROVIDERS) == ["greenhouse", "lever", "ashby"]
     assert get_provider("lever") is LEVER
     assert parse_url(f"https://jobs.lever.co/x/{UUID}/apply") == BoardRef(
         provider="lever", slug="x", job_id=UUID

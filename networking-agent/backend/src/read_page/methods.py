@@ -5,12 +5,12 @@ Results are never truncated here; `core.read_page` does that.
 
 import html
 import json
-import re
 import threading
 import time
 from collections.abc import Callable, Iterator
 from typing import Any
 
+from ats.ashby import ASHBY
 from ats.greenhouse import GREENHOUSE
 from ats.lever import LEVER
 
@@ -280,7 +280,6 @@ def read_lever(url: str) -> PageResult:
     )
 
 
-_ASHBY = re.compile(r"jobs\.ashbyhq\.com/(?P<org>[^/?#]+)/(?P<id>[0-9a-f-]{36})")
 ASHBY_TTL = 600.0
 """Seconds to keep an Ashby board (the API has no single-job endpoint)."""
 
@@ -303,10 +302,12 @@ def _ashby_board(org: str, now: Callable[[], float] = time.monotonic) -> list[di
 
 
 def read_ashby(url: str) -> PageResult:
-    m = _ASHBY.search(url)
-    if not m:
+    ref = ASHBY.parse_url(url)  # the URL rules live in `ats`
+    if ref is None or not ref.job_id:
         raise MethodUnavailable("Not an Ashby job URL")
-    job = next((j for j in _ashby_board(m["org"]) if j.get("id") == m["id"]), None)
+    job = next(
+        (j for j in _ashby_board(ref.slug) if str(j.get("id")).lower() == ref.job_id.lower()), None
+    )
     if job is None:
         raise MethodUnavailable("Job not on the Ashby board (it may be closed or unlisted)")
     title = job.get("title") or None

@@ -66,6 +66,7 @@ def board_api(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(ats_base, "get_json", get_json)
     monkeypatch.setattr("ats.greenhouse.get_json", get_json)
     monkeypatch.setattr("ats.lever.get_json", get_json)
+    monkeypatch.setattr("ats.ashby.get_json", get_json)
     return responses
 
 
@@ -194,3 +195,47 @@ def test_ats_jobs_on_lever(board_api: dict[str, Any]) -> None:
         "Product Manager - Data Platform",
         "Senior Data Scientist, Artist-First AI Music lab",
     ]
+
+
+# --- Ashby ---------------------------------------------------------------------------
+
+ASHBY_API = "https://api.ashbyhq.com/posting-api/job-board"
+
+
+def test_ats_boards_on_ashby(google: FakeGoogle, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "ATS_RESOLVE_LINKS", 3)
+    monkeypatch.setitem(
+        RESOLVED, "https://www.google.com/goto?url=SSS5", "https://jobs.ashbyhq.com/foo"
+    )
+    boards = tools.ats_boards("ashby", "data analyst", "New York, NY")
+    assert google.queries == ['site:jobs.ashbyhq.com "data analyst" "New York"']
+    assert google.resolved == ["https://www.google.com/goto?url=SSS5"]
+    assert boards == [
+        {
+            "provider": "ashby",
+            "slug": "ramp",
+            "job_ids": ["34413f8d-26bf-4bbc-8ade-eb309a0e2245"],
+        },
+        {
+            "provider": "ashby",
+            "slug": "notion",
+            "job_ids": ["1fc309c8-0000-4000-8000-000000000000"],
+        },
+        {"provider": "ashby", "slug": "foo", "job_ids": []},
+    ]
+
+
+def test_ats_jobs_on_ashby(board_api: dict[str, Any]) -> None:
+    board_api[f"{ASHBY_API}/ramp"] = json.loads(
+        (FIXTURES / "ashby_job_board.json").read_text(encoding="utf-8")
+    )
+    jobs = tools.ats_jobs("ashby", "ramp", "account", "San Francisco")
+    # Secondary locations count: the Account Manager is New York first, San Francisco second.
+    assert [j["title"] for j in jobs] == [
+        "Account Executive | Strategic",
+        "Account Manager | Mid-Market",
+        "Partner Consultant, Accounting",
+    ]
+    assert jobs[0]["company"] == "Ramp"
+    assert jobs[0]["company_url"] == "https://jobs.ashbyhq.com/ramp"
+    assert jobs[0]["summary"].startswith("Ashby · Sales")

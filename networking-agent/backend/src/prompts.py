@@ -41,7 +41,7 @@ sustainability and conservation policy. Use it if the user wants conservation, \
 environmental, nature, wildlife or outdoor work. 1-3 searches: categories, the user's \
 state(s) and/or "remote", and an optional 1-2 word keyword. Filters combine with AND, so \
 keep each search to a few filters.
-- ats_jobs: companies' own career boards on Greenhouse and Lever, found through Google; \
+- ats_jobs: companies' own career boards on Greenhouse, Lever and Ashby, found through Google; \
 postings come straight from the employer, in any city or industry. 0-2 searches, each a \
 role phrase of 1-3 words matched against posting titles (e.g. "data analyst"; no seniority \
 words) and a city ("New York"), "remote", or "" for anywhere. Use it when the user wants \

@@ -52,6 +52,7 @@ def test_ats_jobs_are_gathered_and_can_be_ranked(scripted_model, sources) -> Non
         ats_board("acme", "7"),
         ats_board("globex"),
         ats_board("plaid", provider="lever"),
+        ats_board("ramp", "r1", provider="ashby"),
     ]
     sources.ats_board_jobs = {"acme": [ats_job("Acme", 7), ats_job("Acme", 8)], "globex": []}
     ranked = ranking(("Acme", 95, [("j6", 90), ("j7", 70)]), ("Ramp", 80, [("j1", 80)]))
@@ -61,9 +62,11 @@ def test_ats_jobs_are_gathered_and_can_be_ranked(scripted_model, sources) -> Non
     assert ("ats_jobs", ("greenhouse", "acme", "data analyst", "New York", ["7"], 4)) in (
         sources.calls
     )
-    # One Google search per registered provider: Greenhouse, then Lever.
+    # One Google search per registered provider: Greenhouse, then Lever, then Ashby.
     assert ("ats_boards", ("lever", "data analyst", "New York")) in sources.calls
     assert ("ats_jobs", ("lever", "plaid", "data analyst", "New York", [], 4)) in sources.calls
+    assert ("ats_boards", ("ashby", "data analyst", "New York")) in sources.calls
+    assert ("ats_jobs", ("ashby", "ramp", "data analyst", "New York", ["r1"], 4)) in sources.calls
     assert [
         (s.source, s.args["provider"], s.args.get("board"), s.count) for s in ats_steps(events)
     ] == [
@@ -72,6 +75,8 @@ def test_ats_jobs_are_gathered_and_can_be_ranked(scripted_model, sources) -> Non
         ("ats_jobs", "greenhouse", "globex", 0),
         ("ats_boards", "lever", None, 1),
         ("ats_jobs", "lever", "plaid", 0),
+        ("ats_boards", "ashby", None, 1),
+        ("ats_jobs", "ashby", "ramp", 0),
     ]
     assert ats_steps(events)[0].note == "2 new boards read"
     results = events[-1].data
@@ -104,8 +109,10 @@ def test_boards_are_capped_and_deduplicated_across_queries(
     ] == [
         ("greenhouse", "2 new boards read"),
         ("lever", "0 new boards read"),
+        ("ashby", "0 new boards read"),
         ("greenhouse", "0 new boards read"),
         ("lever", "0 new boards read"),
+        ("ashby", "0 new boards read"),
     ]
 
     sources.calls.clear()
@@ -134,7 +141,7 @@ def test_failing_board_search_and_board_are_recorded_and_skipped(scripted_model,
     assert isinstance(events[-1], ResultEvent)
     failed = [(s.source, s.args.get("board")) for s in trace_of(events) if s.error]
     assert failed == [("ats_jobs", "broken")]
-    assert [s.count for s in ats_steps(events)] == [2, None, 1, 0]  # Lever found none
+    assert [s.count for s in ats_steps(events)] == [2, None, 1, 0, 0]  # Lever, Ashby found none
 
     sources.ats_boards = RuntimeError("CAPTCHA not solved")
     events = run(scripted_model(structured=answers(ATS_PLAN)))
@@ -142,6 +149,7 @@ def test_failing_board_search_and_board_are_recorded_and_skipped(scripted_model,
     assert [(s.source, s.args["provider"], s.error) for s in ats_steps(events)] == [
         ("ats_boards", "greenhouse", "RuntimeError: CAPTCHA not solved"),
         ("ats_boards", "lever", "RuntimeError: CAPTCHA not solved"),
+        ("ats_boards", "ashby", "RuntimeError: CAPTCHA not solved"),
     ]
     statuses = [e.message for e in events if isinstance(e, StatusEvent)]
     assert any("Greenhouse boards for “data analyst” failed" in m for m in statuses)
