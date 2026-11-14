@@ -36,7 +36,7 @@
 </main>
 <script>
 // Edit this block to update the dashboard. status: "done" | "current" | "next"
-const UPDATED = "2026-11-13";
+const UPDATED = "2026-11-14";
 const TASKS = [
   { title: "Store previous searches", status: "done", commit: "15be6ff", note: "Left side-panel of past searches + minimal TEST_USER account layer (get_current_user, /api/me, database/users/<id>/)." },
   { title: "Keep log of applied jobs / connected people", status: "done", note: "APPLIED / CONNECTED toggles keyed by stable entity IDs (normalized URL / LinkedIn slug), persisted per user.", commit: "5836ba3" },
@@ -57,6 +57,9 @@ const TASKS = [
   { title: "ATS job boards: Ashby", status: "done", commit: "4630ac7", note: "Ashby job-board API as third ats provider; remote via workplaceType; read_page shares its URL rules; up to 6 ATS Google searches per run." },
   { title: "ATS job boards: Workable", status: "done", commit: "e1b4a79", note: "Workable widget API (keyless, one request per board, real company name) as fourth ats provider; up to 8 ATS Google searches per run." },
   { title: "USAJOBS source", status: "done", commit: "be7f7ab", note: "usajobs sub-package + plan field (keywords, location, NPS/USFWS/USFS/EPA); skipped with a trace note until USAJOBS_API_KEY + USAJOBS_EMAIL are set. Not yet tested live." },
+  { title: "Search board configuration panel", status: "done", commit: "413f81d", note: "Collapsible Search boards panel from GET /api/search/boards; per-board on/off + max_jobs enforced in cap_plan/find_jobs; per-provider ATS allowances fix Greenhouse starvation; LLM still ranks." },
+  { title: "Remember resume + search parameters", status: "done", commit: "e9e28aa", note: "gzip-saved resume + cached profile (saved-resume chip with Replace/Remove); search params incl. boards saved on submit and restored on load; resume files git-ignored." },
+  { title: "Save search configurations", status: "done", commit: "d60b308", note: "Right-side panel: save current form (incl. boards) as \"Search Configuration #n\", inline rename, load, overwrite, delete; /api/search/configs CRUD." },
 ];
 
 function render() {
