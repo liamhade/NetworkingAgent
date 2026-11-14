@@ -94,7 +94,7 @@ def test_board_url() -> None:
 
 
 def test_registry_order_and_lookup() -> None:
-    assert list(PROVIDERS) == ["greenhouse", "lever", "ashby"]
+    assert list(PROVIDERS) == ["greenhouse", "lever", "ashby", "workable"]
     assert get_provider("ashby") is ASHBY
     assert parse_url(f"https://jobs.ashbyhq.com/x/{UUID}/application") == BoardRef(
         provider="ashby", slug="x", job_id=UUID

@@ -67,6 +67,7 @@ def board_api(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr("ats.greenhouse.get_json", get_json)
     monkeypatch.setattr("ats.lever.get_json", get_json)
     monkeypatch.setattr("ats.ashby.get_json", get_json)
+    monkeypatch.setattr("ats.workable.get_json", get_json)
     return responses
 
 
@@ -239,3 +240,31 @@ def test_ats_jobs_on_ashby(board_api: dict[str, Any]) -> None:
     assert jobs[0]["company"] == "Ramp"
     assert jobs[0]["company_url"] == "https://jobs.ashbyhq.com/ramp"
     assert jobs[0]["summary"].startswith("Ashby · Sales")
+
+
+# --- Workable ------------------------------------------------------------------------
+
+WORKABLE_API = "https://apply.workable.com/api/v1/widget/accounts"
+
+
+def test_ats_boards_on_workable(google: FakeGoogle, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "ATS_RESOLVE_LINKS", 3)
+    boards = tools.ats_boards("workable", "data analyst", "New York, NY")
+    assert google.queries == ['site:apply.workable.com "data analyst" "New York"']
+    # Only the fully truncated crumb hides its board.
+    assert google.resolved == ["https://www.google.com/goto?url=WWW5"]
+    assert boards == [
+        {"provider": "workable", "slug": "huggingface", "job_ids": ["81B46579FE"]},
+        {"provider": "workable", "slug": "acme-corp", "job_ids": ["0A1B2C3D4E"]},
+    ]
+
+
+def test_ats_jobs_on_workable(board_api: dict[str, Any]) -> None:
+    board_api[f"{WORKABLE_API}/huggingface"] = json.loads(
+        (FIXTURES / "workable_widget.json").read_text(encoding="utf-8")
+    )
+    jobs = tools.ats_jobs("workable", "huggingface", "machine learning", "New York")
+    assert [j["title"] for j in jobs] == ["Open-Source Machine Learning Engineer - US Remote"]
+    assert jobs[0]["company"] == "Hugging Face"
+    assert jobs[0]["company_url"] == "https://apply.workable.com/huggingface/"
+    assert jobs[0]["summary"].startswith("Workable · Open Source")

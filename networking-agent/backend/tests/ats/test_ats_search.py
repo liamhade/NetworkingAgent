@@ -10,6 +10,7 @@ from ats.ashby import ASHBY
 from ats.greenhouse import GREENHOUSE
 from ats.lever import LEVER
 from ats.search import breadcrumb_url, matches_keywords, matches_location
+from ats.workable import WORKABLE
 from google_serp import SearchResult
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -85,6 +86,15 @@ def test_site_query(keywords: str, location: str, query: str) -> None:
         ),
         ("https://jobs.ashbyhq.com › ramp › 34413f8d-26bf…", "https://jobs.ashbyhq.com/ramp"),
         ("https://jobs.ashbyhq.com › …", "https://jobs.ashbyhq.com"),
+        (
+            "https://apply.workable.com › huggingface › j › 81B46579FE",
+            "https://apply.workable.com/huggingface/j/81B46579FE",
+        ),
+        (
+            "https://apply.workable.com › huggingface › j › 81B4…",
+            "https://apply.workable.com/huggingface/j",
+        ),
+        ("https://apply.workable.com › …", "https://apply.workable.com"),
         ("8 comments · 3 years ago", ""),
         ("", ""),
     ],
@@ -151,6 +161,28 @@ def test_ashby_site_query() -> None:
         == 'site:jobs.ashbyhq.com "data analyst" "New York"'
     )
     assert site_query(ASHBY, "designer", "Remote") == 'site:jobs.ashbyhq.com "designer" remote'
+
+
+def test_workable_boards_are_read_from_breadcrumbs() -> None:
+    results = google_results()
+    assert boards_from_results(results, WORKABLE) == [
+        # The capitalised, truncated crumb (board only) merges with the full ones.
+        Board(provider="workable", slug="huggingface", job_ids=["81B46579FE"]),
+        Board(provider="workable", slug="acme-corp", job_ids=["0A1B2C3D4E"]),
+    ]
+    # Only the fully truncated crumb hides its board.
+    assert [r.url for r in results if needs_resolving(r, WORKABLE)] == [
+        "https://www.google.com/goto?url=WWW5"
+    ]
+    assert not any(needs_resolving(r, ASHBY) for r in results if "WWW" in r.url)
+
+
+def test_workable_site_query() -> None:
+    assert (
+        site_query(WORKABLE, "data analyst", "New York, NY")
+        == 'site:apply.workable.com "data analyst" "New York"'
+    )
+    assert site_query(WORKABLE, "designer", "Remote") == 'site:apply.workable.com "designer" remote'
 
 
 def test_lever_site_query() -> None:

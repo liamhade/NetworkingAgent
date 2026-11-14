@@ -5,8 +5,9 @@ from .base import Provider
 from .greenhouse import GREENHOUSE
 from .lever import LEVER
 from .models import BoardRef
+from .workable import WORKABLE
 
-PROVIDERS: dict[str, Provider] = {p.name: p for p in (GREENHOUSE, LEVER, ASHBY)}
+PROVIDERS: dict[str, Provider] = {p.name: p for p in (GREENHOUSE, LEVER, ASHBY, WORKABLE)}
 """Provider name -> provider, in the order the pipeline searches them."""
 
 

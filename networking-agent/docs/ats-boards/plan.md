@@ -260,3 +260,52 @@ expects a Greenhouse, a Lever and an Ashby search per query.
 - The shared board cap starves later providers more now (Ashby is searched last).
 - No EU Ashby host is known; only `jobs.ashbyhq.com` is handled. Ashby boards embedded on
   company domains (`?ashby_jid=...`) are not recognised.
+
+## Workable
+
+Fourth provider (`ats/workable.py`, last in `PROVIDERS`). Live checks (5 requests, spaced
+6+ s apart, no key, no challenges):
+
+- `GET https://apply.workable.com/api/v1/widget/accounts/<account>` (chosen): 200 with
+  `{"name", "description", "jobs": [...]}`. All open postings come in one response with no
+  pagination and no descriptions (Hugging Face: 6 postings, 4.3 KB). `name` is the real company
+  name. Unknown account: `404` plain text "Not Found". Accounts whose boards live elsewhere
+  (Canonical, Jobgether) answer 200 with `jobs: []`, which is treated as an empty board.
+- `POST https://apply.workable.com/api/v3/accounts/<account>/jobs` (not used): 200,
+  `{"results", "total"}` (3.3 KB for the same board, `nextPage` token when more); fewer
+  fields (no `url`, department as a list, no company name). The widget has everything needed
+  in one request, so pagination is not implemented. The `www.workable.com` API was not tried.
+- Job fields used: `shortcode` (id, upper-cased), `title`, `url` (`apply.workable.com/j/<CODE>`,
+  kept; built as `<board>/j/<code>/` if missing), `department` + `function` (departments),
+  `published_on`/`created_at` (date), `telecommuting`, and `locations` (else `city`/`state`/
+  `country`). Location = every place as "City, Region, Country" joined with " / ", plus
+  "(Remote)" for telecommuting postings. Hidden locations are kept (they still name a country).
+
+- `Workable` provider: `site_domains = ("apply.workable.com",)`, `host_pattern` any
+  `*.workable.com`. `parse_url` reads `/<account>` and `/<account>/j/<SHORTCODE>` (trailing
+  `/apply`, query, fragment ignored), plus legacy `<account>.workable.com[/jobs/<id>]`. It
+  rejects Workable's own hosts (`www`, `resources`, `help`, ...), `apply.workable.com/api/...`
+  and account-less `apply.workable.com/j/<CODE>`.
+- `read_page` has no Workable handling, so nothing was changed there.
+- Breadcrumbs: `apply.workable.com › acct › j › SHORTCODE` gives board and posting; a "…"
+  truncated shortcode gives the board; `apply.workable.com › …` is resolved.
+- `PLAN_PROMPT` and `SearchPlan.ats_jobs` name all four providers.
+
+### Google searches per pipeline run
+
+With `cap_plan`'s 2 ATS queries and 4 providers, up to **8** ATS searches per run (was 6),
+fewer once `ATS_MAX_BOARDS` (6, unchanged) is reached; plus 0-2 `google_queries`, i.e. up to
+**10** Google searches per run in total.
+
+### Tests (offline)
+
+`test_ats_workable.py` (valid/legacy/rejected URLs, registry order, normalization from a
+trimmed live Hugging Face fixture `workable_widget.json`, missing fields, empty/odd responses,
+404). `google_results.json` gained Workable results; search, tools and pipeline tests cover
+four providers.
+
+### Caveats / deferred
+
+- Workable is searched last, so a full shared board cap starves it most.
+- The widget API's behaviour on very large boards (a possible job cap) was not observed.
+- Boards embedded on company domains are not recognised.

@@ -54,8 +54,8 @@ const TASKS = [
   { title: "Enforced LangGraph search pipeline", status: "done", commit: "c776d42", note: "plan → find_jobs → rank_companies (0-100 fit) → find_people (top 3, fallback ladder) → read_postings → compile; per-search trace; parallel on-demand \"Find People To Connect With\" button." },
   { title: "ATS job boards: Greenhouse (+ shared ats layer)", status: "done", commit: "0183644", note: "ats sub-package + provider interface; Google site: search → slug from breadcrumb → Greenhouse board API; keyword/location filter; trace steps; ATS_MAX_BOARDS / ATS_JOBS_PER_BOARD / ATS_RESOLVE_LINKS knobs." },
   { title: "ATS job boards: Lever", status: "done", commit: "199127e", note: "Lever postings API (US, EU fallback) as second ats provider; read_page shares its URL rules; +0-2 Google searches per run." },
-  { title: "ATS job boards: Ashby", status: "current", note: "Ashby public job-board API in the ats layer." },
-  { title: "ATS job boards: Workable", status: "next", note: "Workable public API in the ats layer." },
+  { title: "ATS job boards: Ashby", status: "done", commit: "4630ac7", note: "Ashby job-board API as third ats provider; remote via workplaceType; read_page shares its URL rules; up to 6 ATS Google searches per run." },
+  { title: "ATS job boards: Workable", status: "current", note: "Workable public API in the ats layer." },
   { title: "USAJOBS source", status: "next", note: "Official USAJOBS search API (env-var key), skipped when unconfigured." },
 ];
 

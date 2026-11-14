@@ -17,6 +17,13 @@ Flow per planned query and provider:
 3. `pipeline.steps._ats_searches` reads at most `config.ATS_MAX_BOARDS` boards per search
    (deduplicated across queries). Each board search and board read is its own trace step
    (`ats_boards`, `ats_jobs`); a failing one is recorded and skipped.
+Workable's widget API returns the real company name (`name`) and all postings in one request
+(no pagination, no descriptions: 6 postings = 4 KB); `list_jobs` uses it instead of the slug.
+Posting ids are the uppercase shortcodes (`parse_url` upper-cases breadcrumb ids to match);
+the API's posting `url` (`apply.workable.com/j/<SHORTCODE>`) has no account, so such URLs are
+not parseable into a board. Legacy `<account>.workable.com` hosts are accepted except Workable's
+own (`www`, `resources`, `help`, ...). Accounts hosted elsewhere answer 200 with no jobs.
+`read_page` has no Workable method (the generic JSON-LD path is used).
 
 ## Layout
 
@@ -25,6 +32,7 @@ Flow per planned query and provider:
 - `greenhouse.py`: the Greenhouse provider (`GREENHOUSE`)
 - `lever.py`: the Lever provider (`LEVER`); EU boards are found by retrying a 404 on the EU API
 - `ashby.py`: the Ashby provider (`ASHBY`), `jobs.ashbyhq.com` + the public job-board API
+- `workable.py`: the Workable provider (`WORKABLE`), `apply.workable.com` + the public widget API
 - `registry.py`: `PROVIDERS`, `get_provider()`, `parse_url()`
 - `search.py`: pure helpers: `site_query`, breadcrumbs -> boards, keyword/location matching
 
@@ -42,7 +50,7 @@ Ashby's `isRemote` is true for most hybrid postings, so only `workplaceType == "
 "(Remote)"; secondary locations are joined into `location`, and `isListed: false` postings are
 skipped.
 
-## Adding a provider (Workable, ...)
+## Adding a provider
 
 1. New module `ats/<name>.py` with a `Provider` subclass: `name`, `label`, `site_domains`
    (hosts for `site:`), `host_pattern` (every board host), `parse_url` (board slug and
@@ -57,13 +65,9 @@ skipped.
    `parse_url` too.
 
 Every registered provider costs one more Google search per planned ATS query (Greenhouse +
-Lever + Ashby = 3 per query, up to 6 per pipeline run), unless `ATS_MAX_BOARDS` is reached
-first. The board cap is shared and providers are searched in `PROVIDERS` order, so a
-Greenhouse search that fills it leaves Lever and Ashby unsearched.
-
-Known public API still to add: Workable
-`https://apply.workable.com/api/v1/widget/accounts/<slug>`. Check the shape with a few spaced
-live requests before relying on it.
+Lever + Ashby + Workable = 4 per query, up to 8 per pipeline run), unless `ATS_MAX_BOARDS` is
+reached first. The board cap is shared and providers are searched in `PROVIDERS` order, so a
+Greenhouse search that fills it leaves the later providers unsearched.
 
 ## Rules
 

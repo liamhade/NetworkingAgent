@@ -117,5 +117,40 @@
   "display_url": "https://jobs.ashbyhq.com › …",
   "snippet": "Open roles at Foo ...",
   "site_name": "Ashby"
+ },
+ {
+  "title": "Workable result",
+  "url": "https://www.google.com/goto?url=WWW1",
+  "display_url": "https://apply.workable.com › huggingface › j › 81B46579FE",
+  "snippet": "Open roles at Foo ...",
+  "site_name": "Workable"
+ },
+ {
+  "title": "Workable result",
+  "url": "https://www.google.com/goto?url=WWW2",
+  "display_url": "https://apply.workable.com › huggingface",
+  "snippet": "Open roles at Foo ...",
+  "site_name": "Workable"
+ },
+ {
+  "title": "Workable result",
+  "url": "https://www.google.com/goto?url=WWW3",
+  "display_url": "https://apply.workable.com › Huggingface › j › 19A136F8…",
+  "snippet": "Open roles at Foo ...",
+  "site_name": "Workable"
+ },
+ {
+  "title": "Workable result",
+  "url": "https://www.google.com/goto?url=WWW4",
+  "display_url": "https://apply.workable.com › acme-corp › j › 0a1b2c3d4e › apply",
+  "snippet": "Open roles at Foo ...",
+  "site_name": "Workable"
+ },
+ {
+  "title": "Workable result",
+  "url": "https://www.google.com/goto?url=WWW5",
+  "display_url": "https://apply.workable.com › …",
+  "snippet": "Open roles at Foo ...",
+  "site_name": "Workable"
  }
 ]
