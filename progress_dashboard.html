@@ -55,8 +55,8 @@ const TASKS = [
   { title: "ATS job boards: Greenhouse (+ shared ats layer)", status: "done", commit: "0183644", note: "ats sub-package + provider interface; Google site: search → slug from breadcrumb → Greenhouse board API; keyword/location filter; trace steps; ATS_MAX_BOARDS / ATS_JOBS_PER_BOARD / ATS_RESOLVE_LINKS knobs." },
   { title: "ATS job boards: Lever", status: "done", commit: "199127e", note: "Lever postings API (US, EU fallback) as second ats provider; read_page shares its URL rules; +0-2 Google searches per run." },
   { title: "ATS job boards: Ashby", status: "done", commit: "4630ac7", note: "Ashby job-board API as third ats provider; remote via workplaceType; read_page shares its URL rules; up to 6 ATS Google searches per run." },
-  { title: "ATS job boards: Workable", status: "current", note: "Workable public API in the ats layer." },
-  { title: "USAJOBS source", status: "next", note: "Official USAJOBS search API (env-var key), skipped when unconfigured." },
+  { title: "ATS job boards: Workable", status: "done", commit: "e1b4a79", note: "Workable widget API (keyless, one request per board, real company name) as fourth ats provider; up to 8 ATS Google searches per run." },
+  { title: "USAJOBS source", status: "done", commit: "be7f7ab", note: "usajobs sub-package + plan field (keywords, location, NPS/USFWS/USFS/EPA); skipped with a trace note until USAJOBS_API_KEY + USAJOBS_EMAIL are set. Not yet tested live." },
 ];
 
 function render() {
