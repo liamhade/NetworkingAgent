@@ -289,6 +289,15 @@ export async function cancelSearch(id: string): Promise<SearchSummary> {
   return response.json()
 }
 
+/**
+ * Delete a saved search (the server refuses with 409 while it is running, 404 if unknown).
+ * Its companies, jobs and people leave the entity pages; applied/connected marks and pins stay.
+ */
+export async function deleteSearch(id: string): Promise<void> {
+  const response = await fetch(`/api/searches/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!response.ok) throw new Error(await errorMessage(response))
+}
+
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal })
   if (!response.ok) throw new Error(await errorMessage(response))

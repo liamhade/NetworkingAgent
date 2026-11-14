@@ -204,6 +204,24 @@ def cancel_search(search_id: str, user: CurrentUser) -> SearchSummary:
         raise HTTPException(status_code=409, detail="That search is not running.") from exc
 
 
+@app.delete("/api/searches/{search_id}", status_code=204)
+def delete_search(search_id: str, user: CurrentUser) -> Response:
+    """Delete a saved search (and so its entities from the entity pages).
+
+    404 if unknown; 409 if it is still running (cancel it first). Applied/connected marks
+    and pins are kept: they are stored per entity, not per search.
+    """
+    try:
+        found = history.delete_search(user.id, search_id)
+    except history.SearchRunning as exc:
+        raise HTTPException(
+            status_code=409, detail="That search is still running. Cancel it before deleting."
+        ) from exc
+    if not found:
+        raise HTTPException(status_code=404, detail="Search not found.")
+    return Response(status_code=204)
+
+
 @app.get("/api/search/boards")
 def search_boards() -> list[boards.BoardInfo]:
     """The job boards a search can use: label, default setting, limits and availability.

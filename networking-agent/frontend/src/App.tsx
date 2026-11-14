@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   cancelSearch,
+  deleteSearch,
   createSearchConfig,
   deleteSearchConfig,
   getCurrentUser,
@@ -83,6 +84,7 @@ export default function App() {
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [cancelError, setCancelError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   /** The search on screen, for on-demand people searches that finish later. */
   const shownId = useRef<string | null>(null)
   useEffect(() => {
@@ -294,6 +296,21 @@ export default function App() {
     }
   }
 
+  /** Delete a finished, failed or cancelled search; if it is open, go back to a new search. */
+  const remove = async (id: string) => {
+    setDeleteError(null)
+    try {
+      await deleteSearch(id)
+    } catch (caught) {
+      setDeleteError((caught as Error).message)
+      listSearches().then(setHistory).catch(console.error)
+      return
+    }
+    setHistory((current) => current.filter((entry) => entry.id !== id))
+    setEntitiesVersion((version) => version + 1)
+    if (shownId.current === id) back()
+  }
+
   /**
    * Searches nobody is watching (started earlier, from another tab, or before a reload)
    * can only be noticed finishing by asking again, so re-list while any of them runs.
@@ -389,6 +406,8 @@ export default function App() {
         onNewSearch={back}
         onCancel={cancel}
         cancelError={cancelError}
+        onDelete={remove}
+        deleteError={deleteError}
       />
       <div className="min-w-0 flex-1 basis-112">
         <TopNav view={view} />

@@ -34,6 +34,7 @@ describe('SearchHistory status', () => {
         onSelect={() => {}}
         onNewSearch={() => {}}
         onCancel={() => {}}
+        onDelete={async () => {}}
       />,
     )
     expect(screen.getAllByText('Searching…')).toHaveLength(1)
@@ -58,6 +59,7 @@ describe('SearchHistory cancel', () => {
         onNewSearch={() => {}}
         onCancel={onCancel}
         cancelError={cancelError}
+        onDelete={async () => {}}
       />,
     )
     return { onCancel, onSelect }
@@ -85,5 +87,62 @@ describe('SearchHistory cancel', () => {
   it('shows why a cancel failed', () => {
     renderPanel([], 'That search is not running.')
     expect(screen.getByRole('alert')).toHaveTextContent('That search is not running.')
+  })
+})
+
+describe('SearchHistory delete', () => {
+  const renderPanel = (searches: SearchSummary[], deleteError: string | null = null) => {
+    const onDelete = vi.fn().mockResolvedValue(undefined)
+    const onSelect = vi.fn()
+    render(
+      <SearchHistory
+        searches={searches}
+        loading={false}
+        error={null}
+        activeId={null}
+        user={null}
+        onSelect={onSelect}
+        onNewSearch={() => {}}
+        onCancel={() => {}}
+        onDelete={onDelete}
+        deleteError={deleteError}
+      />,
+    )
+    return { onDelete, onSelect }
+  }
+
+  it('offers Delete on every search except running ones', () => {
+    renderPanel([
+      search('a', 'running'),
+      search('b', 'error'),
+      search('c', 'done'),
+      search('d', 'cancelled'),
+    ])
+    expect(screen.getAllByRole('button', { name: /^Delete search/ })).toHaveLength(3)
+    expect(screen.queryByRole('button', { name: 'Delete search: Title a' })).not.toBeInTheDocument()
+  })
+
+  it('asks for confirmation, and Keep deletes nothing', async () => {
+    const { onDelete, onSelect } = renderPanel([search('b', 'error')])
+    await userEvent.click(screen.getByRole('button', { name: 'Delete search: Title b' }))
+    expect(onDelete).not.toHaveBeenCalled()
+    expect(screen.getByText('Delete this search?')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
+    expect(screen.queryByText('Delete this search?')).not.toBeInTheDocument()
+    expect(onDelete).not.toHaveBeenCalled()
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('deletes the confirmed search by id', async () => {
+    const { onDelete } = renderPanel([search('b', 'error'), search('c', 'done')])
+    await userEvent.click(screen.getByRole('button', { name: 'Delete search: Title c' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete search: Title c' }))
+    expect(onDelete).toHaveBeenCalledWith('c')
+    expect(screen.queryByText('Delete this search?')).not.toBeInTheDocument()
+  })
+
+  it('shows why a delete failed', () => {
+    renderPanel([], 'That search is still running. Cancel it before deleting.')
+    expect(screen.getByRole('alert')).toHaveTextContent('still running')
   })
 })

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '@/api'
@@ -19,6 +19,7 @@ vi.mock('@/api', async (importOriginal) => ({
   streamSearch: vi.fn(),
   streamSearchEvents: vi.fn(),
   cancelSearch: vi.fn(),
+  deleteSearch: vi.fn(),
   listEntities: vi.fn(),
 }))
 
@@ -213,6 +214,51 @@ describe('App background searches', () => {
     await user.click(await screen.findByText('Climate roles'))
     expect(await screen.findByText(/interrupted because the server restarted/)).toBeInTheDocument()
     expect(m.streamSearchEvents).not.toHaveBeenCalled()
+  })
+
+  it('deletes a failed search from the panel after confirming', async () => {
+    m.listSearches.mockResolvedValue([{ ...RUNNING, status: 'error' }])
+    m.deleteSearch.mockResolvedValue()
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: 'Delete search: Climate roles' }))
+    await user.click(screen.getByRole('button', { name: /Confirm delete search/ }))
+    expect(m.deleteSearch).toHaveBeenCalledWith('run')
+    await waitFor(() => expect(screen.queryByText('Climate roles')).not.toBeInTheDocument())
+    expect(screen.getByText('Your searches will show up here.')).toBeInTheDocument()
+  })
+
+  it('returns to a new search when the open search is deleted', async () => {
+    m.listSearches.mockResolvedValue([{ ...RUNNING, status: 'error' }])
+    m.getSearch.mockResolvedValue({
+      ...RUNNING,
+      status: 'error',
+      user_id: 'TEST_USER',
+      request: REQUEST,
+      results: { summary: '', companies: [] },
+      messages: [],
+      error: 'Search failed: boom',
+    })
+    m.deleteSearch.mockResolvedValue()
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByText('Climate roles'))
+    expect(await screen.findByText(/Search failed: boom/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Delete search: Climate roles' }))
+    await user.click(screen.getByRole('button', { name: /Confirm delete search/ }))
+    await waitFor(() => expect(screen.queryByText(/Search failed: boom/)).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /find opportunities/i })).toBeInTheDocument()
+  })
+
+  it('shows the error and keeps the search when a delete is refused', async () => {
+    m.listSearches.mockResolvedValue([{ ...RUNNING, status: 'cancelled' }])
+    m.deleteSearch.mockRejectedValue(new Error('That search is still running. Cancel it first.'))
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: 'Delete search: Climate roles' }))
+    await user.click(screen.getByRole('button', { name: /Confirm delete search/ }))
+    expect(await screen.findByText(/still running/)).toBeInTheDocument()
+    expect(screen.getByText('Climate roles')).toBeInTheDocument()
   })
 
   it('keeps searching while the user visits another page', async () => {

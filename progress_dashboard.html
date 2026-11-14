@@ -61,8 +61,8 @@ const TASKS = [
   { title: "Remember resume + search parameters", status: "done", commit: "e9e28aa", note: "gzip-saved resume + cached profile (saved-resume chip with Replace/Remove); search params incl. boards saved on submit and restored on load; resume files git-ignored." },
   { title: "Save search configurations", status: "done", commit: "d60b308", note: "Right-side panel: save current form (incl. boards) as \"Search Configuration #n\", inline rename, load, overwrite, delete; /api/search/configs CRUD." },
   { title: "Background searches you can leave and come back to", status: "done", commit: "06f5887", note: "Searches run in a background thread, saved as running immediately; spinner in Previous Searches, re-attach via GET /api/searches/{id}/events; stale runs marked failed on restart." },
-  { title: "Cancel a running search + concurrency cap", status: "current", note: "Cancel button on running searches in Previous Searches; cap simultaneous searches." },
-  { title: "Delete searches from Previous Searches", status: "next", note: "Delete any search (failed or otherwise) from the panel." },
+  { title: "Cancel a running search + concurrency cap", status: "done", commit: "d25bd50", note: "POST /api/searches/{id}/cancel (cooperative, saved as cancelled, streams end cleanly); Cancel button in Previous Searches; MAX_CONCURRENT_SEARCHES=2 refuses extras with a clear 429 message." },
+  { title: "Delete searches from Previous Searches", status: "current", note: "Delete any search (failed or otherwise) from the panel." },
 ];
 
 function render() {

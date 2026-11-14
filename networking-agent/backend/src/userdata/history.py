@@ -139,6 +139,39 @@ def cancel_search(user_id: str, search_id: str) -> SavedSearch | None:
     )
 
 
+class SearchRunning(RuntimeError):
+    """The search is still running, so it cannot be deleted (cancel it first)."""
+
+
+def delete_search(user_id: str, search_id: str) -> bool:
+    """Remove a saved search; False if it doesn't exist. Raises `SearchRunning` if running.
+
+    Runs under the same per-search lock as `update_search`, so a late write from a worker
+    or an on-demand people search can never resurrect the file (they find no record).
+    """
+    if not _ID_PATTERN.match(search_id):
+        return False
+    with _lock(user_id, search_id):
+        record = get_search(user_id, search_id)
+        if record is None:
+            return False
+        if record.status == "running":
+            raise SearchRunning(search_id)
+        path = _searches_dir(user_id) / f"{search_id}.json"
+        for attempt in range(5):
+            try:
+                path.unlink(missing_ok=True)
+                break
+            except PermissionError:
+                # Windows refuses to delete a file another thread is reading; retry briefly.
+                if attempt == 4:
+                    raise
+                time.sleep(0.05)
+    with _locks_guard:
+        _locks.pop((user_id, search_id), None)
+    return True
+
+
 INTERRUPTED_MESSAGE = "This search was interrupted because the server restarted. Run it again."
 
 

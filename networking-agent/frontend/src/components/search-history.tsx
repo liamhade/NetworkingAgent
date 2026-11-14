@@ -2,10 +2,12 @@ import {
   RiAddLine,
   RiCloseCircleLine,
   RiCloseLine,
+  RiDeleteBinLine,
   RiErrorWarningLine,
   RiHistoryLine,
   RiUserLine,
 } from '@remixicon/react'
+import { useState } from 'react'
 import type { SearchSummary, User } from '@/api'
 import { Button } from '@/components/base/buttons/button'
 import { Spinner } from '@/components/base/spinner/spinner'
@@ -25,6 +27,10 @@ interface SearchHistoryProps {
   onCancel: (id: string) => void
   /** Why the last cancel failed (e.g. the search had already finished). */
   cancelError?: string | null
+  /** Delete a search that is not running (the panel asks for confirmation first). */
+  onDelete: (id: string) => Promise<void>
+  /** Why the last delete failed. */
+  deleteError?: string | null
 }
 
 /** Left side panel listing the user's previous searches, most recent first. */
@@ -38,8 +44,12 @@ export function SearchHistory({
   onNewSearch,
   onCancel,
   cancelError,
+  onDelete,
+  deleteError,
 }: SearchHistoryProps) {
   const fade = useScrollFade()
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   return (
     <aside
@@ -56,14 +66,18 @@ export function SearchHistory({
         </Button>
       </div>
 
-      {cancelError && (
-        <p
-          role="alert"
-          className="flex items-start gap-1.5 px-4 pb-2 text-body-2-regular text-text-error-primary"
-        >
-          <RiErrorWarningLine aria-hidden className="mt-0.5 size-4 shrink-0" />
-          {cancelError}
-        </p>
+      {[cancelError, deleteError].map(
+        (message) =>
+          message && (
+            <p
+              key={message}
+              role="alert"
+              className="flex items-start gap-1.5 px-4 pb-2 text-body-2-regular text-text-error-primary"
+            >
+              <RiErrorWarningLine aria-hidden className="mt-0.5 size-4 shrink-0" />
+              {message}
+            </p>
+          ),
       )}
 
       <div className="relative min-h-0 flex-1">
@@ -94,6 +108,19 @@ export function SearchHistory({
                     active={search.id === activeId}
                     onSelect={() => onSelect(search.id)}
                     onCancel={() => onCancel(search.id)}
+                    confirming={confirmingId === search.id}
+                    deleting={deletingId === search.id}
+                    onAskDelete={() => setConfirmingId(search.id)}
+                    onKeep={() => setConfirmingId(null)}
+                    onDelete={async () => {
+                      setDeletingId(search.id)
+                      try {
+                        await onDelete(search.id)
+                      } finally {
+                        setDeletingId(null)
+                        setConfirmingId(null)
+                      }
+                    }}
                   />
                 </li>
               ))}
@@ -122,11 +149,21 @@ function HistoryBubble({
   active,
   onSelect,
   onCancel,
+  confirming,
+  deleting,
+  onAskDelete,
+  onKeep,
+  onDelete,
 }: {
   search: SearchSummary
   active: boolean
   onSelect: () => void
   onCancel: () => void
+  confirming: boolean
+  deleting: boolean
+  onAskDelete: () => void
+  onKeep: () => void
+  onDelete: () => void
 }) {
   const created = new Date(search.created_at)
   const running = search.status === 'running'
@@ -139,7 +176,7 @@ function HistoryBubble({
         className={cx(
           'flex w-full cursor-pointer flex-col gap-0.5 rounded-2xl rounded-ss-md border px-3 py-2.5 text-start transition-colors',
           'outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring',
-          running && 'pe-20',
+          running ? 'pe-20' : 'pe-10',
           active
             ? 'border-border-button-active bg-background-primary-active'
             : 'border-border-button-default bg-background-primary-default hover:border-border-button-hover hover:bg-background-primary-hover',
@@ -169,6 +206,35 @@ function HistoryBubble({
           </time>
         </span>
       </button>
+      {!running && (
+        <Button
+          variant="ghost"
+          size="xs"
+          leadingIcon={RiDeleteBinLine}
+          onClick={onAskDelete}
+          aria-label={`Delete search: ${search.title}`}
+          className="absolute end-2 top-2"
+        />
+      )}
+      {confirming && !running && (
+        <div className="flex items-center justify-between gap-1 px-2 pt-1">
+          <span className="text-caption-1-medium text-text-secondary">Delete this search?</span>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="xs" onClick={onKeep} disabled={deleting}>
+              Keep
+            </Button>
+            <Button
+              variant="secondary"
+              size="xs"
+              onClick={onDelete}
+              disabled={deleting}
+              aria-label={`Confirm delete search: ${search.title}`}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      )}
       {running && (
         <Button
           variant="ghost"
