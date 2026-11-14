@@ -102,6 +102,8 @@ export type AgentEvent =
   | { type: 'result'; data: SearchResults }
   | { type: 'error'; message: string }
   | { type: 'saved'; search: SearchSummary }
+  /** The search was cancelled; the last event of its stream. */
+  | { type: 'cancelled'; search: SearchSummary }
   /** First event of a search stream: the saved (still running) search, so its id is known. */
   | { type: 'started'; search: SearchSummary }
 
@@ -256,7 +258,7 @@ export interface User {
 }
 
 /** `running`: still searching in the background; `error`: failed or interrupted. */
-export type SearchStatus = 'running' | 'done' | 'error'
+export type SearchStatus = 'running' | 'done' | 'error' | 'cancelled'
 
 /** One entry in the search-history side panel. */
 export interface SearchSummary {
@@ -276,6 +278,15 @@ export interface SavedSearch extends SearchSummary {
   messages: string[]
   /** Why the search failed (status `error`). */
   error: string | null
+}
+
+/** Cancel a running search (the server refuses with 409 if it already ended). */
+export async function cancelSearch(id: string): Promise<SearchSummary> {
+  const response = await fetch(`/api/searches/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
+  return response.json()
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {

@@ -172,7 +172,10 @@ def search(request: SearchRequest, user: CurrentUser) -> StreamingResponse:
         search_params.save(user.id, request)
     except Exception:  # noqa: BLE001
         log.exception("Could not save search parameters")  # Never block the search.
-    search_runs.start(user.id, request, search_id)
+    try:
+        search_runs.start(user.id, request, search_id)
+    except search_runs.TooManySearches as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     events = search_runs.attach(user.id, search_id)
     assert events is not None
     return StreamingResponse(_follow(events), media_type="text/event-stream", headers=_SSE_HEADERS)
@@ -188,6 +191,17 @@ def search_events(search_id: str, user: CurrentUser) -> StreamingResponse:
     if events is None:
         raise HTTPException(status_code=404, detail="Search not found.")
     return StreamingResponse(_follow(events), media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+@app.post("/api/searches/{search_id}/cancel")
+def cancel_search(search_id: str, user: CurrentUser) -> SearchSummary:
+    """Cancel a running search (saved as `cancelled`); 404 if unknown, 409 if not running."""
+    try:
+        return search_runs.cancel(user.id, search_id)
+    except search_runs.SearchNotFound as exc:
+        raise HTTPException(status_code=404, detail="Search not found.") from exc
+    except search_runs.SearchNotRunning as exc:
+        raise HTTPException(status_code=409, detail="That search is not running.") from exc
 
 
 @app.get("/api/search/boards")

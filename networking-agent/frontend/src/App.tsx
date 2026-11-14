@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  cancelSearch,
   createSearchConfig,
   deleteSearchConfig,
   getCurrentUser,
@@ -37,6 +38,8 @@ import { Results } from '@/pages/results'
 import { withRetry } from '@/utils/retry'
 import { useKeyedToggles } from '@/utils/use-keyed-toggles'
 import { type View, viewFromHash, viewHash } from '@/utils/view'
+
+const CANCELLED_MESSAGE = 'This search was cancelled.'
 
 /** How often to re-list searches that are running where this page isn't watching them. */
 const SEARCH_POLL_MS = 5000
@@ -79,6 +82,7 @@ export default function App() {
   const [historyLoading, setHistoryLoading] = useState(true)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [cancelError, setCancelError] = useState<string | null>(null)
   /** The search on screen, for on-demand people searches that finish later. */
   const shownId = useRef<string | null>(null)
   useEffect(() => {
@@ -222,6 +226,9 @@ export default function App() {
           // The backend is clearly up now; recover the marks/pins if the first load failed.
           getStatuses().then(marks.load).catch(console.error)
           getPins().then(pinState.load).catch(console.error)
+        } else if (event.type === 'cancelled') {
+          upsertHistory(event.search)
+          setError(CANCELLED_MESSAGE)
         } else if (event.type === 'error') {
           setError(event.message)
           const failed = id
@@ -263,12 +270,27 @@ export default function App() {
         // Still searching: show its progress and follow it until it ends.
         setRunning(true)
         await follow(controller, (onEvent) => streamSearchEvents(id, onEvent, controller.signal))
+      } else if (saved.status === 'cancelled') {
+        setStatuses(saved.messages)
+        setError(CANCELLED_MESSAGE)
       } else if (saved.status === 'error') {
         setStatuses(saved.messages)
         setError(saved.error ?? 'This search failed.')
       } else setResults(saved.results)
     } catch (caught) {
       if (!controller.signal.aborted) setError((caught as Error).message)
+    }
+  }
+
+  /** Cancel a running search from the panel. If it already ended, just refresh the list. */
+  const cancel = async (id: string) => {
+    setCancelError(null)
+    try {
+      upsertHistory(await cancelSearch(id))
+      setEntitiesVersion((version) => version + 1)
+    } catch (caught) {
+      setCancelError((caught as Error).message)
+      listSearches().then(setHistory).catch(console.error)
     }
   }
 
@@ -365,6 +387,8 @@ export default function App() {
         user={user}
         onSelect={openSaved}
         onNewSearch={back}
+        onCancel={cancel}
+        cancelError={cancelError}
       />
       <div className="min-w-0 flex-1 basis-112">
         <TopNav view={view} />

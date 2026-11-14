@@ -18,6 +18,7 @@ vi.mock('@/api', async (importOriginal) => ({
   getSearch: vi.fn(),
   streamSearch: vi.fn(),
   streamSearchEvents: vi.fn(),
+  cancelSearch: vi.fn(),
   listEntities: vi.fn(),
 }))
 
@@ -149,6 +150,51 @@ describe('App background searches', () => {
     finish()
     expect(await screen.findByText('Found them')).toBeInTheDocument()
     expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
+  })
+
+  it('cancels a running search from the panel and marks it cancelled', async () => {
+    m.listSearches.mockResolvedValue([RUNNING])
+    m.cancelSearch.mockResolvedValue({ ...RUNNING, status: 'cancelled' })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: /Cancel search: Climate roles/ }))
+    expect(m.cancelSearch).toHaveBeenCalledWith('run')
+    expect(await screen.findByText('Cancelled')).toBeInTheDocument()
+    expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Cancel search/ })).not.toBeInTheDocument()
+  })
+
+  it('shows the error and refreshes the list when the cancel is refused', async () => {
+    m.listSearches
+      .mockResolvedValueOnce([RUNNING])
+      .mockResolvedValue([{ ...RUNNING, status: 'done' as const }])
+    m.cancelSearch.mockRejectedValue(new Error('That search is not running.'))
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByRole('button', { name: /Cancel search/ }))
+    expect(await screen.findByText('That search is not running.')).toBeInTheDocument()
+    expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
+  })
+
+  it('ends a followed search cleanly when it is cancelled', async () => {
+    m.listSearches.mockResolvedValue([RUNNING])
+    m.getSearch.mockResolvedValue({
+      ...RUNNING,
+      user_id: 'TEST_USER',
+      request: REQUEST,
+      results: { summary: '', companies: [] },
+      messages: [],
+      error: null,
+    })
+    m.streamSearchEvents.mockImplementation(async (_id, onEvent) => {
+      onEvent({ type: 'started', search: RUNNING })
+      onEvent({ type: 'cancelled', search: { ...RUNNING, status: 'cancelled' } })
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByText('Climate roles'))
+    expect(await screen.findByText('This search was cancelled.')).toBeInTheDocument()
+    expect(screen.getByText('Cancelled')).toBeInTheDocument()
   })
 
   it('shows why a failed search failed when opened', async () => {

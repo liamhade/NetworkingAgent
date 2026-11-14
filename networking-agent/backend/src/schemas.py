@@ -147,8 +147,8 @@ class SearchResults(BaseModel):
     companies: list[CompanyResult]
 
 
-SearchStatus = Literal["running", "done", "error"]
-"""Where a search is: still running in the background, finished, or failed/interrupted."""
+SearchStatus = Literal["running", "done", "error", "cancelled"]
+"""Where a search is: running in the background, finished, failed/interrupted, or cancelled."""
 
 
 class SearchSummary(BaseModel):
@@ -267,7 +267,16 @@ class StartedEvent(BaseModel):
     search: SearchSummary
 
 
-AgentEvent = StatusEvent | ResultEvent | ErrorEvent | TraceEvent | SavedEvent | StartedEvent
+class CancelledEvent(BaseModel):
+    """The user cancelled the search; the last event of its stream."""
+
+    type: Literal["cancelled"] = "cancelled"
+    search: SearchSummary
+
+
+AgentEvent = (
+    StatusEvent | ResultEvent | ErrorEvent | TraceEvent | SavedEvent | StartedEvent | CancelledEvent
+)
 
 
 class Sighting(BaseModel):

@@ -126,6 +126,19 @@ def fail_search(user_id: str, search_id: str, message: str) -> SavedSearch | Non
     )
 
 
+def cancel_search(user_id: str, search_id: str) -> SavedSearch | None:
+    """Mark a running search cancelled (a no-op for one that already ended)."""
+    return update_search(
+        user_id,
+        search_id,
+        lambda r: (
+            r.model_copy(update={"status": "cancelled", "error": None})
+            if r.status == "running"
+            else r
+        ),
+    )
+
+
 INTERRUPTED_MESSAGE = "This search was interrupted because the server restarted. Run it again."
 
 

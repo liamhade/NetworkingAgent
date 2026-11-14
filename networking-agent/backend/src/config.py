@@ -20,6 +20,10 @@ CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://127.
 MAX_COMPANIES = max(1, int(os.environ.get("MAX_COMPANIES", "6")))
 """Most companies a search returns, ranked by fit (score 0-100)."""
 
+MAX_CONCURRENT_SEARCHES = max(1, int(os.environ.get("MAX_CONCURRENT_SEARCHES", "2")))
+"""Searches that may run at once (all users). Starting another is refused with HTTP 429, since
+they all share one Chrome worker for Google calls and one LLM rate limit."""
+
 PEOPLE_AUTO_COMPANIES = max(0, int(os.environ.get("PEOPLE_AUTO_COMPANIES", "3")))
 """The top-ranked companies that get a people search during the search; the rest get one
 on demand ("Find People To Connect With")."""

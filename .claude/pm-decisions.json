@@ -1,0 +1,44 @@
+{
+  "decisions": [
+    {
+      "id": "failed-searches-visible",
+      "title": "Delete failed searches",
+      "detail": "Failed searches are now kept in the Previous Searches panel, marked \"Failed\" with their error. Before, they were never saved.",
+      "todo": "Failed searches now stay in the Previous Searches panel marked \"Failed\". Add a way to delete a search (failed or otherwise) from the panel.",
+      "source": "Background searches (06f5887)",
+      "status": "queued"
+    },
+    {
+      "id": "cancel-running-search",
+      "title": "Cancel a running search",
+      "detail": "There is no way to stop a running search and no limit on how many run at once. Their Google lookups queue on the one shared browser.",
+      "todo": "Add a Cancel button for a running search in the Previous Searches panel, and cap how many searches can run at the same time (extra ones wait or are refused with a clear message).",
+      "source": "Background searches (06f5887)",
+      "status": "queued"
+    },
+    {
+      "id": "background-search-job-queue",
+      "title": "Job queue for background searches",
+      "detail": "Background searches use in-memory threads, so they only work with a single server process. Moving to Supabase or several servers would need a real job queue.",
+      "todo": "Move background searches off in-memory threads onto a persistent job queue so they survive restarts and work with more than one server process (plan alongside the Supabase migration).",
+      "source": "Background searches (06f5887)",
+      "status": "queued"
+    },
+    {
+      "id": "cancel-from-results-page",
+      "title": "Cancel from the results page",
+      "detail": "A running search can only be cancelled from the Previous Searches panel. The results page you are watching has no Cancel control.",
+      "todo": "Add a Cancel button to the search results page while a search is running, reusing POST /api/searches/{id}/cancel.",
+      "source": "Cancel a running search (pending)",
+      "status": "open"
+    },
+    {
+      "id": "queue-searches-over-cap",
+      "title": "Queue searches over the cap",
+      "detail": "When MAX_CONCURRENT_SEARCHES (default 2) searches are running, new ones are refused with a 429 message instead of waiting their turn.",
+      "todo": "Instead of refusing searches over MAX_CONCURRENT_SEARCHES, save them as \"queued\", start them automatically when a slot frees up, and show them as Queued in the Previous Searches panel.",
+      "source": "Cancel a running search (pending)",
+      "status": "open"
+    }
+  ]
+}
