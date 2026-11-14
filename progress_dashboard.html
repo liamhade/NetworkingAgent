@@ -60,6 +60,7 @@ const TASKS = [
   { title: "Search board configuration panel", status: "done", commit: "413f81d", note: "Collapsible Search boards panel from GET /api/search/boards; per-board on/off + max_jobs enforced in cap_plan/find_jobs; per-provider ATS allowances fix Greenhouse starvation; LLM still ranks." },
   { title: "Remember resume + search parameters", status: "done", commit: "e9e28aa", note: "gzip-saved resume + cached profile (saved-resume chip with Replace/Remove); search params incl. boards saved on submit and restored on load; resume files git-ignored." },
   { title: "Save search configurations", status: "done", commit: "d60b308", note: "Right-side panel: save current form (incl. boards) as \"Search Configuration #n\", inline rename, load, overwrite, delete; /api/search/configs CRUD." },
+  { title: "Background searches you can leave and come back to", status: "done", commit: "06f5887", note: "Searches run in a background thread, saved as running immediately; spinner in Previous Searches, re-attach via GET /api/searches/{id}/events; stale runs marked failed on restart." },
 ];
 
 function render() {
