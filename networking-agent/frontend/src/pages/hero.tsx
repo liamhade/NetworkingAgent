@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { RiCheckLine, RiErrorWarningLine, RiSearchLine } from '@remixicon/react'
-import { parseResume, type SearchRequest } from '@/api'
+import { parseResume, type BoardsConfig, type SearchRequest } from '@/api'
 import { Button } from '@/components/base/buttons/button'
 import { FileUpload } from '@/components/base/file-upload/file-upload'
 import { Input } from '@/components/base/input/input'
 import { Spinner } from '@/components/base/spinner/spinner'
 import { Textarea } from '@/components/base/textarea/textarea'
+import { SearchBoards } from '@/components/search-boards'
+import { anyBoardOn } from '@/utils/boards'
 
 interface HeroProps {
   initial: SearchRequest
@@ -21,6 +23,8 @@ type ResumeState =
 export function Hero({ initial, onSubmit }: HeroProps) {
   const [form, setForm] = useState<SearchRequest>(initial)
   const [resume, setResume] = useState<ResumeState>({ status: 'idle' })
+  // The boards config as the panel shows it (defaults filled in); null until the list loads.
+  const [shownBoards, setShownBoards] = useState<BoardsConfig | null>(null)
 
   const update = (field: keyof SearchRequest) => (value: string) =>
     setForm((current) => ({ ...current, [field]: value }))
@@ -30,6 +34,7 @@ export function Hero({ initial, onSubmit }: HeroProps) {
     try {
       const profile = await parseResume(file)
       setForm((current) => ({
+        ...current,
         background: profile.background || current.background,
         location: profile.location || current.location,
         looking_for: profile.looking_for || current.looking_for,
@@ -41,11 +46,16 @@ export function Hero({ initial, onSubmit }: HeroProps) {
   }
 
   const canSubmit =
-    form.background.trim() !== '' && form.looking_for.trim() !== '' && resume.status !== 'reading'
+    form.background.trim() !== '' &&
+    form.looking_for.trim() !== '' &&
+    resume.status !== 'reading' &&
+    (shownBoards === null || anyBoardOn(shownBoards))
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (canSubmit) onSubmit(form)
+    if (!canSubmit) return
+    // Send the boards as shown (defaults filled in) so the search is self-describing.
+    onSubmit(shownBoards ? { ...form, boards: shownBoards } : form)
   }
 
   return (
@@ -97,6 +107,11 @@ export function Hero({ initial, onSubmit }: HeroProps) {
           rows={3}
           resize="vertical"
           isRequired
+        />
+        <SearchBoards
+          value={form.boards}
+          onChange={(boards) => setForm((current) => ({ ...current, boards }))}
+          onLoaded={setShownBoards}
         />
         <Button type="submit" variant="primary" leadingIcon={RiSearchLine} disabled={!canSubmit}>
           Find opportunities

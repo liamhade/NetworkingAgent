@@ -1,12 +1,36 @@
 /** Client for the FastAPI backend (see backend/src/server.py and schemas.py). */
 
+/** One board in a search: on or off, and the most jobs to gather from it. */
+export interface BoardSetting {
+  enabled: boolean
+  max_jobs: number
+}
+
+/** `{board_id: setting}`: the self-contained boards config a search carries. */
+export type BoardsConfig = Record<string, BoardSetting>
+
+/** A job board as `GET /api/search/boards` describes it (the single source of truth). */
+export interface BoardInfo {
+  id: string
+  label: string
+  description: string
+  /** False when the board can't run right now (e.g. USAJOBS without an API key). */
+  available: boolean
+  unavailable_reason: string
+  default: BoardSetting
+  min_jobs: number
+  max_jobs: number
+}
+
 export interface SearchRequest {
   background: string
   location: string
   looking_for: string
+  /** Boards to search; leave out for the server's defaults (older searches have none). */
+  boards?: BoardsConfig
 }
 
-export type ResumeProfile = SearchRequest
+export type ResumeProfile = Pick<SearchRequest, 'background' | 'location' | 'looking_for'>
 
 export interface JobResult {
   title: string
@@ -139,6 +163,9 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 
 export const getCurrentUser = (signal?: AbortSignal) => getJson<User>('/api/me', signal)
+
+export const getSearchBoards = (signal?: AbortSignal) =>
+  getJson<BoardInfo[]>('/api/search/boards', signal)
 
 export const listSearches = (signal?: AbortSignal) =>
   getJson<SearchSummary[]>('/api/searches', signal)

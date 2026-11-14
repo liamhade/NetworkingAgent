@@ -3,10 +3,10 @@
 The pipeline (`pipeline/`) is a fixed LangGraph graph; the LLM only fills in structured
 outputs, and code runs every search. One prompt per LLM step:
 
-- `PLAN_PROMPT`: `plan` node. Profile -> target roles and which job sources to query with
-  which filters (`pipeline.state.SearchPlan`).
-- `USAJOBS_PLAN_PROMPT`: the USAJOBS paragraph of the plan prompt, added by `plan_prompt()`
-  only when `config.usajobs_configured()`.
+- `PLAN_HEAD` + one paragraph per job source (`BUILTIN_PLAN_PROMPT`, `USAJOBS_PLAN_PROMPT`,
+  ...): `plan` node. Profile -> target roles and which job sources to query with which
+  filters (`pipeline.state.SearchPlan`). `plan_prompt(boards)` assembles it from the boards
+  the search turned on (and, for USAJOBS, only when `config.usajobs_configured()`).
 - `RANK_PROMPT`: `rank_companies` node. Jobs found -> companies scored 0-100 for fit, with
   their best postings and people-search keywords (`pipeline.state.CompanyRanking`).
 - `COMPILE_PROMPT`: `compile` node. Gathered data -> `SearchResults` with alignment notes.
@@ -18,51 +18,68 @@ outputs, and code runs every search. One prompt per LLM step:
   the rest; `{max_chars}` comes from `config.LINKEDIN_MESSAGE_MAX_CHARS`.
 """
 
+import ats
 import config
+from boards import BoardsConfig, BoardSetting, catalog, default_config, on_boards
 
-PLAN_PROMPT = """You plan a job search for a job seeker. From their profile, decide what to \
-search for. Code then runs exactly the searches you plan, so be specific.
+PLAN_HEAD = (
+    "You plan a job search for a job seeker. From their profile, decide what to search for. "
+    "Code then runs exactly the searches you plan, so be specific.\n"
+    "\n"
+    "Decide:\n"
+    "- role_titles: 2-3 target role titles that fit their background and goals.\n"
+    "- seniority, industries (1-4) and location (where they want to work).\n"
+    '- people_location: the city to look for people to network with (e.g. "New York"), or "" '
+    "if they want remote work or don't care where.\n"
+    "\n"
+    "Job sources. Use one or more; an empty list skips that source. Only the sources below "
+    "are available; leave every other source's list empty:"
+)
 
-Decide:
-- role_titles: 2-3 target role titles that fit their background and goals.
-- seniority, industries (1-4) and location (where they want to work).
-- people_location: the city to look for people to network with (e.g. "New York"), or "" if \
-they want remote work or don't care where.
+BUILTIN_PLAN_PROMPT = (
+    "- builtin_jobs: BuiltInNYC, a directory of New York City tech companies and their jobs "
+    "(it also lists remote roles). Use it if the user is in or near New York City, or wants "
+    "remote work. 1-3 searches, each a short phrase (1-3 words), optionally with a category, "
+    "experience levels and remote preferences.\n"
+    "- builtin_companies: BuiltInNYC companies hiring in given industries. At most one, and "
+    "only together with builtin_jobs, when industry fit matters."
+)
 
-Job sources. Use one or more; an empty list skips that source:
-- builtin_jobs: BuiltInNYC, a directory of New York City tech companies and their jobs (it \
-also lists remote roles). Use it if the user is in or near New York City, or wants remote \
-work. 1-3 searches, each a short phrase (1-3 words), optionally with a category, experience \
-levels and remote preferences.
-- builtin_companies: BuiltInNYC companies hiring in given industries. At most one, and only \
-together with builtin_jobs, when industry fit matters.
-- conservation_jobs: the Conservation Job Board, jobs at conservation and environmental \
-organizations across the US (plus remote and international): wildlife, ecology, forestry, \
-fisheries, botany, restoration, land trusts, environmental education, outdoor recreation, \
-sustainability and conservation policy. Use it if the user wants conservation, \
-environmental, nature, wildlife or outdoor work. 1-3 searches: categories, the user's \
-state(s) and/or "remote", and an optional 1-2 word keyword. Filters combine with AND, so \
-keep each search to a few filters.
-{usajobs}
-- ats_jobs: companies' own career boards on Greenhouse, Lever and Ashby, found through Google; \
-postings come straight from the employer, in any city or industry. 0-2 searches, each a \
-role phrase of 1-3 words matched against posting titles (e.g. "data analyst"; no seniority \
-words) and a city ("New York"), "remote", or "" for anywhere. Use it when the user wants \
-roles at tech or other companies that hire through careers pages, especially outside NYC. \
-Each search costs one Google search per board provider, so skip it when the sources above \
-fit well.
-- google_queries: Google, for job postings the sources above don't cover. 0-2 queries such \
-as `"<role>" jobs <city> site:ashbyhq.com`. Google is slow; skip it when \
-the other sources fit well."""
+CONSERVATION_PLAN_PROMPT = (
+    "- conservation_jobs: the Conservation Job Board, jobs at conservation and environmental "
+    "organizations across the US (plus remote and international): wildlife, ecology, "
+    "forestry, fisheries, botany, restoration, land trusts, environmental education, outdoor "
+    "recreation, sustainability and conservation policy. Use it if the user wants "
+    "conservation, environmental, nature, wildlife or outdoor work. 1-3 searches: "
+    'categories, the user\'s state(s) and/or "remote", and an optional 1-2 word keyword. '
+    "Filters combine with AND, so keep each search to a few filters."
+)
 
-USAJOBS_PLAN_PROMPT = """- usajobs: USAJOBS, the official US federal job site. Use it for \
-federal and government roles, and especially for conservation, environmental, wildlife, \
-forestry and park jobs (National Park Service, Fish and Wildlife Service, Forest Service, \
-EPA). 0-2 searches, each with role keywords (e.g. "wildlife biologist"), a city and state \
-(e.g. "Denver, Colorado"), "remote" or "" for anywhere, and optionally agencies ("nps", \
-"usfws", "usfs", "epa"; [] for any agency). Federal pay is public and structured; hiring \
-is slow and formal.
-"""
+USAJOBS_PLAN_PROMPT = (
+    "- usajobs: USAJOBS, the official US federal job site. Use it for federal and "
+    "government roles, and especially for conservation, environmental, wildlife, forestry "
+    "and park jobs (National Park Service, Fish and Wildlife Service, Forest Service, EPA). "
+    '0-2 searches, each with role keywords (e.g. "wildlife biologist"), a city and state '
+    '(e.g. "Denver, Colorado"), "remote" or "" for anywhere, and optionally agencies '
+    '("nps", "usfws", "usfs", "epa"; [] for any agency). Federal pay is public and '
+    "structured; hiring is slow and formal."
+)
+
+ATS_PLAN_PROMPT = (
+    "- ats_jobs: companies' own career boards on {providers}, found through Google; "
+    "postings come straight from the employer, in any city or industry. 0-2 searches, each "
+    'a role phrase of 1-3 words matched against posting titles (e.g. "data analyst"; no '
+    'seniority words) and a city ("New York"), "remote", or "" for anywhere. Use it when '
+    "the user wants roles at tech or other companies that hire through careers pages, "
+    "especially outside NYC. Each search costs one Google search per board provider, so "
+    "skip it when the sources above fit well."
+)
+
+GOOGLE_PLAN_PROMPT = (
+    "- google_queries: Google, for job postings the sources above don't cover. 0-2 queries "
+    'such as `"<role>" jobs <city> site:ashbyhq.com`. Google is slow; skip it when the '
+    "other sources fit well."
+)
 
 RANK_PROMPT = """You rank companies for a job seeker, using job postings that were just \
 found. Each posting has an id ("j1", ...).
@@ -135,11 +152,37 @@ def linkedin_message_prompt(max_chars: int | None = None) -> str:
     return LINKEDIN_MESSAGE_PROMPT.format(max_chars=limit, target_chars=max(1, limit * 5 // 6))
 
 
-def plan_prompt(usajobs: bool | None = None) -> str:
-    """System prompt of the plan step. USAJOBS is only offered when its key is configured
-    (`usajobs` overrides `config.usajobs_configured()`)."""
-    offer = config.usajobs_configured() if usajobs is None else usajobs
-    return PLAN_PROMPT.replace("{usajobs}\n", USAJOBS_PLAN_PROMPT if offer else "")
+def _join(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def plan_prompt(boards: BoardsConfig | None = None, usajobs: bool | None = None) -> str:
+    """System prompt of the plan step, describing only the boards that will be searched.
+
+    `boards` is the search's config (default: every available board on). A board that is off
+    is left out entirely, so the LLM never plans for it. USAJOBS also needs its key
+    (`usajobs` overrides `config.usajobs_configured()` for that check).
+    """
+    boards = default_config() if boards is None else boards
+    on = set(on_boards(boards))
+    if usajobs is not None:
+        on.discard("usajobs")
+        if usajobs and boards.get("usajobs", BoardSetting(enabled=True, max_jobs=1)).enabled:
+            on.add("usajobs")
+    labels = {b.id: b.label for b in catalog()}
+    providers = [labels[name] for name in ats.PROVIDERS if name in on]
+    sections = [PLAN_HEAD]
+    if "builtin_nyc" in on:
+        sections.append(BUILTIN_PLAN_PROMPT)
+    if "conservation" in on:
+        sections.append(CONSERVATION_PLAN_PROMPT)
+    if "usajobs" in on:
+        sections.append(USAJOBS_PLAN_PROMPT)
+    if providers:
+        sections.append(ATS_PLAN_PROMPT.replace("{providers}", _join(providers)))
+    if "google" in on:
+        sections.append(GOOGLE_PLAN_PROMPT)
+    return "\n".join(sections)
 
 
 def compile_prompt(max_chars: int | None = None) -> str:

@@ -13,6 +13,7 @@ from pipeline_fakes import (
     ranking,
 )
 
+import boards
 import config
 import pipeline
 from pipeline import steps
@@ -31,8 +32,8 @@ def sources(monkeypatch: pytest.MonkeyPatch) -> FakeSources:
     return FakeSources(monkeypatch)
 
 
-def run(model) -> list:
-    return list(pipeline.run_search(REQUEST, llm=model))
+def run(model, request=REQUEST) -> list:
+    return list(pipeline.run_search(request, llm=model))
 
 
 def answers(search_plan: SearchPlan, ranked: CompanyRanking = DEFAULT_RANKING) -> dict:
@@ -91,10 +92,20 @@ def test_ats_jobs_are_gathered_and_can_be_ranked(scripted_model, sources) -> Non
     ]
 
 
-def test_boards_are_capped_and_deduplicated_across_queries(
-    scripted_model, sources, monkeypatch
-) -> None:
-    monkeypatch.setattr(config, "ATS_MAX_BOARDS", 3)
+def test_boards_are_capped_and_deduplicated_across_queries(scripted_model, sources) -> None:
+    # Greenhouse may read 3 boards (12 jobs at 4 per board); the others are off.
+    request = REQUEST.model_copy(
+        update={
+            "boards": boards.normalize(
+                {
+                    "greenhouse": {"enabled": True, "max_jobs": 12},
+                    "lever": {"enabled": False},
+                    "ashby": {"enabled": False},
+                    "workable": {"enabled": False},
+                }
+            )
+        }
+    )
     two = plan(
         ats_jobs=[
             AtsJobQuery(keywords="data analyst", location="New York"),
@@ -102,7 +113,7 @@ def test_boards_are_capped_and_deduplicated_across_queries(
         ]
     )
     sources.ats_boards = [ats_board("acme"), ats_board("globex")]
-    events = run(scripted_model(structured=answers(two)))
+    events = run(scripted_model(structured=answers(two)), request)
     read = [s.args["board"] for s in ats_steps(events) if s.source == "ats_jobs"]
     # The second query finds the same two boards: nothing new to read.
     assert read == ["acme", "globex"]
@@ -110,24 +121,18 @@ def test_boards_are_capped_and_deduplicated_across_queries(
         (s.args["provider"], s.note) for s in ats_steps(events) if s.source == "ats_boards"
     ] == [
         ("greenhouse", "2 new boards read"),
-        ("lever", "0 new boards read"),
-        ("ashby", "0 new boards read"),
-        ("workable", "0 new boards read"),
         ("greenhouse", "0 new boards read"),
-        ("lever", "0 new boards read"),
-        ("ashby", "0 new boards read"),
-        ("workable", "0 new boards read"),
     ]
 
     sources.calls.clear()
     sources.ats_boards = [ats_board(f"b{i}") for i in range(5)]
-    events = run(scripted_model(structured=answers(two)))
+    events = run(scripted_model(structured=answers(two)), request)
     assert [s.args["board"] for s in ats_steps(events) if s.source == "ats_jobs"] == [
         "b0",
         "b1",
         "b2",
     ]
-    # The cap was reached, so the second query's Google search never ran.
+    # The allowance was reached, so the second query's Google search never ran.
     assert [c for c, _ in sources.calls].count("ats_boards") == 1
 
 

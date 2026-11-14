@@ -15,6 +15,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+import boards
 import config
 import pipeline
 import resume
@@ -155,6 +156,16 @@ def search(request: SearchRequest, user: CurrentUser) -> StreamingResponse:
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/search/boards")
+def search_boards() -> list[boards.BoardInfo]:
+    """The job boards a search can use: label, default setting, limits and availability.
+
+    The frontend renders its configuration panel from this list. A search sends back
+    `boards: {board_id: {enabled, max_jobs}}` in `POST /api/search`.
+    """
+    return boards.catalog()
 
 
 @app.get("/api/searches")

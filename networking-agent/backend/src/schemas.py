@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.json_schema import SkipJsonSchema
 
 import config
+from boards import BoardsConfig, default_config, normalize
 
 SCORE_DESCRIPTION = (
     "Fit with the user's profile, 0-100, from the ranking step (`pipeline`). Results are "
@@ -25,6 +26,17 @@ class SearchRequest(BaseModel):
     background: str = Field(min_length=1, max_length=20_000)
     location: str = Field(default="", max_length=200)
     looking_for: str = Field(min_length=1, max_length=5_000)
+    boards: BoardsConfig = Field(
+        default_factory=default_config,
+        description="Which job boards to search and how many jobs to gather from each: "
+        '`{board_id: {"enabled": bool, "max_jobs": int}}`. Normalised on input (unknown ids '
+        "dropped, limits clamped, defaults for what is missing); see `boards`.",
+    )
+
+    @field_validator("boards", mode="before")
+    @classmethod
+    def _normalize_boards(cls, value: Any) -> BoardsConfig:
+        return normalize(value)
 
 
 class ResumeProfile(BaseModel):

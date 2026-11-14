@@ -7,6 +7,7 @@ sets `error` when nothing usable is left.
 
 import json
 import logging
+import math
 import time
 from collections.abc import Callable, Iterable
 from typing import Any, TypeVar
@@ -20,6 +21,7 @@ import ats
 import config
 import prompts
 import tools
+from boards import BoardsConfig, effective_limit, is_on, on_boards
 from builtin_nyc.models import CompanyFilter, JobFilter
 from conservation_jobboard.models import JobFilter as ConservationJobFilter
 from entities.keys import normalize_company_name, normalize_text, normalize_url
@@ -138,8 +140,33 @@ def _usajobs_wanted(q: UsajobsQuery) -> bool:
     return bool(q.keywords.strip() or q.location.strip() or q.agencies)
 
 
+def _user_off(request: SearchRequest, board_id: str) -> bool:
+    """True when the user turned the board off (an unavailable board is a different case)."""
+    return not request.boards[board_id].enabled
+
+
+def _ats_user_off(request: SearchRequest) -> bool:
+    return all(_user_off(request, name) for name in ats.PROVIDERS)
+
+
+def turned_off_queries(plan: SearchPlan, request: SearchRequest) -> list[str]:
+    """Plan fields that hold queries for boards the user turned off (they get dropped)."""
+    planned = {
+        "builtin_jobs": bool(plan.builtin_jobs) and _user_off(request, "builtin_nyc"),
+        "builtin_companies": bool(plan.builtin_companies) and _user_off(request, "builtin_nyc"),
+        "conservation_jobs": bool(plan.conservation_jobs) and _user_off(request, "conservation"),
+        "usajobs": bool(plan.usajobs) and _user_off(request, "usajobs"),
+        "ats_jobs": bool(plan.ats_jobs) and _ats_user_off(request),
+        "google_queries": bool(plan.google_queries) and _user_off(request, "google"),
+    }
+    return [field for field, dropped in planned.items() if dropped]
+
+
 def cap_plan(plan: SearchPlan, request: SearchRequest) -> SearchPlan:
-    """Enforce the plan's limits; with no source at all, fall back to one Google query."""
+    """Enforce the plan's limits and the search's board config (queries for boards the user
+    turned off are dropped, even if the LLM planned them); with no source at all, fall back
+    to one Google query (when Google is on)."""
+    off = turned_off_queries(plan, request)
     plan = plan.model_copy(
         update={
             "role_titles": [t.strip() for t in plan.role_titles if t.strip()][:3],
@@ -155,8 +182,9 @@ def cap_plan(plan: SearchPlan, request: SearchRequest) -> SearchPlan:
             ],
         }
     )
+    plan = plan.model_copy(update={field: [] for field in off})
     usajobs_usable = bool(plan.usajobs) and config.usajobs_configured()
-    if not (
+    if not _user_off(request, "google") and not (
         plan.builtin_jobs
         or plan.conservation_jobs
         or usajobs_usable
@@ -175,16 +203,26 @@ def google_fallback_query(plan: SearchPlan, request: SearchRequest) -> str:
 
 def plan_node(state: PipelineState, llm: BaseChatModel) -> dict:
     request = state["request"]
+    if not on_boards(request.boards):
+        return {
+            "error": "Every job board is turned off (or unavailable). Turn at least one on "
+            "in the search boards panel.",
+            "trace": [],
+        }
+    system = prompts.plan_prompt(request.boards)
     plan, trace = call(
         "plan",
         "llm",
         {},
-        lambda: structured(llm, SearchPlan, prompts.plan_prompt(), format_profile(request), "plan"),
+        lambda: structured(llm, SearchPlan, system, format_profile(request), "plan"),
     )
     if plan is None:
         return {"error": f"Could not plan the search: {trace.error}", "trace": [trace]}
+    dropped = turned_off_queries(plan, request)
     plan = cap_plan(plan, request)
     trace.args = plan.model_dump(mode="json")
+    if dropped:
+        trace.note = f"dropped queries for boards turned off: {', '.join(dropped)}"
     roles = ", ".join(plan.role_titles) or "your target roles"
     status(f"Planning: {roles}" + (f" ({plan.seniority})" if plan.seniority else ""))
     return {"plan": plan, "trace": [trace]}
@@ -216,41 +254,57 @@ def _job_from(source: str, raw: dict[str, Any]) -> Job:
     )
 
 
-def _job_searches(plan: SearchPlan) -> list[tuple[str, str, dict, Callable[[], list]]]:
-    """(source, label, args, run) for every planned job search, in order."""
-    searches: list[tuple[str, str, dict, Callable[[], list]]] = []
-    for q in plan.builtin_jobs:
-        job_filter = JobFilter(
-            search=q.search.strip() or None,
-            category=q.category,
-            experience_levels=q.experience_levels,
-            remote_preferences=q.remote_preferences,
-        )
-        searches.append(
-            (
-                "builtin_jobs",
-                f"BuiltInNYC jobs for “{_short(q.search or 'all roles')}”",
-                q.model_dump(mode="json"),
-                lambda f=job_filter: tools.builtin_jobs(f),
+BUILTIN_PER_QUERY = 15
+"""Jobs asked of one BuiltInNYC / Conservation Job Board query (the tools' default)."""
+GOOGLE_PER_QUERY = 10
+"""Results asked of one Google job search (the tool's default)."""
+
+JobSearch = tuple[str, int, str, str, dict, Callable[[int], list]]
+"""(board id, most jobs per query, source, label, args, run(n)) of one planned job search."""
+
+
+def _job_searches(plan: SearchPlan, boards: BoardsConfig) -> list[JobSearch]:
+    """Every planned job search of a board that is on, in order. Searches of boards that
+    are off (or unavailable) are never built, whatever the plan says."""
+    searches: list[JobSearch] = []
+    if is_on(boards, "builtin_nyc"):
+        for q in plan.builtin_jobs:
+            job_filter = JobFilter(
+                search=q.search.strip() or None,
+                category=q.category,
+                experience_levels=q.experience_levels,
+                remote_preferences=q.remote_preferences,
             )
-        )
-    for q in plan.conservation_jobs:
-        conservation_filter = ConservationJobFilter(
-            keyword=q.keyword.strip() or None,
-            categories=q.categories,
-            locations=q.locations,
-            experience_levels=q.experience_levels,
-        )
-        what = q.keyword or ", ".join(q.categories) or "all roles"
-        searches.append(
-            (
-                "conservation_jobs",
-                f"Conservation Job Board for “{_short(what)}”",
-                q.model_dump(mode="json"),
-                lambda f=conservation_filter: tools.conservation_jobs(f),
+            searches.append(
+                (
+                    "builtin_nyc",
+                    BUILTIN_PER_QUERY,
+                    "builtin_jobs",
+                    f"BuiltInNYC jobs for “{_short(q.search or 'all roles')}”",
+                    q.model_dump(mode="json"),
+                    lambda n, f=job_filter: tools.builtin_jobs(f, n),
+                )
             )
-        )
-    if config.usajobs_configured():
+    if is_on(boards, "conservation"):
+        for q in plan.conservation_jobs:
+            conservation_filter = ConservationJobFilter(
+                keyword=q.keyword.strip() or None,
+                categories=q.categories,
+                locations=q.locations,
+                experience_levels=q.experience_levels,
+            )
+            what = q.keyword or ", ".join(q.categories) or "all roles"
+            searches.append(
+                (
+                    "conservation",
+                    BUILTIN_PER_QUERY,
+                    "conservation_jobs",
+                    f"Conservation Job Board for “{_short(what)}”",
+                    q.model_dump(mode="json"),
+                    lambda n, f=conservation_filter: tools.conservation_jobs(f, n),
+                )
+            )
+    if is_on(boards, "usajobs"):
         for uq in plan.usajobs:
             location = uq.location.strip()
             remote = location.lower() == "remote"
@@ -264,88 +318,131 @@ def _job_searches(plan: SearchPlan) -> list[tuple[str, str, dict, Callable[[], l
             searches.append(
                 (
                     "usajobs",
+                    config.USAJOBS_RESULTS,
+                    "usajobs",
                     f"USAJOBS for “{_short(what)}”",
                     uq.model_dump(mode="json"),
-                    lambda f=usajobs_filter: tools.usajobs_jobs(f, config.USAJOBS_RESULTS),
+                    lambda n, f=usajobs_filter: tools.usajobs_jobs(f, n),
                 )
             )
-    for query in plan.google_queries:
-        searches.append(google_job_search(query))
+    if is_on(boards, "google"):
+        for query in plan.google_queries:
+            searches.append(google_job_search(query))
     return searches
 
 
-def google_job_search(query: str) -> tuple[str, str, dict, Callable[[], list]]:
+def google_job_search(query: str) -> JobSearch:
     return (
+        "google",
+        GOOGLE_PER_QUERY,
         "google_search",
         f"Google for “{_short(query)}”",
         {"query": query},
-        lambda: tools.google_search(query),
+        lambda n: tools.google_search(query, n),
     )
 
 
-JobRunner = Callable[[str, str, dict, Callable[[], list]], None]
+JobRunner = Callable[[JobSearch], int]
+"""Runs one job search within its board's remaining allowance; returns the jobs it added."""
 
 
-def _ats_searches(plan: SearchPlan, run: JobRunner, trace: list[TraceStep]) -> None:
-    """For every planned ATS query and provider: a Google `site:` search for boards, then
-    each new board's postings from its API, until `config.ATS_MAX_BOARDS` boards are read.
+def _ats_allowance(max_jobs: int) -> int:
+    """Boards a provider may read for `max_jobs` jobs (`ATS_JOBS_PER_BOARD` jobs each)."""
+    return math.ceil(max_jobs / config.ATS_JOBS_PER_BOARD)
 
-    Every board search and board read is its own trace step; a failing one is skipped.
+
+def _ats_searches(
+    plan: SearchPlan,
+    boards: BoardsConfig,
+    run: JobRunner,
+    budget: dict[str, int],
+    trace: list[TraceStep],
+) -> None:
+    """For every planned ATS query and provider that is on: a Google `site:` search for
+    boards, then each new board's postings from its API.
+
+    Every provider has its own allowance from its `max_jobs` (`budget[provider]` jobs and
+    `_ats_allowance` boards), so one provider can't use up another's: Greenhouse, searched
+    first, no longer starves Lever, Ashby and Workable. Every board search and board read is
+    its own trace step; a failing one is skipped.
     """
+    providers = [p for p in ats.PROVIDERS.values() if is_on(boards, p.name)]
+    allowed = {p.name: _ats_allowance(boards[p.name].max_jobs) for p in providers}
+    read = {p.name: 0 for p in providers}
     fetched: set[tuple[str, str]] = set()
     for q in plan.ats_jobs:
-        for provider in ats.PROVIDERS.values():
-            if len(fetched) >= config.ATS_MAX_BOARDS:
-                return
+        for provider in providers:
+            if budget[provider.name] <= 0 or read[provider.name] >= allowed[provider.name]:
+                continue
             keywords, location = q.keywords.strip(), q.location.strip()
             label = f"{provider.label} boards for “{_short(keywords)}”"
             status(f"Searching Google for {label}")
             args = {"provider": provider.name, "keywords": keywords, "location": location}
-            boards, step = call(
+            found, step = call(
                 "find_jobs",
                 "ats_boards",
                 args,
                 lambda p=provider.name, k=keywords, loc=location: tools.ats_boards(p, k, loc),
             )
             trace.append(step)
-            if boards is None:
+            if found is None:
                 status(f"{label} failed: {_short(step.error, 120)}")
                 continue
-            new = [b for b in boards if (b["provider"], b["slug"].lower()) not in fetched]
-            new = new[: config.ATS_MAX_BOARDS - len(fetched)]
+            new = [b for b in found if (b["provider"], b["slug"].lower()) not in fetched]
+            new = new[: allowed[provider.name] - read[provider.name]]
             step.note = f"{len(new)} new boards read"
             for board in new:
+                if budget[provider.name] <= 0:
+                    break
                 fetched.add((board["provider"], board["slug"].lower()))
+                read[provider.name] += 1
                 run(
-                    "ats_jobs",
-                    f"{provider.label} board “{board['slug']}”",
-                    {**args, "board": board["slug"], "job_ids": board["job_ids"]},
-                    lambda b=board, k=keywords, loc=location: tools.ats_jobs(
-                        b["provider"],
-                        b["slug"],
-                        k,
-                        loc,
-                        job_ids=b["job_ids"],
-                        n=config.ATS_JOBS_PER_BOARD,
-                    ),
+                    (
+                        provider.name,
+                        config.ATS_JOBS_PER_BOARD,
+                        "ats_jobs",
+                        f"{provider.label} board “{board['slug']}”",
+                        {**args, "board": board["slug"], "job_ids": board["job_ids"]},
+                        lambda n, b=board, k=keywords, loc=location: tools.ats_jobs(
+                            b["provider"], b["slug"], k, loc, job_ids=b["job_ids"], n=n
+                        ),
+                    )
                 )
 
 
 def find_jobs_node(state: PipelineState) -> dict:
     plan = state["plan"]
+    boards = state["request"].boards
     jobs: list[Job] = []
     seen: set[str] = set()
     trace: list[TraceStep] = []
+    # Jobs each board may still add; a board that is off (or unavailable) has 0.
+    budget = {board_id: effective_limit(boards, board_id) for board_id in boards}
 
-    def run(source: str, label: str, args: dict, fn: Callable[[], list]) -> None:
+    def run(search: JobSearch) -> int:
+        board_id, per_query, source, label, args, fn = search
+        remaining = budget[board_id]
+        if remaining <= 0:
+            trace.append(
+                TraceStep(
+                    step="find_jobs",
+                    source=source,
+                    args=args,
+                    note=f"skipped: {board_id} reached its limit of {boards[board_id].max_jobs}",
+                )
+            )
+            return 0
         status(f"Searching {label}")
-        found, step = call("find_jobs", source, args, fn)
+        n = min(per_query, remaining)
+        found, step = call("find_jobs", source, args, lambda: fn(n))
         trace.append(step)
         if found is None:
             status(f"{label} failed: {_short(step.error, 120)}")
-            return
+            return 0
         added = 0
         for raw in found:
+            if added >= remaining:
+                break
             job = _job_from(source, raw)
             key = _url_key(job.url)
             if not job.url or not job.title or key in seen:
@@ -353,10 +450,22 @@ def find_jobs_node(state: PipelineState) -> dict:
             seen.add(key)
             jobs.append(job.model_copy(update={"id": f"j{len(jobs) + 1}"}))
             added += 1
+        budget[board_id] -= added
         step.note = f"{added} new"
         status(f"{label}: {_plural(len(found), 'job')}")
+        return added
 
-    if plan.usajobs and not config.usajobs_configured():
+    off = [board_id for board_id, setting in boards.items() if not setting.enabled]
+    if off:
+        trace.append(
+            TraceStep(
+                step="find_jobs",
+                source="boards",
+                args={"off": off},
+                note="not searched, turned off: " + ", ".join(off),
+            )
+        )
+    if plan.usajobs and boards["usajobs"].enabled and not config.usajobs_configured():
         trace.append(
             TraceStep(
                 step="find_jobs",
@@ -365,15 +474,20 @@ def find_jobs_node(state: PipelineState) -> dict:
                 note="skipped: USAJOBS_API_KEY and USAJOBS_EMAIL are not both configured",
             )
         )
-    for search in _job_searches(plan):
-        run(*search)
-    _ats_searches(plan, run, trace)
-    if len(jobs) < MIN_JOBS_BEFORE_GOOGLE and not plan.google_queries:
-        run(*google_job_search(google_fallback_query(plan, state["request"])))
+    for search in _job_searches(plan, boards):
+        run(search)
+    _ats_searches(plan, boards, run, budget, trace)
+    if (
+        len(jobs) < MIN_JOBS_BEFORE_GOOGLE
+        and not plan.google_queries
+        and is_on(boards, "google")
+        and budget["google"] > 0
+    ):
+        run(google_job_search(google_fallback_query(plan, state["request"])))
         trace[-1].note += "; fallback: too few jobs from the planned sources"
 
     listed: list[ListedCompany] = []
-    for q in plan.builtin_companies:
+    for q in plan.builtin_companies if is_on(boards, "builtin_nyc") else []:
         company_filter = CompanyFilter(
             industries=q.industries, tech_stack=q.tech_stack, hiring_only=True
         )

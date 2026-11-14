@@ -7,6 +7,7 @@ from pdf_utils import make_pdf
 import pipeline
 import resume
 import server
+from boards import default_config
 from schemas import (
     CompanyResult,
     JobResult,
@@ -22,6 +23,10 @@ from schemas import (
 from userdata import history
 
 client = TestClient(server.app)
+
+
+def default_boards() -> dict:
+    return {k: v.model_dump() for k, v in default_config().items()}
 
 
 def test_me_returns_test_user() -> None:
@@ -86,7 +91,8 @@ def test_search_streams_sse(monkeypatch: pytest.MonkeyPatch) -> None:
 
     record = client.get(f"/api/searches/{saved['search']['id']}").json()
     assert record["user_id"] == "TEST_USER"
-    assert record["request"] == body
+    # The boards config the search ran with is saved too (here: the defaults).
+    assert record["request"] == {**body, "boards": default_boards()}
     assert record["results"] == {"summary": "ok", "companies": []}
 
 
