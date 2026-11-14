@@ -77,12 +77,14 @@ def test_search_streams_sse(monkeypatch: pytest.MonkeyPatch) -> None:
             for line in response.iter_lines()
             if line.startswith("data: ")
         ]
-    assert events[:2] == [
+    assert events[0]["type"] == "started"
+    assert events[0]["search"]["status"] == "running"
+    assert events[1:3] == [
         {"type": "status", "message": "Working"},
         {"type": "result", "data": {"summary": "ok", "companies": []}},
     ]
-    assert len(events) == 3
-    saved = events[2]
+    assert len(events) == 4
+    saved = events[3]
     assert saved["type"] == "saved"
     assert saved["search"]["title"] == "Data roles · NYC"
 
@@ -96,7 +98,7 @@ def test_search_streams_sse(monkeypatch: pytest.MonkeyPatch) -> None:
     assert record["results"] == {"summary": "ok", "companies": []}
 
 
-def test_search_error_is_not_saved(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_failed_search_is_kept_with_its_error(monkeypatch: pytest.MonkeyPatch) -> None:
     def failing_run_search(request):
         yield StatusEvent(message="Working")
         raise RuntimeError("boom")
@@ -109,8 +111,14 @@ def test_search_error_is_not_saved(monkeypatch: pytest.MonkeyPatch) -> None:
             for line in response.iter_lines()
             if line.startswith("data: ")
         ]
-    assert types == ["status", "error"]
-    assert client.get("/api/searches").json() == []
+    assert types == ["started", "status", "error"]
+    [entry] = client.get("/api/searches").json()
+    assert entry["status"] == "error"
+    record = client.get(f"/api/searches/{entry['id']}").json()
+    assert record["error"] == "Search failed: boom"
+    assert record["messages"] == ["Working"]
+    # A failed search has no entities.
+    assert client.get("/api/entities/companies").json() == []
 
 
 def test_get_search_unknown_or_malformed_id_is_404() -> None:
@@ -138,11 +146,12 @@ def _run(monkeypatch: pytest.MonkeyPatch, results: SearchResults) -> list[dict]:
     monkeypatch.setattr(pipeline, "run_search", lambda request: iter([ResultEvent(data=results)]))
     body = {"background": "Analyst", "location": "", "looking_for": "Data roles"}
     with client.stream("POST", "/api/search", json=body) as response:
-        return [
+        events = [
             json.loads(line.removeprefix("data: "))
             for line in response.iter_lines()
             if line.startswith("data: ")
         ]
+    return [event for event in events if event["type"] != "started"]  # Tested on its own.
 
 
 def test_applied_job_stays_applied_in_a_new_search(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -300,7 +309,7 @@ def test_trace_is_saved_with_the_search_but_not_streamed(monkeypatch: pytest.Mon
             for line in response.iter_lines()
             if line.startswith("data: ")
         ]
-    assert types == ["result", "saved"]
+    assert types == ["started", "result", "saved"]
     [saved] = history.load_searches("TEST_USER")
     assert saved.trace == trace
 

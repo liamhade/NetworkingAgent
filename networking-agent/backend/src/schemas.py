@@ -147,12 +147,17 @@ class SearchResults(BaseModel):
     companies: list[CompanyResult]
 
 
+SearchStatus = Literal["running", "done", "error"]
+"""Where a search is: still running in the background, finished, or failed/interrupted."""
+
+
 class SearchSummary(BaseModel):
     """One entry in the search-history side panel."""
 
     id: str
     title: str
     created_at: datetime
+    status: SearchStatus = "done"  # Searches saved before background runs are all done.
 
 
 class TraceStep(BaseModel):
@@ -175,7 +180,14 @@ class SavedSearch(SearchSummary):
 
     user_id: str
     request: SearchRequest
-    results: SearchResults
+    results: SearchResults = Field(
+        default_factory=lambda: SearchResults(summary="", companies=[]),
+        description="Empty until the search is done.",
+    )
+    messages: list[str] = Field(
+        default_factory=list, description="Progress messages so far (shown while it runs)."
+    )
+    error: str | None = Field(default=None, description="Why the search failed (status error).")
     trace: list[TraceStep] | None = Field(
         default=None, description="How the results were found; None for older searches."
     )
@@ -248,7 +260,14 @@ class SavedEvent(BaseModel):
     search: SearchSummary
 
 
-AgentEvent = StatusEvent | ResultEvent | ErrorEvent | TraceEvent | SavedEvent
+class StartedEvent(BaseModel):
+    """First event of a search stream: the saved (running) search, so clients know its id."""
+
+    type: Literal["started"] = "started"
+    search: SearchSummary
+
+
+AgentEvent = StatusEvent | ResultEvent | ErrorEvent | TraceEvent | SavedEvent | StartedEvent
 
 
 class Sighting(BaseModel):

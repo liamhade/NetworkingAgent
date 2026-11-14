@@ -117,13 +117,23 @@ function HistoryBubble({
       )}
     >
       <span className="line-clamp-2 text-body-2-medium text-text-primary">{search.title}</span>
-      <time
-        dateTime={search.created_at}
-        title={fullDateFormat.format(created)}
-        className="text-caption-1-medium text-text-tertiary"
-      >
-        {formatRelativeDate(created)}
-      </time>
+      <span className="flex items-center gap-1.5 text-caption-1-medium text-text-tertiary">
+        {search.status === 'running' ? (
+          <>
+            <Spinner size="xs" aria-label="Search in progress" />
+            Searching…
+          </>
+        ) : search.status === 'error' ? (
+          <>
+            <RiErrorWarningLine aria-hidden className="size-3.5 text-text-error-primary" />
+            Failed
+          </>
+        ) : null}
+        {search.status !== 'done' && <span aria-hidden>·</span>}
+        <time dateTime={search.created_at} title={fullDateFormat.format(created)}>
+          {formatRelativeDate(created)}
+        </time>
+      </span>
     </button>
   )
 }

@@ -12,7 +12,7 @@ const sighting = (key: string, daysAgo: number) => ({
   key,
   first_seen: seenDaysAgo(daysAgo + 1),
   last_seen: seenDaysAgo(daysAgo),
-  searches: [{ id: 's1', title: 'Search one', created_at: seenDaysAgo(daysAgo) }],
+  searches: [{ id: 's1', title: 'Search one', created_at: seenDaysAgo(daysAgo), status: 'done' as const }],
 })
 
 const slug = (text: string) => text.toLowerCase().replaceAll(' ', '-')

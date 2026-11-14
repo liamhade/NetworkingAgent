@@ -81,6 +81,77 @@ def save_search(
     return record
 
 
+def start_search(user_id: str, request: SearchRequest, search_id: str) -> SavedSearch:
+    """Persist a search that is about to run in the background (status `running`)."""
+    if not _ID_PATTERN.match(search_id):
+        raise ValueError(f"Invalid search id: {search_id!r}")
+    record = SavedSearch(
+        id=search_id,
+        user_id=user_id,
+        created_at=datetime.now(UTC),
+        title=make_title(request),
+        request=request,
+        status="running",
+    )
+    _write(record)
+    return record
+
+
+def add_message(user_id: str, search_id: str, message: str) -> None:
+    """Append a progress message to a running search."""
+    update_search(
+        user_id, search_id, lambda r: r.model_copy(update={"messages": [*r.messages, message]})
+    )
+
+
+def finish_search(
+    user_id: str, search_id: str, results: SearchResults, trace: list[TraceStep] | None
+) -> SavedSearch | None:
+    """Mark a running search done and store its results."""
+    return update_search(
+        user_id,
+        search_id,
+        lambda r: r.model_copy(
+            update={"status": "done", "results": results, "trace": trace, "error": None}
+        ),
+    )
+
+
+def fail_search(user_id: str, search_id: str, message: str) -> SavedSearch | None:
+    """Mark a running search failed, keeping the reason."""
+    return update_search(
+        user_id,
+        search_id,
+        lambda r: r.model_copy(update={"status": "error", "error": message}),
+    )
+
+
+INTERRUPTED_MESSAGE = "This search was interrupted because the server restarted. Run it again."
+
+
+def mark_interrupted() -> int:
+    """At startup no search can still be running: flag stale `running` records as failed.
+
+    Covers every user. Returns how many records were changed.
+    """
+    changed = 0
+    users = accounts.users_dir()
+    if not users.is_dir():
+        return 0
+    for folder in users.iterdir():
+        if not folder.is_dir():
+            continue
+        try:
+            records = load_searches(folder.name)
+        except ValueError:
+            continue
+        for record in records:
+            if record.status == "running":
+                fail_search(folder.name, record.id, INTERRUPTED_MESSAGE)
+                changed += 1
+    return changed
+
+
 def _write(record: SavedSearch) -> None:
     folder = _searches_dir(record.user_id)
     folder.mkdir(parents=True, exist_ok=True)
@@ -126,17 +197,22 @@ def update_search(
         return updated
 
 
-def load_searches(user_id: str) -> list[SavedSearch]:
-    """All of a user's saved searches (full records), most recent first."""
+def load_searches(user_id: str, only_done: bool = False) -> list[SavedSearch]:
+    """All of a user's saved searches (full records), most recent first.
+
+    `only_done` skips searches that are still running or failed (they have no results).
+    """
     folder = _searches_dir(user_id)
     if not folder.is_dir():
         return []
     records = []
     for path in folder.glob("*.json"):
         try:
-            records.append(SavedSearch.model_validate_json(path.read_text(encoding="utf-8")))
+            record = SavedSearch.model_validate_json(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue  # Skip unreadable/corrupt files rather than breaking the page.
+        if not only_done or record.status == "done":
+            records.append(record)
     records.sort(key=lambda record: record.created_at, reverse=True)
     return records
 
@@ -144,7 +220,9 @@ def load_searches(user_id: str) -> list[SavedSearch]:
 def list_searches(user_id: str) -> list[SearchSummary]:
     """All of a user's searches, most recent first."""
     return [
-        SearchSummary(id=record.id, title=record.title, created_at=record.created_at)
+        SearchSummary(
+            id=record.id, title=record.title, created_at=record.created_at, status=record.status
+        )
         for record in load_searches(user_id)
     ]
 

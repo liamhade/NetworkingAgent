@@ -20,9 +20,10 @@ import boards
 import config
 import pipeline
 import resume
+import search_runs
 import tools
 from entities import catalog, keys
-from llm_usage import bind_context, usage_context
+from llm_usage import usage_context
 from schemas import (
     AgentEvent,
     CompanyEntity,
@@ -30,21 +31,16 @@ from schemas import (
     EntityPin,
     EntityStatus,
     EntityStatusKind,
-    ErrorEvent,
     FindPeopleRequest,
     JobEntity,
     PersonEntity,
     PinKind,
     PinUpdate,
-    ResultEvent,
     ResumeProfile,
-    SavedEvent,
     SavedSearch,
     SearchRequest,
     SearchSummary,
     StatusUpdate,
-    TraceEvent,
-    TraceStep,
 )
 from userdata import (
     accounts,
@@ -66,6 +62,7 @@ MAX_RESUME_BYTES = 10 * 1024 * 1024
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     accounts.seed()
+    history.mark_interrupted()  # Nothing survives a restart: stale `running` -> failed.
     yield
     tools.shutdown()
 
@@ -153,60 +150,44 @@ def _sse(event: AgentEvent) -> str:
     return f"data: {event.model_dump_json()}\n\n"
 
 
-def _event_stream(request: SearchRequest, user_id: str, search_id: str) -> Iterator[str]:
-    trace: list[TraceStep] | None = None
-    try:
-        for event in pipeline.run_search(request):
-            if isinstance(event, TraceEvent):
-                trace = event.steps  # Saved with the results; not sent to the browser.
-            elif isinstance(event, ResultEvent):
-                event = ResultEvent(data=keys.annotate(event.data))
-                yield _sse(event)
-                yield from _save(user_id, request, event, search_id, trace)
-            else:
-                yield _sse(event)
-    except Exception as exc:  # noqa: BLE001
-        log.exception("Search failed")
-        yield _sse(ErrorEvent(message=f"Search failed: {exc}"))
+def _follow(events: Iterator[AgentEvent | None]) -> Iterator[str]:
+    """Server-Sent Events for a background search; quiet spells send a comment as keepalive."""
+    for event in events:
+        yield ": keepalive\n\n" if event is None else _sse(event)
 
 
-def _save(
-    user_id: str,
-    request: SearchRequest,
-    event: ResultEvent,
-    search_id: str,
-    trace: list[TraceStep] | None = None,
-) -> Iterator[str]:
-    """Persist a finished search; a storage failure must not hide the results."""
-    try:
-        record = history.save_search(user_id, request, event.data, search_id=search_id, trace=trace)
-    except Exception:  # noqa: BLE001
-        log.exception("Could not save search to history")
-        return
-    summary = SearchSummary(id=record.id, title=record.title, created_at=record.created_at)
-    yield _sse(SavedEvent(search=summary))
+_SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
 
 @app.post("/api/search")
 def search(request: SearchRequest, user: CurrentUser) -> StreamingResponse:
-    """Run the networking agent. Streams Server-Sent Events (`data: <json>` lines)."""
+    """Start the networking agent and stream its Server-Sent Events (`data: <json>` lines).
+
+    The search runs in the background and is saved right away as `running`, so closing the
+    stream (leaving the page) does not stop it: follow it again with
+    `GET /api/searches/{id}/events`. The first event is `started` (carrying the id).
+    """
     search_id = history.new_search_id()
     try:
         search_params.save(user.id, request)
     except Exception:  # noqa: BLE001
         log.exception("Could not save search parameters")  # Never block the search.
-    # LLM usage rows are tagged with this user and the id the search is saved under.
-    events = bind_context(
-        _event_stream(request, user.id, search_id),
-        user_id=user.id,
-        request_id=search_id,
-        search_id=search_id,
-    )
-    return StreamingResponse(
-        events,
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    search_runs.start(user.id, request, search_id)
+    events = search_runs.attach(user.id, search_id)
+    assert events is not None
+    return StreamingResponse(_follow(events), media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+@app.get("/api/searches/{search_id}/events")
+def search_events(search_id: str, user: CurrentUser) -> StreamingResponse:
+    """Follow one search from its start: progress, then the result (or error) and `saved`.
+
+    Works while it runs and after it finished (replayed from the saved record).
+    """
+    events = search_runs.attach(user.id, search_id)
+    if events is None:
+        raise HTTPException(status_code=404, detail="Search not found.")
+    return StreamingResponse(_follow(events), media_type="text/event-stream", headers=_SSE_HEADERS)
 
 
 @app.get("/api/search/boards")
@@ -351,16 +332,16 @@ def set_pin(update: PinUpdate, user: CurrentUser) -> EntityPin:
 @app.get("/api/entities/companies")
 def list_companies(user: CurrentUser) -> list[CompanyEntity]:
     """Every company in the current user's searches, de-duplicated, most recently seen first."""
-    return catalog.companies(history.load_searches(user.id))
+    return catalog.companies(history.load_searches(user.id, only_done=True))
 
 
 @app.get("/api/entities/jobs")
 def list_jobs(user: CurrentUser) -> list[JobEntity]:
     """Every job in the current user's searches, de-duplicated, most recently seen first."""
-    return catalog.jobs(history.load_searches(user.id))
+    return catalog.jobs(history.load_searches(user.id, only_done=True))
 
 
 @app.get("/api/entities/people")
 def list_people(user: CurrentUser) -> list[PersonEntity]:
     """Every person in the current user's searches, de-duplicated, most recently seen first."""
-    return catalog.people(history.load_searches(user.id))
+    return catalog.people(history.load_searches(user.id, only_done=True))

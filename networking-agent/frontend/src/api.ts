@@ -102,6 +102,8 @@ export type AgentEvent =
   | { type: 'result'; data: SearchResults }
   | { type: 'error'; message: string }
   | { type: 'saved'; search: SearchSummary }
+  /** First event of a search stream: the saved (still running) search, so its id is known. */
+  | { type: 'started'; search: SearchSummary }
 
 async function errorMessage(response: Response): Promise<string> {
   try {
@@ -189,18 +191,11 @@ export async function deleteSearchConfig(id: string): Promise<void> {
   if (!response.ok) throw new Error(await errorMessage(response))
 }
 
-/** Run the agent, calling `onEvent` for every Server-Sent Event it streams back. */
-export async function streamSearch(
-  request: SearchRequest,
+/** Read a Server-Sent Events response, calling `onEvent` for every event in it. */
+async function readEvents(
+  response: Response,
   onEvent: (event: AgentEvent) => void,
-  signal?: AbortSignal,
 ): Promise<void> {
-  const response = await fetch('/api/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-    signal,
-  })
   if (!response.ok || !response.body) throw new Error(await errorMessage(response))
 
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
@@ -222,11 +217,46 @@ export async function streamSearch(
   }
 }
 
+/**
+ * Start a search and call `onEvent` for every Server-Sent Event it streams back. The search
+ * runs on the server regardless of this stream: closing or aborting it does not stop it
+ * (follow it again with `streamSearchEvents`).
+ */
+export async function streamSearch(
+  request: SearchRequest,
+  onEvent: (event: AgentEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch('/api/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+    signal,
+  })
+  await readEvents(response, onEvent)
+}
+
+/**
+ * Follow a search that is already running (or finished) from its first progress message,
+ * until it ends.
+ */
+export async function streamSearchEvents(
+  id: string,
+  onEvent: (event: AgentEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(`/api/searches/${encodeURIComponent(id)}/events`, { signal })
+  await readEvents(response, onEvent)
+}
+
 export interface User {
   id: string
   display_name: string
   created_at: string
 }
+
+/** `running`: still searching in the background; `error`: failed or interrupted. */
+export type SearchStatus = 'running' | 'done' | 'error'
 
 /** One entry in the search-history side panel. */
 export interface SearchSummary {
@@ -234,12 +264,18 @@ export interface SearchSummary {
   title: string
   /** ISO-8601 UTC timestamp. */
   created_at: string
+  status: SearchStatus
 }
 
 export interface SavedSearch extends SearchSummary {
   user_id: string
   request: SearchRequest
+  /** Empty until the search is done. */
   results: SearchResults
+  /** Progress messages so far. */
+  messages: string[]
+  /** Why the search failed (status `error`). */
+  error: string | null
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {

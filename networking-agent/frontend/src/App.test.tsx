@@ -17,6 +17,8 @@ vi.mock('@/api', async (importOriginal) => ({
   getSavedResume: vi.fn(),
   getSearch: vi.fn(),
   streamSearch: vi.fn(),
+  streamSearchEvents: vi.fn(),
+  listEntities: vi.fn(),
 }))
 
 const m = vi.mocked(api)
@@ -31,7 +33,10 @@ beforeEach(() => {
   m.getSearchParams.mockResolvedValue(null)
   m.getSavedResume.mockResolvedValue(null)
   m.streamSearch.mockResolvedValue()
+  m.streamSearchEvents.mockResolvedValue()
+  m.listEntities.mockResolvedValue([])
   window.location.hash = ''
+  vi.stubGlobal('matchMedia', () => ({ matches: false }))
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -83,12 +88,15 @@ describe('App restores the saved search page state', () => {
     let resolveParams: (value: api.SearchParams) => void = () => {}
     m.getSearchParams.mockReturnValue(new Promise((resolve) => (resolveParams = resolve)))
     m.listSearches.mockResolvedValue([
-      { id: 'a', title: 'Past search', created_at: '2026-11-01T00:00:00Z' },
+      { id: 'a', title: 'Past search', created_at: '2026-11-01T00:00:00Z', status: 'done' },
     ])
     m.getSearch.mockResolvedValue({
       id: 'a',
       title: 'Past search',
       created_at: '2026-11-01T00:00:00Z',
+      status: 'done',
+      messages: [],
+      error: null,
       user_id: 'TEST_USER',
       request: { background: 'Past bg', location: '', looking_for: 'Past goal' },
       results: { summary: 'All done', companies: [] },
@@ -101,5 +109,88 @@ describe('App restores the saved search page state', () => {
     await user.click(screen.getAllByRole('button', { name: /new search/i })[0])
     expect(await screen.findByDisplayValue('Past bg')).toBeInTheDocument()
     expect(screen.queryByDisplayValue('Late')).not.toBeInTheDocument()
+  })
+})
+
+const RUNNING = {
+  id: 'run',
+  title: 'Climate roles',
+  created_at: '2026-11-01T00:00:00Z',
+  status: 'running' as const,
+}
+const REQUEST = { background: 'Bg', location: '', looking_for: 'Climate roles' }
+
+describe('App background searches', () => {
+  it('lists a running search and follows it when opened', async () => {
+    m.listSearches.mockResolvedValue([RUNNING])
+    m.getSearch.mockResolvedValue({
+      ...RUNNING,
+      user_id: 'TEST_USER',
+      request: REQUEST,
+      results: { summary: '', companies: [] },
+      messages: ['Finding jobs'],
+      error: null,
+    })
+    let finish: () => void = () => {}
+    m.streamSearchEvents.mockImplementation(async (_id, onEvent) => {
+      onEvent({ type: 'started', search: RUNNING })
+      onEvent({ type: 'status', message: 'Finding jobs' })
+      await new Promise<void>((resolve) => (finish = resolve))
+      onEvent({ type: 'result', data: { summary: 'Found them', companies: [] } })
+      onEvent({ type: 'saved', search: { ...RUNNING, status: 'done' } })
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    expect(await screen.findByText('Searching…')).toBeInTheDocument()
+    await user.click(screen.getByText('Climate roles'))
+    expect(await screen.findByText('Finding jobs')).toBeInTheDocument()
+    expect(m.streamSearchEvents).toHaveBeenCalledWith('run', expect.any(Function), expect.anything())
+
+    finish()
+    expect(await screen.findByText('Found them')).toBeInTheDocument()
+    expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
+  })
+
+  it('shows why a failed search failed when opened', async () => {
+    m.listSearches.mockResolvedValue([{ ...RUNNING, status: 'error' }])
+    m.getSearch.mockResolvedValue({
+      ...RUNNING,
+      status: 'error',
+      user_id: 'TEST_USER',
+      request: REQUEST,
+      results: { summary: '', companies: [] },
+      messages: [],
+      error: 'This search was interrupted because the server restarted.',
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByText('Climate roles'))
+    expect(await screen.findByText(/interrupted because the server restarted/)).toBeInTheDocument()
+    expect(m.streamSearchEvents).not.toHaveBeenCalled()
+  })
+
+  it('keeps searching while the user visits another page', async () => {
+    let signal: AbortSignal | undefined
+    let finish: () => void = () => {}
+    m.streamSearch.mockImplementation(async (_request, onEvent, abortSignal) => {
+      signal = abortSignal
+      onEvent({ type: 'started', search: RUNNING })
+      await new Promise<void>((resolve) => (finish = resolve))
+      onEvent({ type: 'result', data: { summary: 'Done while away', companies: [] } })
+      onEvent({ type: 'saved', search: { ...RUNNING, status: 'done' } })
+    })
+    m.getSearchParams.mockResolvedValue(REQUEST)
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByDisplayValue('Climate roles')
+    await user.click(screen.getByRole('button', { name: /find opportunities/i }))
+    expect(await screen.findByText('Searching…')).toBeInTheDocument() // In the panel at once.
+
+    await user.click(screen.getByRole('link', { name: 'Companies' }))
+    expect(signal?.aborted).toBe(false)
+    finish()
+    await user.click(screen.getByRole('link', { name: 'Search' }))
+    expect(await screen.findByText('Done while away')).toBeInTheDocument()
+    expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
   })
 })

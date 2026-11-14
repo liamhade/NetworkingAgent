@@ -13,7 +13,9 @@ import {
   setPin,
   setStatus,
   streamSearch,
+  streamSearchEvents,
   updateSearchConfig,
+  type AgentEvent,
   type CompanyResult,
   type PinKind,
   type PinMap,
@@ -36,6 +38,8 @@ import { withRetry } from '@/utils/retry'
 import { useKeyedToggles } from '@/utils/use-keyed-toggles'
 import { type View, viewFromHash, viewHash } from '@/utils/view'
 
+/** How often to re-list searches that are running where this page isn't watching them. */
+const SEARCH_POLL_MS = 5000
 const EMPTY_FORM: SearchRequest = { background: '', location: '', looking_for: '' }
 const EMPTY_STATUSES: StatusMap = { job: {}, person: {} }
 const EMPTY_PINS: PinMap = { company: {}, job: {}, person: {} }
@@ -68,6 +72,10 @@ export default function App() {
 
   const [user, setUser] = useState<User | null>(null)
   const [history, setHistory] = useState<SearchSummary[]>([])
+  const historyRef = useRef<SearchSummary[]>([])
+  useEffect(() => {
+    historyRef.current = history
+  }, [history])
   const [historyLoading, setHistoryLoading] = useState(true)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -181,39 +189,65 @@ export default function App() {
     return controller
   }
 
+  /** Add or update one search in the panel (new ones go on top). */
+  const upsertHistory = (summary: SearchSummary) =>
+    setHistory((current) =>
+      current.some((entry) => entry.id === summary.id)
+        ? current.map((entry) => (entry.id === summary.id ? summary : entry))
+        : [summary, ...current],
+    )
+
+  /**
+   * Show a search's event stream on the results page. The search itself runs on the server,
+   * so aborting this stream (leaving, or opening another search) never stops it.
+   */
+  const follow = async (
+    controller: AbortController,
+    open: (onEvent: (event: AgentEvent) => void) => Promise<void>,
+  ) => {
+    let id: string | null = null
+    try {
+      await open((event) => {
+        if (controller.signal.aborted) return
+        if (event.type === 'started') {
+          id = event.search.id
+          upsertHistory(event.search)
+          setHistoryError(null)
+          setActiveId(id)
+        } else if (event.type === 'status') setStatuses((current) => [...current, event.message])
+        else if (event.type === 'result') setResults(event.data)
+        else if (event.type === 'saved') {
+          upsertHistory(event.search)
+          setEntitiesVersion((current) => current + 1)
+          // The backend is clearly up now; recover the marks/pins if the first load failed.
+          getStatuses().then(marks.load).catch(console.error)
+          getPins().then(pinState.load).catch(console.error)
+        } else if (event.type === 'error') {
+          setError(event.message)
+          const failed = id
+          if (failed) {
+            setHistory((current) =>
+              current.map((entry) =>
+                entry.id === failed ? { ...entry, status: 'error' } : entry,
+              ),
+            )
+          }
+        }
+      })
+    } catch (caught) {
+      if (!controller.signal.aborted) setError((caught as Error).message)
+    } finally {
+      if (abort.current === controller) setRunning(false)
+    }
+  }
+
   const search = async (request: SearchRequest) => {
     touched.current = true
     const controller = restart()
     setForm(request)
     setActiveId(null)
     setRunning(true)
-
-    try {
-      await streamSearch(
-        request,
-        (event) => {
-          if (event.type === 'status') setStatuses((current) => [...current, event.message])
-          else if (event.type === 'result') setResults(event.data)
-          else if (event.type === 'saved') {
-            setHistory((current) => [
-              event.search,
-              ...current.filter((entry) => entry.id !== event.search.id),
-            ])
-            setHistoryError(null)
-            setEntitiesVersion((current) => current + 1)
-            // The backend is clearly up now; recover the marks/pins if the first load failed.
-            getStatuses().then(marks.load).catch(console.error)
-            getPins().then(pinState.load).catch(console.error)
-            if (!controller.signal.aborted) setActiveId(event.search.id)
-          } else setError(event.message)
-        },
-        controller.signal,
-      )
-    } catch (caught) {
-      if (!controller.signal.aborted) setError((caught as Error).message)
-    } finally {
-      if (abort.current === controller) setRunning(false)
-    }
+    await follow(controller, (onEvent) => streamSearch(request, onEvent, controller.signal))
   }
 
   const openSaved = async (id: string) => {
@@ -225,11 +259,43 @@ export default function App() {
       const saved = await getSearch(id, controller.signal)
       if (controller.signal.aborted) return
       setForm(saved.request)
-      setResults(saved.results)
+      if (saved.status === 'running') {
+        // Still searching: show its progress and follow it until it ends.
+        setRunning(true)
+        await follow(controller, (onEvent) => streamSearchEvents(id, onEvent, controller.signal))
+      } else if (saved.status === 'error') {
+        setStatuses(saved.messages)
+        setError(saved.error ?? 'This search failed.')
+      } else setResults(saved.results)
     } catch (caught) {
       if (!controller.signal.aborted) setError((caught as Error).message)
     }
   }
+
+  /**
+   * Searches nobody is watching (started earlier, from another tab, or before a reload)
+   * can only be noticed finishing by asking again, so re-list while any of them runs.
+   */
+  const watched = running ? activeId : null
+  const unwatched = history.some((entry) => entry.status === 'running' && entry.id !== watched)
+  useEffect(() => {
+    if (!unwatched) return
+    const timer = window.setInterval(() => {
+      listSearches()
+        .then((latest) => {
+          const finished = latest.some((entry) =>
+            historyRef.current.some(
+              (known) =>
+                known.id === entry.id && known.status === 'running' && entry.status !== 'running',
+            ),
+          )
+          setHistory(latest)
+          if (finished) setEntitiesVersion((version) => version + 1)
+        })
+        .catch(console.error)
+    }, SEARCH_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [unwatched])
 
   const saveConfig = async () => {
     const created = await createSearchConfig(draft.current)

@@ -149,11 +149,12 @@ def _run(monkeypatch: pytest.MonkeyPatch, results: SearchResults) -> list[dict]:
     monkeypatch.setattr(pipeline, "run_search", lambda request: iter([ResultEvent(data=results)]))
     body = {"background": "Analyst", "location": "", "looking_for": "Data roles"}
     with client.stream("POST", "/api/search", json=body) as response:
-        return [
+        events = [
             json.loads(line.removeprefix("data: "))
             for line in response.iter_lines()
             if line.startswith("data: ")
         ]
+    return [event for event in events if event["type"] != "started"]  # Tested on its own.
 
 
 def test_endpoints_empty_for_new_user() -> None:
