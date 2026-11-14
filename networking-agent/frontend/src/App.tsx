@@ -1,18 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  createSearchConfig,
+  deleteSearchConfig,
   getCurrentUser,
   getPins,
   getSavedResume,
   getSearch,
   getSearchParams,
   getStatuses,
+  listSearchConfigs,
   listSearches,
   setPin,
   setStatus,
   streamSearch,
+  updateSearchConfig,
   type CompanyResult,
   type PinKind,
   type PinMap,
+  type SearchConfig,
   type SavedResume,
   type SearchRequest,
   type SearchResults,
@@ -21,6 +26,7 @@ import {
   type StatusMap,
   type User,
 } from '@/api'
+import { SearchConfigs } from '@/components/search-configs'
 import { SearchHistory } from '@/components/search-history'
 import { TopNav } from '@/components/top-nav'
 import { CompaniesPage, JobsPage, PeoplePage } from '@/pages/entities'
@@ -47,6 +53,13 @@ export default function App() {
   const [formVersion, setFormVersion] = useState(0)
   /** Set once the user searches or reopens a past search, so a late restore can't clobber it. */
   const touched = useRef(false)
+  /** The form as last reported by the search page, for "save current configuration". */
+  const draft = useRef<SearchRequest>(EMPTY_FORM)
+  const [configs, setConfigs] = useState<SearchConfig[]>([])
+  const [configsLoading, setConfigsLoading] = useState(true)
+  const [configsError, setConfigsError] = useState<string | null>(null)
+  /** The configuration last loaded into (or saved from) the form. */
+  const [activeConfigId, setActiveConfigId] = useState<string | null>(null)
   const [statuses, setStatuses] = useState<string[]>([])
   const [results, setResults] = useState<SearchResults | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -119,6 +132,18 @@ export default function App() {
         setFormVersion((current) => current + 1)
       })
       .catch((caught: Error) => console.error(caught)) // Defaults apply.
+    withRetry(listSearchConfigs, signal)
+      .then((loaded) => {
+        setConfigs(loaded)
+        setConfigsError(null)
+      })
+      .catch((caught: Error) => {
+        if (!signal.aborted) setConfigsError('Could not load search configurations.')
+        console.error(caught)
+      })
+      .finally(() => {
+        if (!signal.aborted) setConfigsLoading(false)
+      })
     withRetry(getSavedResume, signal)
       .then(setSavedResume)
       .catch((caught: Error) => console.error(caught))
@@ -206,6 +231,37 @@ export default function App() {
     }
   }
 
+  const saveConfig = async () => {
+    const created = await createSearchConfig(draft.current)
+    setConfigs((current) => [...current, created])
+    setActiveConfigId(created.id)
+    return created
+  }
+
+  /** Put a saved configuration into the form (remounting it, like the restore on load). */
+  const loadConfig = (config: SearchConfig) => {
+    touched.current = true
+    setForm(config.params)
+    draft.current = config.params
+    setFormVersion((current) => current + 1)
+    setActiveConfigId(config.id)
+  }
+
+  const replaceConfig = (updated: SearchConfig) =>
+    setConfigs((current) => current.map((entry) => (entry.id === updated.id ? updated : entry)))
+
+  const renameConfig = async (id: string, name: string) =>
+    replaceConfig(await updateSearchConfig(id, { name }))
+
+  const overwriteConfig = async (id: string) =>
+    replaceConfig(await updateSearchConfig(id, { params: draft.current }))
+
+  const removeConfig = async (id: string) => {
+    await deleteSearchConfig(id)
+    setConfigs((current) => current.filter((entry) => entry.id !== id))
+    setActiveConfigId((current) => (current === id ? null : current))
+  }
+
   const back = () => {
     abort.current?.abort()
     setRunning(false)
@@ -234,7 +290,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-svh bg-background-full">
+    <div className="flex min-h-svh flex-wrap bg-background-full lg:flex-nowrap">
       <SearchHistory
         searches={history}
         loading={historyLoading}
@@ -244,7 +300,7 @@ export default function App() {
         onSelect={openSaved}
         onNewSearch={back}
       />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-112">
         <TopNav view={view} />
         {view === 'companies' ? (
           <CompaniesPage
@@ -277,6 +333,7 @@ export default function App() {
             onSubmit={search}
             savedResume={savedResume}
             onSavedResumeChange={setSavedResume}
+            onChange={(request) => (draft.current = request)}
           />
         ) : (
           <Results
@@ -294,6 +351,19 @@ export default function App() {
           />
         )}
       </div>
+      {view === 'search' && page === 'hero' && (
+        <SearchConfigs
+          configs={configs}
+          loading={configsLoading}
+          error={configsError}
+          activeId={activeConfigId}
+          onSave={saveConfig}
+          onLoad={loadConfig}
+          onRename={renameConfig}
+          onOverwrite={overwriteConfig}
+          onDelete={removeConfig}
+        />
+      )}
     </div>
   )
 }

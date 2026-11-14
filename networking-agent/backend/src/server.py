@@ -14,6 +14,7 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel
 
 import boards
 import config
@@ -45,7 +46,16 @@ from schemas import (
     TraceEvent,
     TraceStep,
 )
-from userdata import accounts, history, pins, saved_resume, search_params, statuses
+from userdata import (
+    accounts,
+    history,
+    pins,
+    saved_resume,
+    search_configs,
+    search_params,
+    statuses,
+)
+from userdata.search_configs import SearchConfig
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -221,6 +231,59 @@ def put_search_params(
 ) -> search_params.SearchParams:
     """Save the current search parameters; `boards` is normalized. Fields may be empty."""
     return search_params.save(user.id, params)
+
+
+class NewSearchConfig(BaseModel):
+    """`POST /api/search/configs`: the current form, and an optional name."""
+
+    params: search_params.SearchParams
+    name: str | None = None
+
+
+class SearchConfigUpdate(BaseModel):
+    """`PATCH /api/search/configs/{id}`: rename and/or overwrite the params."""
+
+    name: str | None = None
+    params: search_params.SearchParams | None = None
+
+
+def _config_or_404(config: SearchConfig | None) -> SearchConfig:
+    if config is None:
+        raise HTTPException(status_code=404, detail="Search configuration not found.")
+    return config
+
+
+@app.get("/api/search/configs")
+def list_search_configs(user: CurrentUser) -> list[SearchConfig]:
+    """The user's saved search configurations, in creation order."""
+    return search_configs.list_configs(user.id)
+
+
+@app.post("/api/search/configs", status_code=201)
+def create_search_config(body: NewSearchConfig, user: CurrentUser) -> SearchConfig:
+    """Save the current parameters. No name: "Search Configuration #n" (n never reused)."""
+    try:
+        return search_configs.create(user.id, body.params, body.name)
+    except search_configs.InvalidName as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.patch("/api/search/configs/{config_id}")
+def update_search_config(
+    config_id: str, body: SearchConfigUpdate, user: CurrentUser
+) -> SearchConfig:
+    """Rename a configuration and/or overwrite its parameters."""
+    try:
+        return _config_or_404(search_configs.update(user.id, config_id, body.name, body.params))
+    except search_configs.InvalidName as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.delete("/api/search/configs/{config_id}", status_code=204)
+def delete_search_config(config_id: str, user: CurrentUser) -> Response:
+    if not search_configs.delete(user.id, config_id):
+        raise HTTPException(status_code=404, detail="Search configuration not found.")
+    return Response(status_code=204)
 
 
 @app.get("/api/searches")

@@ -9,6 +9,7 @@ vi.mock('@/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api')>()),
   getCurrentUser: vi.fn(),
   listSearches: vi.fn(),
+  listSearchConfigs: vi.fn(),
   getStatuses: vi.fn(),
   getPins: vi.fn(),
   getSearchBoards: vi.fn(),
@@ -23,6 +24,7 @@ const m = vi.mocked(api)
 beforeEach(() => {
   m.getCurrentUser.mockResolvedValue({ id: 'TEST_USER', display_name: 'Test', created_at: '' })
   m.listSearches.mockResolvedValue([])
+  m.listSearchConfigs.mockResolvedValue([])
   m.getStatuses.mockResolvedValue({ job: {}, person: {} })
   m.getPins.mockResolvedValue({ company: {}, job: {}, person: {} })
   m.getSearchBoards.mockResolvedValue(BOARDS)

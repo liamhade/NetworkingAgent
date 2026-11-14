@@ -147,6 +147,48 @@ export async function saveSearchParams(params: SearchParams): Promise<SearchPara
   return response.json()
 }
 
+/** A named, saved search configuration (`/api/search/configs`); `params` is a `SearchParams`. */
+export interface SearchConfig {
+  id: string
+  name: string
+  params: SearchParams
+  /** ISO-8601 UTC timestamps. */
+  created_at: string
+  updated_at: string
+}
+
+export const listSearchConfigs = (signal?: AbortSignal) =>
+  getJson<SearchConfig[]>('/api/search/configs', signal)
+
+async function sendJson<T>(url: string, method: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
+  return response.json()
+}
+
+/** Save `params`; without a name the server picks "Search Configuration #n". */
+export const createSearchConfig = (params: SearchParams, name?: string) =>
+  sendJson<SearchConfig>(
+    '/api/search/configs',
+    'POST',
+    name === undefined ? { params } : { params, name },
+  )
+
+/** Rename a configuration and/or overwrite its parameters. */
+export const updateSearchConfig = (id: string, changes: { name?: string; params?: SearchParams }) =>
+  sendJson<SearchConfig>(`/api/search/configs/${encodeURIComponent(id)}`, 'PATCH', changes)
+
+export async function deleteSearchConfig(id: string): Promise<void> {
+  const response = await fetch(`/api/search/configs/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
+}
+
 /** Run the agent, calling `onEvent` for every Server-Sent Event it streams back. */
 export async function streamSearch(
   request: SearchRequest,

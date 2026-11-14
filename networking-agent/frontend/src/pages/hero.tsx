@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { RiCheckLine, RiErrorWarningLine, RiSearchLine } from '@remixicon/react'
 import {
   deleteSavedResume,
@@ -23,6 +23,8 @@ interface HeroProps {
   /** The resume saved earlier (null: none); shown as a file chip instead of the upload box. */
   savedResume?: SavedResume | null
   onSavedResumeChange?: (resume: SavedResume | null) => void
+  /** Called with the form as it would be searched (boards filled in) whenever it changes. */
+  onChange?: (request: SearchRequest) => void
 }
 
 type ResumeState =
@@ -31,7 +33,13 @@ type ResumeState =
   | { status: 'done'; name: string }
   | { status: 'error'; message: string }
 
-export function Hero({ initial, onSubmit, savedResume = null, onSavedResumeChange }: HeroProps) {
+export function Hero({
+  initial,
+  onSubmit,
+  savedResume = null,
+  onSavedResumeChange,
+  onChange,
+}: HeroProps) {
   const [form, setForm] = useState<SearchRequest>(initial)
   const [resume, setResume] = useState<ResumeState>({ status: 'idle' })
   // The boards config as the panel shows it (defaults filled in); null until the list loads.
@@ -80,11 +88,18 @@ export function Hero({ initial, onSubmit, savedResume = null, onSavedResumeChang
     resume.status !== 'reading' &&
     (shownBoards === null || anyBoardOn(shownBoards))
 
+  // The form as a search would send it: boards as shown (defaults filled in), so a search
+  // (or a saved configuration) is self-describing. The resume file is not part of it.
+  const current: SearchRequest = shownBoards ? { ...form, boards: shownBoards } : form
+  useEffect(() => {
+    onChange?.(current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, shownBoards])
+
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!canSubmit) return
-    // Send the boards as shown (defaults filled in) so the search is self-describing.
-    onSubmit(shownBoards ? { ...form, boards: shownBoards } : form)
+    onSubmit(current)
   }
 
   return (
