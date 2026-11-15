@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Searching... | Networking Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="running">
+<main class="main" id="main">
+<div class="wrap">
+  <div class="crumbs"><a href="search.html">Search</a><span aria-hidden="true">/</span><span>In progress</span></div>
+  <div class="head">
+    <div><h1>Product designer roles at fintech startups</h1>
+      <div class="sub"><span><svg class="i sm" aria-hidden="true"><use href="#i-pin2"/></svg>Seattle, WA</span><span><svg class="i sm" aria-hidden="true"><use href="#i-layers"/></svg>Built In, Lever, Ashby, Google</span></div></div>
+    <div class="chips" id="topacts"></div>
+  </div>
+
+  <section class="card run-card" style="margin:20px 0" aria-label="Search progress">
+    <div class="run-top">
+      <div class="orb" id="orb"><svg class="i lg" aria-hidden="true"><use href="#i-sparkle"/></svg></div>
+      <div class="t"><h2 id="rt">Searching job boards and LinkedIn</h2><p class="shim" id="shim" aria-live="polite">Reading your profile</p></div>
+      <div style="text-align:right"><div class="timer" id="timer">00:00</div><div style="font-size:12.5px;color:var(--text2)">elapsed</div></div>
+      <div id="cancelWrap"><button class="btn danger" id="cancel"><svg class="i" aria-hidden="true"><use href="#i-stop"/></svg>Cancel search</button></div>
+    </div>
+    <ol class="steps" id="steps" aria-label="Search stages"></ol>
+    <div class="notice" id="notice"><svg class="i" aria-hidden="true"><use href="#i-clock"/></svg><span>You can leave this page. The agent keeps searching and you will find it under <b>Previous searches</b>. This usually takes a few minutes.</span></div>
+    <div>
+      <button class="disc" id="logBtn" aria-expanded="false" aria-controls="log">Latest steps <span class="pill neu num" id="logn">12</span> <svg class="i" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+      <ul class="live" id="log" style="margin-top:6px"></ul>
+    </div>
+  </section>
+
+  <div class="count-line" style="margin-top:8px"><h2 style="font-size:20px">Found so far <span class="pill co num" id="found">0 companies</span></h2><span id="fnote" style="color:var(--text2);font-size:13.5px">Results appear here as the agent finds them.</span></div>
+  <div class="list" id="partial" aria-live="polite"></div>
+</div>
+</main>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var stages = ['Understand profile', 'Find companies', 'Find jobs', 'Find people', 'Write notes'];
+  var logs = ['Reading your profile', 'Planning: product design, fintech, Seattle or remote', 'Searching Built In jobs for product designer', 'Built In jobs: 15 jobs found', 'Searching Lever and Ashby boards', 'Ranking 9 companies by fit', 'Searching LinkedIn for people at Ramp', 'Writing why-it-fits notes'];
+  var found = [
+    { n: 'Ramp', s: 84, j: 3, p: 0, d: 'Corporate cards and spend management with a design-led product team.' },
+    { n: 'Plaid', s: 79, j: 2, p: 0, d: 'Financial data network connecting apps to bank accounts.' },
+    { n: 'Brex', s: 76, j: 1, p: 0, d: 'Spend platform for startups and enterprises.' },
+    { n: 'Mercury', s: 72, j: 2, p: 0, d: 'Banking built for startups, hiring product designers in Seattle and remote.' }
+  ];
+  var sec = 134, stage = 0, shown = 0, state = 'run', tick = 0;
+  function fmt(s) { return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+  function steps() {
+    $('#steps').innerHTML = stages.map(function (s, i) {
+      var c = state === 'done' || i < stage ? 'done' : (i === stage && state === 'run' ? 'act' : '');
+      return '<li class="' + c + '"><span class="s">' + (c === 'done' ? ic('check', 'sm') : '') + s + '</span><span class="sr">' + (c === 'done' ? 'complete' : c === 'act' ? 'in progress' : 'pending') + '</span></li>';
+    }).join('');
+  }
+  function logDraw() {
+    var n = Math.min(logs.length, 3 + tick), all = $('#logBtn').getAttribute('aria-expanded') === 'true';
+    var l = logs.slice(0, n).reverse(); if (!all) l = l.slice(0, 3);
+    var t0 = sec; $('#log').innerHTML = l.map(function (x, i) { return '<li><time>' + fmt(Math.max(0, t0 - i * 11)) + '</time><span>' + x + '</span></li>'; }).join('');
+    $('#logn').textContent = (n + 30);
+    if (state === 'run') $('#shim').textContent = logs[Math.max(0, n - 1)];
+  }
+  function partial() {
+    var h = found.slice(0, shown).map(function (c, i) {
+      return '<article class="co-panel arrive"><div class="chead"><div class="ctoggle" style="cursor:default"><span class="co-ico">' + ic('building', 'lg') + '</span><span><span class="cname"><span class="cn">' + c.n + '</span><span class="rank num">#' + (i + 1) + '</span></span><span class="cdesc">' + c.d + '</span></span><span class="cmeta"><span class="counts"><span class="pill job">' + ic('briefcase', 'sm') + c.j + ' jobs</span><span class="pill neu">' + (stage >= 3 ? 'Finding people…' : 'People pending') + '</span></span><span class="fit ' + (c.s >= 80 ? 'strong' : 'good') + '"><b class="num">' + c.s + '</b><span class="bar"><i style="width:' + c.s + '%"></i></span><small>' + (c.s >= 80 ? 'Strong fit' : 'Good fit') + '</small></span></span><span></span></div></div></article>';
+    }).join('');
+    if (state === 'run') h += '<div class="skel" aria-hidden="true"></div>' + (shown < 2 ? '<div class="skel" aria-hidden="true"></div>' : '');
+    $('#partial').innerHTML = h;
+    $('#found').textContent = shown + ' compan' + (shown === 1 ? 'y' : 'ies');
+  }
+  function topActs() {
+    $('#topacts').innerHTML = state === 'done' ? '<a class="btn pri" href="results.html">View results ' + ic('arrow') + '</a>' :
+      state === 'can' ? '<a class="btn" href="search.html">Edit and re-run</a><button class="btn pri" id="retry">' + ic('refresh') + 'Retry search</button>' : '';
+  }
+  function finish(kind) {
+    state = kind; clearInterval(iv);
+    $('#cancelWrap').innerHTML = '';
+    $('#orb').style.animation = 'none';
+    if (kind === 'done') {
+      $('#rt').textContent = 'Search complete'; $('#shim').textContent = 'Found ' + shown + ' companies. Ready to explore.'; $('#shim').style.animation = 'none';
+      $('#shim').style.webkitTextFillColor = 'var(--text2)'; $('#notice').innerHTML = ic('check') + '<span>Done. Open the results to see jobs and people grouped by company.</span> <a class="btn pri sm" href="results.html" style="margin-left:auto">View results</a>';
+    } else {
+      $('#rt').textContent = 'Search cancelled'; $('#shim').style.animation = 'none'; $('#shim').style.webkitTextFillColor = 'var(--text2)'; $('#shim').textContent = 'Stopped at ' + fmt(sec) + '. Anything found so far is kept below.';
+      $('#notice').className = 'notice err'; $('#notice').innerHTML = ic('alert') + '<span>This search was cancelled. You can retry it as is, or edit the parameters first.</span>';
+      document.querySelector('.dot.run') && (document.querySelector('.dot.run').className = 'dot can');
+    }
+    steps(); partial(); topActs(); $('#fnote').textContent = kind === 'done' ? '' : 'Partial results from before you cancelled.';
+  }
+  var iv = setInterval(function () {
+    sec++; $('#timer').textContent = fmt(sec); if (sec % 3 === 0) { tick++; logDraw(); }
+    if (sec % 6 === 0) { if (shown < found.length) { shown++; partial(); } if (shown >= 2 && stage < 4 && (sec / 6) % 2 === 0) { stage++; steps(); } }
+    if (stage === 4 && shown === found.length && sec % 6 === 0 && tick > 14) finish('done');
+  }, 1000);
+  $('#cancel').onclick = function () {
+    $('#cancelWrap').innerHTML = '<div class="chips" style="align-items:center"><b style="font-size:14px">Stop this search?</b><button class="btn sm" id="keep">Keep running</button><button class="btn sm danger" id="yes">Yes, cancel</button></div>';
+    $('#yes').onclick = function () { finish('can'); }; $('#keep').onclick = function () { location.reload(); };
+    $('#keep').focus();
+  };
+  window.onHistCancel = function () { finish('can'); };
+  document.addEventListener('click', function (e) { if (e.target.closest('#retry')) location.reload(); });
+  $('#logBtn').onclick = function () { var o = this.getAttribute('aria-expanded') === 'true'; this.setAttribute('aria-expanded', !o); logDraw(); };
+  $('#timer').textContent = fmt(sec); steps(); logDraw(); partial(); topActs();
+})();
+</script>
+</body>
+</html>

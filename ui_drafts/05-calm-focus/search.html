@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>New search · Networking Agent (Calm Focus)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+.page{background:radial-gradient(800px 380px at 90% -5%,#F3E6BF 0,#F3E6BF00 65%),radial-gradient(900px 420px at -5% 20%,#CFE5D5 0,#CFE5D500 70%);min-height:calc(100vh - 69px)}
+.lead{padding:56px 0 28px;max-width:720px}
+.lead .eyebrow{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border);border-radius:99px;padding:5px 14px 5px 10px;font-weight:600;font-size:13.5px;color:var(--accent)}
+.lead h1{font-size:46px;line-height:1.1;font-weight:700;margin:16px 0 12px;letter-spacing:-.025em}
+.lead h1 em{font-style:normal;color:var(--accent);background:linear-gradient(transparent 62%,#F1DE9B 62%)}
+.lead p{font-size:18px;color:var(--text-2);max-width:56ch}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:28px;align-items:start;padding-bottom:64px}
+.form{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:28px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;gap:22px}
+.step{display:flex;gap:14px}
+.step .n{width:30px;height:30px;border-radius:50%;background:var(--accent-tint);color:var(--accent);font:700 14px var(--font-h);display:grid;place-items:center;flex:none;margin-top:1px}
+.step .body{flex:1;min-width:0}
+.step h2{font-size:20px;font-weight:650;margin-bottom:2px}
+.step .hint{font-size:14.5px;color:var(--text-2);margin-bottom:10px}
+.drop{display:flex;align-items:center;gap:14px;border:2px dashed #8DAE98;background:#F2F8F3;border-radius:16px;padding:16px 18px}
+.drop .ico{width:44px;height:44px;border-radius:14px;background:#fff;display:grid;place-items:center;color:var(--accent)}
+.saved{display:none;align-items:center;gap:10px;background:var(--accent-tint);border-radius:14px;padding:10px 14px;font-weight:600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+details.boards{border:1.5px solid var(--border);border-radius:16px;background:var(--bg)}
+details.boards summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:14px 16px;font-weight:600;min-height:52px;border-radius:16px}
+details.boards summary::-webkit-details-marker{display:none}
+details.boards summary .chev{margin-left:auto;transition:transform .2s}
+details.boards[open] summary .chev{transform:rotate(180deg)}
+.brow{display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid var(--border);background:#fff}
+.brow:last-child{border-radius:0 0 16px 16px}
+.brow .t{flex:1;min-width:0}.brow b{display:block;font-weight:600;font-size:15px}.brow span.d{font-size:13.5px;color:var(--text-2)}
+.brow input[type=number]{width:84px;min-height:40px;padding:6px 10px}
+.brow.off{background:#F1F3EF}.brow.off b{color:var(--text-2)}
+.submit{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.submit .btn{font-size:17px;padding:14px 28px}
+.submit p{font-size:14px;color:var(--text-2);flex:1;min-width:200px}
+.side2{display:flex;flex-direction:column;gap:18px}
+.card2{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:20px;box-shadow:var(--shadow)}
+.card2 h2{font-size:18px;font-weight:650;margin-bottom:4px}
+.card2 .hint{font-size:14px;color:var(--text-2);margin-bottom:12px}
+.cfg{display:flex;align-items:center;gap:6px;border:1.5px solid var(--border);border-radius:14px;padding:4px 4px 4px 14px;margin-bottom:8px;background:var(--bg)}
+.cfg button.load{flex:1;text-align:left;border:0;background:transparent;font-weight:600;padding:8px 0;min-height:40px}
+.cfg:hover{border-color:var(--input-border)}
+.try{display:block;width:100%;text-align:left;border:1.5px dashed #C9B466;background:#FFFAE8;border-radius:14px;padding:12px 14px;font-size:14.5px;color:#4D3D00}
+.try:hover{background:#FFF4CC}.try b{display:block;font-family:var(--font-h)}
+@media (max-width:1000px){.cols{grid-template-columns:1fr}.lead{padding-top:32px}.lead h1{font-size:34px}}
+@media (max-width:560px){.two{grid-template-columns:1fr}.form{padding:18px}.lead p{font-size:16px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side" aria-label="Previous searches"></aside>
+  <div class="main">
+    <nav class="topnav" id="topnav" aria-label="Main"></nav>
+    <div class="page"><main class="wrap">
+      <section class="lead">
+        <span class="eyebrow"><span id="ic1"></span> Your networking agent</span>
+        <h1>Tell us what you're after. We'll find <em>where to start.</em></h1>
+        <p>Share a bit about your background and the kind of role you want. The agent returns a short, ranked list of companies, jobs and people, each with a plain-language reason it fits.</p>
+      </section>
+      <div class="cols">
+        <form class="form" id="form" novalidate>
+          <div class="step"><span class="n">1</span><div class="body">
+            <h2>Start from your resume <small style="font-weight:400;color:var(--text-2)">(optional)</small></h2>
+            <p class="hint">Upload a PDF and we'll fill in the next two steps for you.</p>
+            <div class="drop" id="drop"><span class="ico" id="ic2"></span><div style="flex:1"><b>Drop your PDF here</b><div style="font-size:14px;color:var(--text-2)">or choose a file · PDF up to 5 MB</div></div><label class="btn sec sm" style="cursor:pointer">Choose file<input type="file" accept="application/pdf" id="file" class="sr"></label></div>
+            <div class="saved" id="saved"><span id="ic3"></span><span style="flex:1" id="savedname">resume.pdf</span><button type="button" class="btn sec sm" id="replace">Replace</button><button type="button" class="btn sec sm" id="remove">Remove</button></div>
+          </div></div>
+          <div class="step"><span class="n">2</span><div class="body">
+            <h2>About you</h2>
+            <p class="hint">A few sentences on what you do and have done.</p>
+            <label class="f" for="bg">Your background <small>· required</small></label>
+            <textarea class="in" id="bg" rows="5" required>I am a Software Engineer at Dover Corporation since November 2025, building an agentic chat interface with self-hosted LLMs and custom MCP servers. Before that I built a DSCSA-compliant pharmaceutical database and the APIs on top of it.</textarea>
+          </div></div>
+          <div class="step"><span class="n">3</span><div class="body">
+            <h2>What you want next</h2>
+            <p class="hint">Roles, domains, languages, anything that matters to you.</p>
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div><label class="f" for="lf">What you're looking for <small>· required</small></label>
+              <textarea class="in" id="lf" rows="3" required>Software engineering roles, particularly in agentic AI, LLM applications, and backend or data infrastructure. Python or C++ oriented would be ideal.</textarea></div>
+              <div><label class="f" for="loc">Location <small>· optional</small></label><input class="in" id="loc" value="New York, NY"></div>
+            </div>
+          </div></div>
+          <div class="step"><span class="n">4</span><div class="body">
+            <h2>Where to look</h2>
+            <p class="hint">Three boards are on. You can leave this as is.</p>
+            <details class="boards" id="boards">
+              <summary><span id="bsum">3 of 6 job boards on</span><span class="chev" id="ic4"></span></summary>
+              <div id="brows"></div>
+            </details>
+          </div></div>
+          <div class="submit">
+            <button class="btn pri" id="go" type="submit"><span id="ic5"></span>Find opportunities</button>
+            <p id="gohint">Takes a few minutes. You can leave and come back; we'll keep searching.</p>
+          </div>
+        </form>
+
+        <div class="side2">
+          <section class="card2" aria-labelledby="cfg-h">
+            <h2 id="cfg-h">Saved searches</h2><p class="hint">Reuse a setup in one click.</p>
+            <div id="cfgs"></div>
+            <button class="btn sec sm" style="width:100%" id="savecfg"><span id="ic6"></span>Save current as new</button>
+          </section>
+          <section class="card2" style="background:linear-gradient(160deg,#fff,#FFF9E6)">
+            <h2>Not sure where to start?</h2><p class="hint">Try an example and tweak it.</p>
+            <button class="try" id="try"><b>Product designer · Seattle · fintech</b>Fills the form with a sample search.</button>
+          </section>
+        </div>
+      </div>
+    </main></div>
+  </div>
+</div>
+<div class="scrim" id="scrim"></div>
+<script src="shell.js"></script>
+<script>
+Shell.init({active:'search'});
+const $=s=>document.querySelector(s);
+$('#ic1').innerHTML=ic('spark');$('#ic2').innerHTML=ic('upload');$('#ic3').innerHTML=ic('check');$('#ic4').innerHTML=ic('chev');$('#ic5').innerHTML=ic('search');$('#ic6').innerHTML=ic('plus');
+const B=[['Built In NYC','New York City tech companies and their jobs.',1,40],['Lever','Jobs posted on Lever career pages.',1,8],['Ashby','Jobs posted on Ashby career pages.',1,8],['Workable','Jobs posted on Workable career pages.',0,8],['Google job searches','General searches for postings the other boards miss. Slow.',0,20],['USAJOBS','Needs an API key (USAJOBS_API_KEY and USAJOBS_EMAIL).',0,20,1]];
+$('#brows').innerHTML=B.map((b,i)=>`<div class="brow ${b[2]?'':'off'}" data-i="${i}"><label class="sw"><input type="checkbox" ${b[2]?'checked':''} ${b[4]?'disabled':''} aria-label="Search ${b[0]}"><i></i></label><div class="t"><b>${b[0]}</b><span class="d">${b[1]}</span></div><label class="sr" for="mx${i}">Max jobs for ${b[0]}</label><input class="in" type="number" id="mx${i}" value="${b[3]}" min="1" max="100" ${b[2]?'':'disabled'}></div>`).join('');
+function boards(){const rows=[...document.querySelectorAll('.brow')];let n=0;rows.forEach(r=>{const on=r.querySelector('input[type=checkbox]').checked;r.classList.toggle('off',!on);r.querySelector('input[type=number]').disabled=!on;if(on)n++});$('#bsum').textContent=n+' of 6 job boards on';$('#go').disabled=n===0;$('#gohint').textContent=n===0?'Turn on at least one job board to search.':'Takes a few minutes. You can leave and come back; we\'ll keep searching.'}
+$('#brows').addEventListener('change',boards);
+$('#cfgs').innerHTML=['Agentic AI · New York','Backend · Remote','Basic'].map(n=>`<div class="cfg"><button type="button" class="load">${n}</button><button type="button" class="iconbtn" aria-label="Rename ${n}">${ic('pen')}</button><button type="button" class="iconbtn" aria-label="Delete ${n}">${ic('trash')}</button></div>`).join('');
+document.querySelectorAll('.cfg .load').forEach(b=>b.onclick=()=>Shell.toast('Loaded "'+b.textContent+'" into the form.'));
+$('#savecfg').onclick=()=>Shell.toast('Saved as a new search setup.');
+$('#try').onclick=()=>{$('#bg').value='I am a product designer with 6 years in B2B SaaS, focused on design systems and data-heavy dashboards.';$('#lf').value='Senior product design roles at fintech companies, ideally with a design systems component.';$('#loc').value='Seattle, WA';Shell.toast('Example loaded. Edit anything you like.')};
+$('#file').onchange=e=>{const f=e.target.files[0];if(!f)return;$('#drop').style.display='none';$('#saved').style.display='flex';$('#savedname').textContent=f.name;Shell.toast('Resume read. Steps 2 and 3 are filled in.')};
+$('#remove').onclick=()=>{$('#saved').style.display='none';$('#drop').style.display='flex'};
+$('#replace').onclick=()=>$('#file').click();
+$('#form').onsubmit=e=>{e.preventDefault();if(!$('#bg').value.trim()||!$('#lf').value.trim()){Shell.toast('Please fill in your background and what you are looking for.');return}location.href='running.html'};
+</script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>New search · Networking Agent (Pipeline)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side" aria-label="Previous searches"></aside>
+  <div class="main">
+    <nav class="nav" id="nav" aria-label="Main"></nav>
+    <main>
+      <div class="hero">
+        <div>
+          <h1>Turn a job search into a <em>pipeline</em>.</h1>
+          <p class="lede">Tell the agent what you want. It finds companies, jobs and people, then drops them in your board to work through.</p>
+
+          <form class="form" id="form" aria-label="New search">
+            <div class="field">
+              <span class="lab">Resume <span class="hint">(optional, PDF) · fills in the fields below</span></span>
+              <div class="drop" id="drop"><span id="dropico"></span><div>Drop your resume here or <button type="button" class="linkbtn" id="pick">browse</button><small>We read it once to fill in your background.</small></div></div>
+              <div class="saved-res" id="saved" hidden></div>
+            </div>
+            <div class="field">
+              <label for="bg">Your background <span class="req" aria-hidden="true">*</span> <span class="hint">required</span></label>
+              <textarea id="bg" rows="4" required>I am a Software Engineer at Dover Corporation since November 2025, building an agentic chat interface with self-hosted LLMs and custom MCPs. Previously built a DSCSA-compliant pharmaceutical database.</textarea>
+            </div>
+            <div class="field">
+              <label for="lf">What are you looking for? <span class="req" aria-hidden="true">*</span> <span class="hint">required</span></label>
+              <textarea id="lf" rows="2" required>Software engineering roles, particularly in agentic AI, LLM applications, and backend or data infrastructure. Python or C++ oriented would be ideal.</textarea>
+              <div class="examples" aria-label="Examples"><span class="hint" style="font-weight:600;font-size:13px;color:var(--text2)">Try:</span>
+                <button type="button" class="chip" data-ex="Product designer at fintech startups · Seattle, WA">Product designer, fintech</button>
+                <button type="button" class="chip" data-ex="Data analyst roles in climate tech · Remote US">Data analyst, climate tech</button></div>
+            </div>
+            <div class="field">
+              <label for="loc">Location</label>
+              <input type="text" id="loc" value="New York, NY">
+            </div>
+            <details class="boards" id="boards">
+              <summary>Search boards <span class="pill p-pinned" id="bcount">5 of 8 on</span><span class="grow"></span><svg class="i chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+              <div class="board-list" id="blist"></div>
+            </details>
+            <div class="form-foot">
+              <button class="btn btn-primary" type="submit" id="go">Find opportunities</button>
+              <span class="hint" id="why" style="font-weight:600;font-size:13px;color:var(--text2)">Usually 3 to 5 minutes. You can leave the page.</span>
+            </div>
+          </form>
+        </div>
+
+        <aside class="cfg" aria-labelledby="cfg-h">
+          <h2 id="cfg-h">Saved configurations</h2>
+          <button class="btn btn-ghost btn-sm" style="width:100%" id="savecfg"></button>
+          <ul id="cfgs"></ul>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="shell.js"></script>
+<script>
+  NA.shell({ active: null, nav: 'search' });
+  document.getElementById('dropico').innerHTML = ic('upload');
+  document.getElementById('savecfg').innerHTML = ic('save') + ' Save current as configuration';
+  const BOARDS = [['Built In NYC', 'NYC tech companies and their jobs.', 1, 40], ['Conservation', 'Conservation and nature jobs.', 0, 45], ['Greenhouse', 'Companies hiring via Greenhouse.', 0, 8], ['Lever', 'Companies hiring via Lever.', 1, 8], ['Ashby', 'Companies hiring via Ashby.', 1, 8], ['Workable', 'Companies hiring via Workable.', 1, 8], ['USAJOBS', 'Needs an API key (USAJOBS_API_KEY and USAJOBS_EMAIL).', -1, 20], ['Google job searches', 'General searches for postings the other boards miss. Slow.', 1, 20]];
+  const bl = document.getElementById('blist');
+  bl.innerHTML = BOARDS.map((b, i) => '<div class="bd' + (b[2] ? '' : ' off') + '"><label class="sw"><input type="checkbox" ' + (b[2] === 1 ? 'checked' : '') + (b[2] === -1 ? ' disabled' : '') + ' aria-label="Enable ' + b[0] + '"><i></i></label><div class="n">' + b[0] + '<span>' + b[1] + '</span></div><label class="sr" for="mx' + i + '">Max jobs for ' + b[0] + '</label><input id="mx' + i + '" type="number" min="1" max="60" value="' + b[3] + '"' + (b[2] === -1 ? ' disabled' : '') + '></div>').join('');
+  const go = document.getElementById('go');
+  function boards() { const n = bl.querySelectorAll('input[type=checkbox]:checked').length; document.getElementById('bcount').textContent = n + ' of 8 on'; return n; }
+  function validate() {
+    const ok = document.getElementById('bg').value.trim() && document.getElementById('lf').value.trim() && boards() > 0;
+    go.disabled = !ok;
+    document.getElementById('why').textContent = ok ? 'Usually 3 to 5 minutes. You can leave the page.' : 'Add your background, what you want, and at least one board.';
+  }
+  bl.addEventListener('change', e => { e.target.closest('.bd').classList.toggle('off', !e.target.checked); validate(); });
+  ['bg', 'lf'].forEach(id => document.getElementById(id).addEventListener('input', validate));
+  document.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { const [l, loc] = b.dataset.ex.split(' · '); document.getElementById('lf').value = l; document.getElementById('loc').value = loc; validate(); toast('Example loaded'); });
+  document.getElementById('form').addEventListener('submit', e => { e.preventDefault(); location.href = 'running.html'; });
+  document.getElementById('pick').onclick = () => {
+    const s = document.getElementById('saved'); s.hidden = false; document.getElementById('drop').hidden = true;
+    s.innerHTML = ic('file') + ' resume_liam.pdf <span class="grow"></span><button type="button" class="linkbtn" data-r="dl">Download</button><button type="button" class="linkbtn" data-r="rm">Remove</button>';
+    toast('Resume read. Fields filled in.');
+  };
+  document.getElementById('saved').onclick = e => { if (e.target.dataset.r === 'rm') { document.getElementById('saved').hidden = true; document.getElementById('drop').hidden = false; } };
+  const cf = document.getElementById('cfgs');
+  function cfgs(list) {
+    cf.innerHTML = list.map((n, i) => '<li><button class="load" data-load="' + n + '">' + n + '</button><button class="ib" aria-label="Rename ' + n + '" data-ren="' + i + '">' + ic('edit') + '</button><button class="ib" aria-label="Overwrite ' + n + ' with current form" data-ow="' + i + '">' + ic('save') + '</button><button class="ib" aria-label="Delete ' + n + '" data-del="' + i + '">' + ic('trash') + '</button></li>').join('');
+  }
+  let list = ['Agentic AI, NYC', 'Basic', 'Backend, remote'];
+  cfgs(list);
+  cf.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.load) toast('Loaded “' + b.dataset.load + '” into the form');
+    if (b.dataset.ow !== undefined) toast('Overwritten with the current form');
+    if (b.dataset.ren !== undefined) toast('Rename (inline edit in the real build)');
+    if (b.dataset.del !== undefined) { if (b.dataset.sure) { list.splice(+b.dataset.del, 1); cfgs(list); toast('Configuration deleted'); } else { b.dataset.sure = 1; b.innerHTML = 'Sure?'; b.style.fontWeight = 800; b.style.color = '#B91C1C'; } }
+  });
+  document.getElementById('savecfg').onclick = () => { list.unshift('New configuration ' + (list.length + 1)); cfgs(list); toast('Configuration saved'); };
+  validate();
+</script>
+</body>
+</html>

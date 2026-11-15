@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Results · Networking Agent (Pipeline)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side" aria-label="Previous searches"></aside>
+  <div class="main">
+    <nav class="nav" id="nav" aria-label="Main"></nav>
+    <main class="page">
+      <p class="crumb"><a href="search.html">Searches</a> ›  <span>Yesterday, 3:45 PM</span></p>
+      <h1>Agentic AI and backend engineering roles in New York</h1>
+      <div class="sub">
+        <span class="pill p-company" id="s-co"></span><span class="pill p-job" id="s-jobs"></span><span class="pill p-person" id="s-ppl"></span>
+        <span>New York, NY · Python or C++ · 5 job boards</span>
+      </div>
+
+      <section class="summary" aria-label="Search summary">
+        <p class="clamp" id="summary-p"></p>
+        <button class="linkbtn" id="summary-toggle" aria-expanded="false">Read more</button>
+      </section>
+
+      <section class="start" aria-label="Start here">
+        <strong>Start here</strong>
+        <button data-open="c0j0"><span class="ico job"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg></span>Apply: AI Engineer - GTM</button>
+        <button data-open="c1p0"><span class="ico person"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>Message Priya Raman at Two Sigma</button>
+        <button data-open="c0p1"><span class="ico person"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>Message Maya Patel at Tracksuit</button>
+      </section>
+
+      <div id="root"></div>
+    </main>
+  </div>
+</div>
+
+<div class="scrim-d" id="scrim-d"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" aria-hidden="true"></aside>
+
+<script src="data.js"></script>
+<script src="shell.js"></script>
+<script src="board.js"></script>
+<script>
+  NA.shell({ active: 'a', nav: 'search' });
+  document.getElementById('summary-p').textContent = NA.SEARCH.summary;
+  NA.board.init({});
+  document.addEventListener('na-render', e => {
+    const d = e.detail;
+    document.getElementById('s-co').textContent = d.companies + ' companies';
+    document.getElementById('s-jobs').textContent = d.jobs + ' jobs';
+    document.getElementById('s-ppl').textContent = d.people + ' people';
+  });
+  NA.board.render();
+</script>
+</body>
+</html>

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Results · Agentic AI roles in New York · Networking Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,500..700,0..100;1,9..144,500..700,0..100&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .lede.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .hl { animation: hl 1.6s ease-out; }
+  @keyframes hl { 0%, 40% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: var(--shadow); } }
+</style>
+</head>
+<body data-page="results" data-hist="a">
+<a class="skip" href="#main">Skip to results</a>
+<div class="app">
+  <aside class="side" id="side" aria-label="Previous searches"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <main id="main" class="page">
+      <div class="col">
+        <header>
+          <p class="eyebrow">
+            <span class="pill pill-neutral">Search · Yesterday, 3:45 PM</span>
+            <span class="pill" style="background:var(--applied-tint);color:var(--applied-ink)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Finished</span>
+            <span>New York, NY</span>
+            <a class="link" href="search.html">Edit and re-run</a>
+          </p>
+          <h1 class="title">Six companies hiring for <em>agentic AI</em> and backend roles in New York</h1>
+          <p class="lede clamp" id="lede">You are targeting agentic AI, LLM application and backend roles in New York, with a preference for Python or C++. The strongest matches are Tracksuit's production AI agent role, Two Sigma's Python and C++ quant engineering roles, and Citadel's Python engineering roles. Alchemi, Palantir and Capital One have relevant AI roles, but they are less certain fits on seniority or posting detail.</p>
+          <button class="expand-all lede-more" id="lede-btn" aria-controls="lede" aria-expanded="false">Read the full summary</button>
+          <div class="stats" id="stats" aria-label="Search totals"></div>
+        </header>
+
+        <section class="start" id="start" aria-labelledby="start-h">
+          <div class="sec-h"><h2 id="start-h">Start here</h2><span class="ct">The three best moves this week</span></div>
+          <div class="start-grid" id="picks"></div>
+        </section>
+
+        <div class="controls" role="toolbar" aria-label="View, filter and sort">
+          <div class="seg" role="tablist" aria-label="Show results by" id="seg"></div>
+          <div class="sp"></div>
+          <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+          <label class="sel">Sort
+            <select id="sort">
+              <option value="fit">Best fit first</option>
+              <option value="pinned">Pinned first</option>
+              <option value="az">A to Z</option>
+            </select>
+          </label>
+        </div>
+
+        <section class="sec" id="list" aria-live="polite"></section>
+      </div>
+
+      <aside class="rail" aria-label="Search progress and shortcuts">
+        <div class="rail-card">
+          <h2>Your progress</h2>
+          <div class="prog" id="prog"></div>
+        </div>
+        <div class="rail-card">
+          <h2>Jump to</h2>
+          <ul class="jump" id="jump"></ul>
+        </div>
+        <div class="rail-card">
+          <h2>Key</h2>
+          <div class="legend">
+            <div><span class="glyph glyph-co" style="width:26px;height:26px;font-size:15px;border-radius:8px" id="k1"></span> Company</div>
+            <div><span class="glyph glyph-job" style="width:26px;height:26px;font-size:15px;border-radius:8px" id="k2"></span> Job to apply to</div>
+            <div><span class="glyph glyph-per" style="width:26px;height:26px;font-size:11px">AB</span> Person to connect with</div>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+</div>
+<script src="shell.js"></script>
+<script>
+/* ---------- sample data (from database/users/TEST_USER/searches, lightly extended) ---------- */
+const COMPANIES = [
+  { key: 'company:name:tracksuit', name: 'Tracksuit', url: '#', src: 'Built In NYC', score: 82,
+    desc: 'Brand tracking platform that helps marketers prove their brand building is working, with offices in New York, London, Sydney and Auckland.',
+    alignment: "You have shipped LLM tooling and MCP integrations at Dover, which matches Tracksuit's focus on production AI agents and MCP servers for go-to-market teams. Your work on a DSCSA-compliant pharmaceutical database also shows you can own production systems end to end.",
+    kw: ['AI engineering manager', 'go-to-market engineering lead'] },
+  { key: 'company:name:two sigma', name: 'Two Sigma', url: '#', src: 'Built In NYC', score: 79,
+    desc: 'Systematic investment manager applying machine learning, distributed computing and large-scale data to financial markets.',
+    alignment: "Your Python and C++ work on a regulated pharmaceutical database maps to Two Sigma's data-heavy engineering, and your agentic work shows range beyond the usual quant stack. Seniority is a stretch on some roles, but the platform teams hire from similar backgrounds.",
+    kw: ['quant engineering manager', 'data infrastructure lead'] },
+  { key: 'company:name:citadel', name: 'Citadel', url: '#', src: 'Lever', score: 76,
+    desc: 'Global financial institution and market maker where engineers build low-latency trading systems and research platforms.',
+    alignment: "Citadel's Python engineering roles value production ownership, which your end-to-end work on a regulated database shows. Your LLM work is a differentiator for research tooling teams, though most openings lean toward trading systems experience.",
+    kw: ['python platform lead', 'research engineering manager'] },
+  { key: 'company:name:alchemi', name: 'Alchemi', url: '#', src: 'Ashby', score: 68,
+    desc: 'Applied AI company building LLM-driven automation for enterprise operations teams.',
+    alignment: 'You build self-hosted LLM agents today, which is the core of Alchemi\'s product. The team is small, so the fit depends on how much ownership you want, and the posting is light on seniority detail.',
+    kw: ['founding engineer', 'head of engineering'] },
+  { key: 'company:name:palantir', name: 'Palantir', url: '#', src: 'Lever', score: 64,
+    desc: 'Data integration and analytics software for government and commercial customers.',
+    alignment: 'Forward deployed roles reward engineers who can ship LLM applications into messy customer environments, close to your agentic chat work. The role is customer-facing and travel-heavy, which may differ from your backend preference.',
+    kw: ['forward deployed engineer'] },
+  { key: 'company:name:capital one', name: 'Capital One', url: '#', src: 'Workable', score: 60,
+    desc: 'Large US bank with a growing machine learning and agentic AI engineering organisation.',
+    alignment: 'Capital One is investing in agentic platforms, and your self-hosted LLM experience is relevant. The posting asks for more ML modelling than you have shown, so treat it as a stretch.',
+    kw: ['ml platform manager', 'agentic ai lead'] }
+];
+const JOBS = [
+  { key: 'job:url:builtinnyc.com/job/ai-engineer-gtm/12251267', co: 'company:name:tracksuit', title: 'AI Engineer - GTM', loc: 'New York, NY, USA', sal: '$162K-$205K', score: 85,
+    alignment: "You already build self-hosted LLM agents and custom MCPs, which maps directly to this role's agent and MCP server work. The posting asks for LLM work in production, and your Dover experience covers that." },
+  { key: 'job:url:builtinnyc.com/job/senior-backend-data/12251301', co: 'company:name:tracksuit', title: 'Senior Backend Engineer, Data Platform', loc: 'New York, NY, USA', sal: '$175K-$215K', score: 74,
+    alignment: 'Your pharmaceutical database work covers the data modelling and compliance rigour this role needs. The posting leans on Go, so expect a short ramp-up.' },
+  { key: 'job:url:twosigma.com/careers/quant-swe-cpp', co: 'company:name:two sigma', title: 'Quantitative Software Engineer, C++', loc: 'New York, NY', sal: '$175K-$250K', score: 81,
+    alignment: 'The role asks for strong C++ and Python and experience owning production systems. You list both languages and have run a regulated production database, which is a solid match.' },
+  { key: 'job:url:twosigma.com/careers/swe-data-infra', co: 'company:name:two sigma', title: 'Software Engineer, Data Infrastructure', loc: 'New York, NY', sal: '$160K-$230K', score: 77,
+    alignment: 'Data infrastructure fits your backend and database background, and the team uses Python heavily. Your LLM work is a bonus rather than a requirement here.' },
+  { key: 'job:url:citadel.com/careers/python-swe-trading', co: 'company:name:citadel', title: 'Python Software Engineer, Trading Systems', loc: 'New York, NY', sal: '$200K-$300K', score: 78,
+    alignment: 'Python-first with an emphasis on reliable, well-tested systems, which lines up with your production ownership. Low-latency experience is preferred and is your main gap.' },
+  { key: 'job:url:jobs.ashbyhq.com/alchemi/llm-apps', co: 'company:name:alchemi', title: 'LLM Applications Engineer', loc: 'New York, NY', sal: '', score: 70,
+    alignment: 'Building LLM applications on self-hosted models is exactly what you do now. Compensation and level are not listed, so ask early.' },
+  { key: 'job:url:palantir.com/careers/fde-ai', co: 'company:name:palantir', title: 'Forward Deployed Software Engineer, AI', loc: 'New York, NY', sal: '$150K-$220K', score: 66,
+    alignment: 'You have the LLM and backend skills, and the role adds customer-facing delivery you have not done much of. A good stretch role if you want broader exposure.' },
+  { key: 'job:url:capitalone.com/jobs/sr-ml-agentic', co: 'company:name:capital one', title: 'Senior ML Engineer, Agentic Platforms', loc: 'New York, NY', sal: '$180K-$240K', score: 62,
+    alignment: 'Agentic platform work matches your interests, but the posting expects model training and evaluation experience beyond your current LLM application focus.' }
+];
+const PEOPLE = [
+  { key: 'person:linkedin:keniel-yao', co: 'company:name:tracksuit', name: 'Keniel Yao', title: 'Head of Data Science',
+    alignment: 'As Head of Data Science, Keniel leads AI product work at Tracksuit, which is close to the LLM applications you build at Dover. A short conversation could help you understand how the team ships LLM products.',
+    msg: "Hi Keniel, I'm a software engineer building an agentic chat interface with self-hosted LLMs and custom MCPs at Dover, so Tracksuit's production AI agent work caught my eye. I'd love to connect and hear how your team ships LLM products." },
+  { key: 'person:linkedin:maya-okafor', co: 'company:name:tracksuit', name: 'Maya Okafor', title: 'Engineering Manager, AI Platform',
+    alignment: 'Maya manages the team behind the AI Engineer - GTM opening, so she is the most direct route to that role and can tell you what the hiring bar looks like.',
+    msg: "Hi Maya, I build self-hosted LLM agents and MCP servers at Dover and noticed Tracksuit's AI Engineer - GTM role on your team. I'd appreciate the chance to connect and learn how your team approaches agents in production." },
+  { key: 'person:linkedin:dan-whitfield', co: 'company:name:tracksuit', name: 'Dan Whitfield', title: 'GTM Engineering Lead',
+    alignment: 'Dan works where the product meets go-to-market teams, the same space the GTM engineering role covers. He can describe day-to-day work better than a posting can.',
+    msg: "Hi Dan, I'm a backend and LLM engineer at Dover and I'm exploring GTM-focused AI engineering. Tracksuit's approach looks interesting, and I'd love to connect and hear how your team works with marketers." },
+  { key: 'person:linkedin:priya-raman', co: 'company:name:two sigma', name: 'Priya Raman', title: 'Engineering Director, Platform',
+    alignment: 'Priya runs the platform group that owns the data infrastructure opening. As a director she can speak to team direction and how engineers from non-finance backgrounds fare.',
+    msg: "Hi Priya, I'm a Python and C++ engineer who has owned a regulated production database and now builds LLM agents. Two Sigma's platform work is a great fit with that, and I'd love to connect and learn about your team." },
+  { key: 'person:linkedin:marcus-lee', co: 'company:name:two sigma', name: 'Marcus Lee', title: 'Senior Software Engineer, Data Infrastructure',
+    alignment: 'Marcus works on the exact team of the data infrastructure role, and an engineer-to-engineer chat is a lower-pressure first contact than writing to a director.',
+    msg: "Hi Marcus, I'm a backend engineer with a Python and database background and I'm interested in Two Sigma's data infrastructure team. Would love to connect and hear what the work is really like." },
+  { key: 'person:linkedin:aiko-tanaka', co: 'company:name:two sigma', name: 'Aiko Tanaka', title: 'Quantitative Developer',
+    alignment: 'Aiko works in C++ on the quant side and moved in from a non-finance engineering role, so she can speak to how that transition went.',
+    msg: "Hi Aiko, I work mostly in Python and C++ outside of finance and I'm curious about quant development at Two Sigma. I'd be glad to connect and hear how you made the move." },
+  { key: 'person:linkedin:elena-vasquez', co: 'company:name:citadel', name: 'Elena Vasquez', title: 'Senior Software Engineer',
+    alignment: 'Elena is on the Python trading systems team that posted the role you applied to, so a connection can help your application get noticed.',
+    msg: "Hi Elena, I recently applied for the Python Software Engineer role on your team at Citadel. I'd love to connect and hear what your team values most in new engineers." },
+  { key: 'person:linkedin:tom-hargrove', co: 'company:name:citadel', name: 'Tom Hargrove', title: 'Engineering Manager, Python Platform',
+    alignment: 'Tom manages Python platform engineers and is likely a hiring manager for adjacent roles, which matters if the trading systems role does not work out.',
+    msg: "Hi Tom, I'm a Python engineer with production database experience and a growing focus on LLM tooling. Citadel's platform engineering looks like a strong fit, and I'd love to connect." },
+  { key: 'person:linkedin:sam-idowu', co: 'company:name:alchemi', name: 'Sam Idowu', title: 'Co-founder and CTO',
+    alignment: 'At a team this small the CTO is probably the hiring manager, so a direct and specific note is the quickest route to a conversation.',
+    msg: "Hi Sam, I build self-hosted LLM agents at Dover and Alchemi's LLM applications engineer role is close to my day-to-day. I'd love to connect and hear where the product is heading." },
+  { key: 'person:linkedin:hannah-cho', co: 'company:name:palantir', name: 'Hannah Cho', title: 'Forward Deployed Engineer',
+    alignment: 'Hannah does the work the role describes. She can give you an honest picture of travel and customer-facing demands before you decide to apply.',
+    msg: "Hi Hannah, I'm a backend and LLM engineer considering forward deployed roles at Palantir. I'd love to connect and hear what a typical week looks like for you." }
+];
+
+/* ---------- state ---------- */
+const S = {
+  view: 'company', sort: 'fit',
+  f: { pinned: false, todo: false, strong: false },
+  pins: new Set(['company:name:tracksuit', 'company:name:two sigma', 'job:url:twosigma.com/careers/quant-swe-cpp', 'person:linkedin:priya-raman']),
+  done: new Set(['job:url:citadel.com/careers/python-swe-trading', 'person:linkedin:keniel-yao', 'person:linkedin:elena-vasquez']),
+  open: new Set(['company:name:tracksuit']),
+  disc: new Set(), finding: new Set()
+};
+const byKey = (a) => Object.fromEntries(a.map(x => [x.key, x]));
+const CO = byKey(COMPANIES);
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+const first = (s) => (s.match(/^.*?[.!?](\s|$)/) || [s])[0].trim();
+const initials = (n) => n.split(' ').map(w => w[0]).join('').slice(0, 2);
+const idOf = (k, s) => 'x-' + btoa(k + s).replace(/[^a-z0-9]/gi, '').slice(0, 24);
+
+/* ---------- pieces ---------- */
+const fit = (s, sm) => `<span class="fitwrap" title="Fit score ${s} of 100"><span class="fit ${sm ? 'fit-sm' : ''}" style="--s:${s}"><span>${s}</span></span>${sm ? '' : '<span class="fit-lbl">Fit</span>'}</span>`;
+const pinBtn = (k, name) => `<button class="pin" data-act="pin" data-key="${k}" aria-pressed="${S.pins.has(k)}" aria-label="Pin ${esc(name)}" title="${S.pins.has(k) ? 'Unpin' : 'Pin'}">${S.pins.has(k) ? I.bookmarkFill : I.bookmark}</button>`;
+const statusBtn = (k, kind) => {
+  const on = S.done.has(k);
+  return `<button class="status" data-act="status" data-key="${k}" data-kind="${kind}" aria-pressed="${on}">
+    <span class="ring">${I.circle}</span><span class="tick">${I.check}</span>
+    <span class="off-l">${kind === 'job' ? 'Mark applied' : 'Mark connected'}</span><span class="on-l">${kind === 'job' ? 'Applied' : 'Connected'}</span></button>`;
+};
+const discBtn = (k, sub, label) => {
+  const id = k + '|' + sub, o = S.disc.has(id);
+  return `<button class="disc" data-act="disc" data-key="${k}" data-sub="${sub}" aria-expanded="${o}" aria-controls="${idOf(k, sub)}">${label}<span class="chev-i">${I.chev}</span></button>`;
+};
+
+function jobRow(j, flat) {
+  const k = j.key, c = CO[j.co], done = S.done.has(k), why = S.disc.has(k + '|why');
+  return `<div class="row" data-key="${k}" data-pinned="${S.pins.has(k)}" data-done="${done}">
+    <span class="glyph glyph-job">${I.briefcase}</span>
+    <div class="r-main">
+      <h${flat ? 3 : 4} class="r-title"><a href="#" target="_blank" rel="noopener">${j.title}<span class="ext">${I.ext}</span><span class="sr"> (opens posting)</span></a></h${flat ? 3 : 4}>
+      <div class="r-meta">${flat ? `<span><b>${c.name}</b></span>` : ''}<span>${j.loc}</span>${j.sal ? `<span><b>${j.sal}</b> / year</span>` : ''}</div>
+      ${why ? '' : `<p class="r-prev">${first(j.alignment)}</p>`}
+    </div>
+    <div class="r-actions">${fit(j.score, true)}${statusBtn(k, 'job')}${pinBtn(k, j.title)}</div>
+    <div class="r-disc">${discBtn(k, 'why', 'Why it fits you')}${flat ? `<button class="disc" data-act="goto" data-key="${c.key}" data-view="company">See ${c.name}</button>` : ''}</div>
+    <div class="panel" id="${idOf(k, 'why')}" ${why ? '' : 'hidden'}><h5>How you align</h5><p>${j.alignment}</p></div>
+  </div>`;
+}
+function personRow(p, flat) {
+  const k = p.key, c = CO[p.co], why = S.disc.has(k + '|why'), msg = S.disc.has(k + '|msg');
+  return `<div class="row" data-key="${k}" data-pinned="${S.pins.has(k)}" data-done="${S.done.has(k)}">
+    <span class="glyph glyph-per" aria-hidden="true">${initials(p.name)}</span>
+    <div class="r-main">
+      <h${flat ? 3 : 4} class="r-title"><a href="#" target="_blank" rel="noopener">${p.name}<span class="ext">${I.ext}</span><span class="sr"> (opens LinkedIn profile)</span></a></h${flat ? 3 : 4}>
+      <div class="r-meta"><span>${p.title}</span>${flat ? `<span><b>${c.name}</b></span>` : ''}</div>
+      ${why ? '' : `<p class="r-prev">${first(p.alignment)}</p>`}
+    </div>
+    <div class="r-actions">${statusBtn(k, 'person')}${pinBtn(k, p.name)}</div>
+    <div class="r-disc">${discBtn(k, 'why', 'Why connect')}${discBtn(k, 'msg', 'Example LinkedIn message')}${flat ? `<button class="disc" data-act="goto" data-key="${c.key}" data-view="company">See ${c.name}</button>` : ''}</div>
+    <div class="panel" id="${idOf(k, 'why')}" ${why ? '' : 'hidden'}><h5>Why connect</h5><p>${p.alignment}</p></div>
+    <div class="panel msg" id="${idOf(k, 'msg')}" ${msg ? '' : 'hidden'}><h5>Example LinkedIn message</h5>
+      <div class="msg-box" id="m-${idOf(k, 'm')}">${p.msg}</div>
+      <div class="msg-foot"><span class="cc">${p.msg.length} characters</span>
+        <a class="btn btn-sm" href="#" target="_blank" rel="noopener">${I.ext} Open profile</a>
+        <button class="btn btn-sm btn-primary" data-act="copy" data-key="${k}">${I.copy}<span>Copy message</span></button></div></div>
+  </div>`;
+}
+
+/* ---------- filtering and sorting ---------- */
+const pass = (it, type) => {
+  const f = S.f; if (f.pinned && !S.pins.has(it.key)) return false;
+  if (f.todo && type !== 'company' && S.done.has(it.key)) return false;
+  const sc = type === 'company' ? it.score : CO[it.co].score;
+  if (f.strong && ((type === 'person') ? sc < 75 : (it.score < 75))) return false;
+  return true;
+};
+const sorter = (type) => (a, b) => {
+  const pa = S.pins.has(a.key) ? 1 : 0, pb = S.pins.has(b.key) ? 1 : 0;
+  if (S.sort === 'pinned' && pa !== pb) return pb - pa;
+  if (S.sort === 'az') return (a.name || a.title).localeCompare(b.name || b.title);
+  const sa = type === 'person' ? CO[a.co].score : a.score, sb = type === 'person' ? CO[b.co].score : b.score;
+  return sb - sa;
+};
+
+/* ---------- renderers ---------- */
+function companyCard(c, i) {
+  const jobs = JOBS.filter(j => j.co === c.key), ppl = PEOPLE.filter(p => p.co === c.key);
+  const vj = jobs.filter(j => pass(j, 'job')).sort(sorter('job')), vp = ppl.filter(p => pass(p, 'person')).sort(sorter('person'));
+  const open = S.open.has(c.key), bid = idOf(c.key, 'body'), why = S.disc.has(c.key + '|why');
+  const finding = S.finding.has(c.key);
+  const findBtn = `<button class="btn btn-sm ${ppl.length ? '' : 'btn-primary'} find" data-act="find" data-key="${c.key}" ${finding ? 'disabled' : ''}>${finding ? '<span class="spin"></span> Looking, about 2 minutes' : I.search + (ppl.length ? ' Find more people' : ' Find people to connect with')}</button>`;
+  return `<article class="co ${open ? 'is-open' : ''}" data-key="${c.key}" data-pinned="${S.pins.has(c.key)}">
+    <div class="co-head">
+      <h3 class="co-h"><button class="co-toggle" data-act="co" data-key="${c.key}" aria-expanded="${open}" aria-controls="${bid}">
+        <span class="rank" aria-hidden="true">${i + 1}</span>
+        <span class="glyph glyph-co">${I.building}</span>
+        <span class="co-main"><span class="co-name">${c.name}</span><span class="co-desc">${c.desc}</span></span>
+        <span class="co-counts"><span class="pill pill-job">${I.briefcase}${jobs.length} ${jobs.length === 1 ? 'job' : 'jobs'}</span><span class="pill pill-per">${I.user}${ppl.length} ${ppl.length === 1 ? 'person' : 'people'}</span></span>
+        <span class="chev">${I.chev}</span>
+      </button></h3>
+      <div class="co-side">${fit(c.score)}${pinBtn(c.key, c.name)}</div>
+    </div>
+    <div class="co-body" id="${bid}" ${open ? '' : 'hidden'}>
+      <div class="fitnote"><h4>Why it fits you</h4><p>${c.alignment}</p>
+        <div class="meta"><a class="link" href="#" target="_blank" rel="noopener">View on ${c.src} ${'↗'}</a><span>Good people to look for: ${c.kw.join(', ')}</span></div></div>
+      <div><h4 class="sub-h">${I.briefcase} Open jobs <span class="ct">${vj.length === jobs.length ? jobs.length : vj.length + ' of ' + jobs.length}</span></h4>
+        ${vj.length ? `<div class="rows">${vj.map(j => jobRow(j, false)).join('')}</div>` : `<div class="empty">${jobs.length ? 'No jobs match the current filters.' : 'No open jobs found at this company.'}</div>`}</div>
+      <div><h4 class="sub-h">${I.user} People to connect with <span class="ct">${vp.length === ppl.length ? ppl.length : vp.length + ' of ' + ppl.length}</span></h4>
+        ${vp.length ? `<div class="rows">${vp.map(p => personRow(p, false)).join('')}</div>` : `<div class="empty"><span>${ppl.length ? 'No people match the current filters.' : 'No current employees found yet.'}</span>${ppl.length ? '' : findBtn}</div>`}
+        ${vp.length ? `<div style="margin-top:12px">${findBtn}</div>` : ''}</div>
+    </div></article>`;
+}
+
+function visibleCompanies() {
+  return COMPANIES.filter(c => {
+    const kids = [...JOBS.filter(j => j.co === c.key && pass(j, 'job')), ...PEOPLE.filter(p => p.co === c.key && pass(p, 'person'))];
+    if (!anyFilter()) return true;
+    return kids.length > 0 || (!S.f.todo && pass(c, 'company'));
+  }).sort(sorter('company'));
+}
+
+const anyFilter = () => S.f.pinned || S.f.todo || S.f.strong;
+function renderList() {
+  const el = document.getElementById('list'); let html = '';
+  if (S.view === 'company') {
+    const cs = visibleCompanies(), allOpen = cs.length && cs.every(c => S.open.has(c.key));
+    html = `<div class="sec-h"><h2>Companies</h2><span class="ct">${cs.length} of ${COMPANIES.length}</span><span class="sp"></span><button class="expand-all" data-act="expand-all">${allOpen ? 'Collapse all' : 'Expand all'}</button></div>
+      <p class="sec-sub">Ranked by how well they fit your background. Open a company to see its jobs and the people worth contacting.</p>
+      <div class="list">${cs.length ? cs.map((c, i) => companyCard(c, COMPANIES.indexOf(c))).join('') : nothing()}</div>`;
+  } else if (S.view === 'jobs') {
+    const js = JOBS.filter(j => pass(j, 'job')).sort(sorter('job'));
+    html = `<div class="sec-h"><h2>Jobs</h2><span class="ct">${js.length} of ${JOBS.length}</span></div>
+      <p class="sec-sub">Every opening found for this search, best fit first. Mark the ones you have applied to.</p>
+      ${js.length ? `<div class="rows">${js.map(j => jobRow(j, true)).join('')}</div>` : nothing()}`;
+  } else {
+    const ps = PEOPLE.filter(p => pass(p, 'person')).sort(sorter('person'));
+    html = `<div class="sec-h"><h2>People</h2><span class="ct">${ps.length} of ${PEOPLE.length}</span></div>
+      <p class="sec-sub">Employees at these companies who are worth a short, specific note.</p>
+      ${ps.length ? `<div class="rows">${ps.map(p => personRow(p, true)).join('')}</div>` : nothing()}`;
+  }
+  el.innerHTML = html;
+}
+const nothing = () => `<div class="nothing"><h3>Nothing matches these filters</h3><p>Try removing a filter to see more of this search.</p><button class="btn" data-act="clear">Clear filters</button></div>`;
+
+function renderChrome() {
+  const jd = JOBS.filter(j => S.done.has(j.key)).length, pd = PEOPLE.filter(p => S.done.has(p.key)).length, np = S.pins.size;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><b>${COMPANIES.length}</b><span>companies</span></div>
+    <div class="stat"><b>${JOBS.length}</b><span>jobs · ${jd} applied</span></div>
+    <div class="stat"><b>${PEOPLE.length}</b><span>people · ${pd} connected</span></div>
+    <div class="stat"><b>${np}</b><span>pinned</span></div>`;
+  document.getElementById('seg').innerHTML = [['company', 'By company', COMPANIES.length], ['jobs', 'Jobs', JOBS.length], ['people', 'People', PEOPLE.length]]
+    .map(v => `<button role="tab" data-act="view" data-view="${v[0]}" aria-selected="${S.view === v[0]}">${v[1]}<span class="ct">${v[2]}</span></button>`).join('');
+  document.getElementById('chips').innerHTML = [['pinned', 'Pinned', I.bookmark], ['todo', 'To do', I.circle], ['strong', 'Strong fit, 75+', I.star]]
+    .map(c => `<button class="chipbtn" data-act="chip" data-f="${c[0]}" aria-pressed="${S.f[c[0]]}">${c[2]}${c[1]}</button>`).join('');
+  document.getElementById('prog').innerHTML = [['Applied', jd, JOBS.length, 'var(--applied)'], ['Connected', pd, PEOPLE.length, 'var(--connected)'], ['Pinned', np, COMPANIES.length + JOBS.length + PEOPLE.length, 'var(--pinned)']]
+    .map(r => `<div class="prog-row"><div class="top"><span>${r[0]}</span><span>${r[1]} of ${r[2]}</span></div><div class="bar" role="progressbar" aria-label="${r[0]}" aria-valuemin="0" aria-valuemax="${r[2]}" aria-valuenow="${r[1]}"><i style="width:${r[1] / r[2] * 100}%;--c:${r[3]}"></i></div></div>`).join('');
+  document.getElementById('jump').innerHTML = `<li><a href="#start">Start here</a></li>` + [['company', 'Companies', COMPANIES.length], ['jobs', 'Jobs', JOBS.length], ['people', 'People', PEOPLE.length]]
+    .map(v => `<li><a href="#${v[0] === 'company' ? 'companies' : v[0]}" data-act="view" data-view="${v[0]}">${v[1]}<span>${v[2]}</span></a></li>`).join('');
+  document.querySelectorAll('[data-nav]').forEach(a => {
+    const m = { company: 'companies', jobs: 'jobs', people: 'people' }[S.view];
+    if (a.dataset.nav === m) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  document.getElementById('sort').value = S.sort;
+}
+
+function picks() {
+  const P = [
+    { c: 'var(--job)', pill: '<span class="pill pill-job">' + I.briefcase + 'Job to apply to</span>', t: 'AI Engineer - GTM', sub: 'Tracksuit · New York · $162K-$205K', why: JOBS[0].alignment, k: JOBS[0].key, v: 'jobs', go: 'See this job', sc: 85 },
+    { c: 'var(--company)', pill: '<span class="pill pill-co">' + I.building + 'Company to research</span>', t: 'Two Sigma', sub: '2 jobs · 3 people to contact', why: COMPANIES[1].alignment, k: COMPANIES[1].key, v: 'company', go: 'Open Two Sigma', sc: 79 },
+    { c: 'var(--person)', pill: '<span class="pill pill-per">' + I.user + 'Person to message</span>', t: 'Maya Okafor', sub: 'Engineering Manager, AI Platform · Tracksuit', why: PEOPLE[1].alignment, k: PEOPLE[1].key, v: 'people', go: 'Read the message', sc: 0 }
+  ];
+  document.getElementById('picks').innerHTML = P.map(x => `<article class="pick" style="--c:${x.c}"><div class="k">${x.pill}${x.sc ? fit(x.sc, true) : ''}</div><h3>${x.t}</h3><p class="sub">${x.sub}</p><p class="why">${x.why}</p><button class="go" data-act="goto" data-key="${x.k}" data-view="${x.v}">${x.go} →</button></article>`).join('');
+}
+
+/* ---------- render with focus preservation ---------- */
+function render(popKey) {
+  const a = document.activeElement, sig = a && a.dataset && a.dataset.act ? { act: a.dataset.act, key: a.dataset.key, sub: a.dataset.sub, view: a.dataset.view, f: a.dataset.f } : null;
+  renderChrome(); renderList();
+  if (sig) {
+    const sel = Object.entries(sig).filter(([, v]) => v).map(([k, v]) => `[data-${k === 'act' ? 'act' : k}="${CSS.escape(v)}"]`).join('');
+    const t = document.querySelector((sig.act === 'view' || sig.act === 'chip' ? '.controls ' : '#list ') + sel) || document.querySelector(sel);
+    if (t) t.focus({ preventScroll: true });
+  }
+  if (popKey) document.querySelectorAll(`.pin[data-key="${CSS.escape(popKey)}"]`).forEach(b => b.classList.add('pop'));
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const k = b.dataset.key, act = b.dataset.act;
+  if (act === 'pin') {
+    const was = S.pins.has(k); was ? S.pins.delete(k) : S.pins.add(k); render(k);
+    toast(was ? 'Unpinned' : 'Pinned to your shortlist', () => { was ? S.pins.add(k) : S.pins.delete(k); render(); });
+  } else if (act === 'status') {
+    S.done.has(k) ? S.done.delete(k) : S.done.add(k); render();
+  } else if (act === 'co') { S.open.has(k) ? S.open.delete(k) : S.open.add(k); render(); }
+  else if (act === 'disc') { const id = k + '|' + b.dataset.sub; S.disc.has(id) ? S.disc.delete(id) : S.disc.add(id); render(); }
+  else if (act === 'view') { S.view = b.dataset.view; history.replaceState(null, '', '#' + (S.view === 'company' ? 'companies' : S.view)); render(); if (b.closest('.jump')) { e.preventDefault(); document.getElementById('list').scrollIntoView(); } }
+  else if (act === 'chip') { S.f[b.dataset.f] = !S.f[b.dataset.f]; render(); }
+  else if (act === 'clear') { S.f = { pinned: false, todo: false, strong: false }; render(); }
+  else if (act === 'expand-all') { const cs = visibleCompanies(); const all = cs.every(c => S.open.has(c.key)); cs.forEach(c => all ? S.open.delete(c.key) : S.open.add(c.key)); render(); }
+  else if (act === 'find') { S.finding.add(k); render(); setTimeout(() => { S.finding.delete(k); render(); toast('Search finished. This is a mockup, so no new people were added.'); }, 2200); }
+  else if (act === 'goto') {
+    e.preventDefault(); S.view = b.dataset.view; if (S.view === 'company') S.open.add(k);
+    if (S.view === 'jobs' || S.view === 'people') { S.f = { pinned: false, todo: false, strong: false }; }
+    render(); history.replaceState(null, '', '#' + (S.view === 'company' ? 'companies' : S.view));
+    const t = document.querySelector(`[data-key="${CSS.escape(k)}"].row, [data-key="${CSS.escape(k)}"].co`);
+    if (t) { t.scrollIntoView({ block: 'center' }); t.classList.add('hl'); }
+  }
+  else if (act === 'copy') {
+    const p = PEOPLE.find(x => x.key === k), span = b.querySelector('span');
+    const done = () => { span.textContent = 'Copied'; b.querySelector('svg').outerHTML = I.check; setTimeout(() => { span.textContent = 'Copy message'; b.querySelector('svg').outerHTML = I.copy; }, 1800); };
+    const fb = () => { const t = document.createElement('textarea'); t.value = p.msg; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (_) {} t.remove(); done(); };
+    (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(p.msg).then(done, fb) : fb());
+  }
+});
+document.addEventListener('animationend', (e) => e.target.classList.remove('pop', 'hl'));
+document.getElementById('sort').addEventListener('change', (e) => { S.sort = e.target.value; render(); });
+document.getElementById('lede-btn').addEventListener('click', (e) => {
+  const l = document.getElementById('lede'), c = l.classList.toggle('clamp'); e.target.textContent = c ? 'Read the full summary' : 'Show less'; e.target.setAttribute('aria-expanded', String(!c));
+});
+document.getElementById('k1').innerHTML = I.building; document.getElementById('k2').innerHTML = I.briefcase;
+const h = location.hash.replace('#', ''); if (h === 'jobs' || h === 'people') S.view = h;
+picks(); render();
+</script>
+</body>
+</html>

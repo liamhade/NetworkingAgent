@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Results: Agentic AI and backend roles | Networking Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="results">
+
+<main class="main" id="main">
+<div class="wrap">
+  <div class="crumbs"><a href="search.html">Search</a><span aria-hidden="true">/</span><span>Results</span></div>
+  <div class="head">
+    <div>
+      <h1 id="h1"></h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="chips">
+      <a class="btn" href="search.html">Edit and re-run</a>
+      <a class="btn pri" href="search.html"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg> New search</a>
+    </div>
+  </div>
+
+  <div class="hero-grid">
+    <section class="card summary" aria-labelledby="sum-h">
+      <h2 id="sum-h"><svg class="i sm" aria-hidden="true"><use href="#i-sparkle"/></svg> What the agent found</h2>
+      <p id="sumtxt" class="clamp"></p>
+      <button class="more" id="sumMore" aria-expanded="false">Read full summary</button>
+      <div class="start">
+        <svg class="i lg" style="color:var(--accent)" aria-hidden="true"><use href="#i-arrow"/></svg>
+        <div class="grow"><b>Start here:</b> message <span id="startP"></span> about <span id="startJ"></span> at <span id="startC"></span></div>
+        <button class="btn pri sm" id="startBtn">Draft message</button>
+      </div>
+    </section>
+    <div class="stats" id="stats" role="list" aria-label="Search totals"></div>
+  </div>
+
+  <div class="toolbar" role="toolbar" aria-label="View options">
+    <span class="tb-lab" id="gb">Group by</span>
+    <div class="seg" role="group" aria-labelledby="gb">
+      <button data-group="company" aria-pressed="true"><svg class="i sm" aria-hidden="true"><use href="#i-building"/></svg>Company</button>
+      <button data-group="type" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="#i-list"/></svg>Type</button>
+    </div>
+    <div class="chips" id="filters" role="group" aria-label="Filters">
+      <button class="chip" data-f="hasJob" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-briefcase"/></svg>Has open job</button>
+      <button class="chip" data-f="hasPeople" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>Has contact</button>
+      <button class="chip" data-f="strong" aria-pressed="false">Strong fit 75+</button>
+      <button class="chip" data-f="notApplied" aria-pressed="false">Not applied</button>
+      <button class="chip" data-f="pinned" aria-pressed="false"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Pinned</button>
+    </div>
+    <span class="sp"></span>
+    <label class="tb-lab" for="sort">Sort</label>
+    <select id="sort">
+      <option value="fit">Best fit first</option>
+      <option value="pinned">Pinned first</option>
+      <option value="name">Name A-Z</option>
+      <option value="jobs">Most jobs</option>
+      <option value="people">Most contacts</option>
+    </select>
+  </div>
+
+  <div class="cols">
+    <nav class="index" id="index" aria-label="Jump to company"></nav>
+    <section aria-label="Results">
+      <div class="count-line"><span id="countline" aria-live="polite"></span>
+        <span class="chips" id="expcol"><button class="btn xs ghost" id="expAll"><svg class="i sm" aria-hidden="true"><use href="#i-expand"/></svg>Expand all</button><button class="btn xs ghost" id="colAll"><svg class="i sm" aria-hidden="true"><use href="#i-collapse"/></svg>Collapse all</button></span></div>
+      <div class="list" id="list"></div>
+    </section>
+  </div>
+</div>
+</main>
+
+<!-- connect message drawer -->
+<div class="drawer-scrim" id="dscrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dtitle" tabindex="-1">
+  <header>
+    <span class="pavatar" id="dav" aria-hidden="true"></span>
+    <div class="who"><h2 id="dtitle"></h2><p id="dsub"></p></div>
+    <button class="ibtn" id="dclose" aria-label="Close message panel"><svg class="i lg" aria-hidden="true"><use href="#i-x"/></svg></button>
+  </header>
+  <div class="dbody">
+    <div class="note p"><div class="lab">Why connect</div><span id="dwhy"></span></div>
+    <div class="field"><label for="drole">About which role?</label><select id="drole"></select>
+      <div class="hint">Cross-linking the role makes the note specific and gives them a reason to reply.</div></div>
+    <div class="field"><span class="lbl" id="tl">Tone</span>
+      <div class="seg" role="group" aria-labelledby="tl" id="tones">
+        <button data-tone="warm" aria-pressed="true">Warm</button><button data-tone="short" aria-pressed="false">Short</button><button data-tone="direct" aria-pressed="false">Direct</button></div></div>
+    <div class="field msgbox"><label for="dmsg">Example LinkedIn message</label>
+      <textarea id="dmsg"></textarea>
+      <div class="cc"><span>Edit freely before sending.</span><span class="num" id="dcc"></span></div></div>
+  </div>
+  <div class="dfoot">
+    <button class="btn pri" id="dcopy"><svg class="i" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy message</span></button>
+    <a class="btn" id="dli" href="#" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#i-ext"/></svg>Open LinkedIn</a>
+    <button class="status con" id="dconn" aria-pressed="false"><svg class="i on" aria-hidden="true"><use href="#i-check"/></svg><span class="on">Connected</span><span class="off">Mark as connected</span></button>
+  </div>
+</aside>
+
+<script src="shell.js"></script>
+<script src="data.js"></script>
+<script>
+(function () {
+  var D = DATA, C = D.companies;
+  var S = { group: 'company', open: new Set(['tracksuit']), filters: new Set(), sort: 'fit',
+    pins: new Set(D.init.pins), applied: new Set(D.init.applied), connected: new Set(D.init.connected),
+    notes: new Set(), more: new Set(), finding: new Set(), active: 'tracksuit', dp: null, dj: null, tone: 'warm' };
+  var $ = function (s) { return document.querySelector(s); };
+
+  function findP(id) { for (var i = 0; i < C.length; i++) for (var j = 0; j < C[i].people.length; j++) if (C[i].people[j].id === id) return { p: C[i].people[j], c: C[i] }; }
+  function findJ(c, id) { return c.jobs.filter(function (j) { return j.id === id; })[0]; }
+  function first(n) { return n.split(' ')[0]; }
+  function ini(n) { var p = n.split(' '); return (p[0][0] + (p[p.length - 1][0] || '')).toUpperCase(); }
+  function fitCls(s) { return s >= 80 ? 'strong' : s >= 70 ? 'good' : 'fair'; }
+  function fitLab(s) { return s >= 80 ? 'Strong fit' : s >= 70 ? 'Good fit' : 'Possible fit'; }
+  function sc(s) { return s >= 80 ? 's1' : s >= 70 ? 's2' : ''; }
+  function best(c) { return c.jobs.slice().sort(function (a, b) { return b.score - a.score; })[0]; }
+  function anyPinned(c) { return S.pins.has(c.id) || c.jobs.some(function (j) { return S.pins.has(j.id); }) || c.people.some(function (p) { return S.pins.has(p.id); }); }
+  function visJobs(c) { return S.filters.has('notApplied') ? c.jobs.filter(function (j) { return !S.applied.has(j.id); }) : c.jobs; }
+
+  /* ---------- header ---------- */
+  $('#h1').textContent = D.title;
+  $('#sub').innerHTML = '<span>' + ic('pin2', 'sm') + D.location + '</span><span>' + ic('clock', 'sm') + 'Searched ' + D.when + '</span><span>' + ic('layers', 'sm') + D.boards + '</span>';
+  $('#sumtxt').textContent = D.summary;
+  $('#sumMore').onclick = function () { var t = $('#sumtxt'), o = this.getAttribute('aria-expanded') === 'true'; t.classList.toggle('clamp', o); this.setAttribute('aria-expanded', !o); this.textContent = o ? 'Read full summary' : 'Show less'; };
+  var topC = C[0], topJ = topC.jobs[0], topP = topC.people[0];
+  $('#startP').innerHTML = '<b>' + topP.name + '</b>'; $('#startJ').innerHTML = '<b>' + topJ.title + '</b>'; $('#startC').innerHTML = '<b>' + topC.name + '</b>';
+  $('#startBtn').onclick = function () { openDrawer(topP.id, topJ.id, this); };
+
+  function renderStats() {
+    var nj = 0, np = 0; C.forEach(function (c) { nj += c.jobs.length; np += c.people.length; });
+    var h = '';
+    h += '<div class="card stat co" role="listitem"><span class="n num">' + C.length + '</span><span class="l">Companies</span><span class="s">ranked by fit</span></div>';
+    h += '<div class="card stat job" role="listitem"><span class="n num">' + nj + '</span><span class="l">Open jobs</span><span class="s num">' + S.applied.size + ' applied</span></div>';
+    h += '<div class="card stat per" role="listitem"><span class="n num">' + np + '</span><span class="l">People</span><span class="s num">' + S.connected.size + ' connected</span></div>';
+    h += '<div class="card stat pin" role="listitem"><span class="n num">' + S.pins.size + '</span><span class="l">Pinned</span><span class="s">your shortlist</span></div>';
+    $('#stats').innerHTML = h;
+  }
+
+  /* ---------- data selection ---------- */
+  function visible() {
+    var f = S.filters;
+    var l = C.filter(function (c) {
+      if (f.has('hasJob') && !c.jobs.length) return false;
+      if (f.has('hasPeople') && !c.people.length) return false;
+      if (f.has('strong') && c.score < 75) return false;
+      if (f.has('pinned') && !anyPinned(c)) return false;
+      if (f.has('notApplied') && !visJobs(c).length) return false;
+      return true;
+    });
+    var cmp = { fit: function (a, b) { return b.score - a.score; },
+      pinned: function (a, b) { return (anyPinned(b) ? 1 : 0) - (anyPinned(a) ? 1 : 0) || b.score - a.score; },
+      name: function (a, b) { return a.name.localeCompare(b.name); },
+      jobs: function (a, b) { return b.jobs.length - a.jobs.length || b.score - a.score; },
+      people: function (a, b) { return b.people.length - a.people.length || b.score - a.score; } }[S.sort];
+    return l.sort(cmp);
+  }
+  function rankOf(c) { return C.indexOf(c) + 1; }
+
+  /* ---------- pieces ---------- */
+  function pinBtn(id, name) {
+    var on = S.pins.has(id);
+    return '<button class="ibtn pin" data-pin="' + id + '" data-k="pin-' + id + '" aria-pressed="' + on + '" aria-label="Pin ' + esc(name) + '" title="' + (on ? 'Unpin' : 'Pin') + '">' + ic('pin') + '</button>';
+  }
+  function statusBtn(kind, id, name) {
+    var on = (kind === 'app' ? S.applied : S.connected).has(id);
+    var lab = kind === 'app' ? ['Mark applied', 'Applied'] : ['Mark connected', 'Connected'];
+    return '<button class="status ' + kind + '" data-st="' + kind + ':' + id + '" data-k="st-' + id + '" aria-pressed="' + on + '" aria-label="' + lab[0] + ': ' + esc(name) + '">' +
+      ic('check', 'on') + '<span class="on">' + lab[1] + '</span><span class="off">' + lab[0] + '</span></button>';
+  }
+  function jobRow(j, c, tag) {
+    var key = 'j:' + j.id, open = S.notes.has(key), pinned = S.pins.has(j.id), done = S.applied.has(j.id);
+    var ppl = c.people.filter(function (p) { return p.about === j.id; });
+    if (!ppl.length) ppl = c.people.slice(0, 1);
+    var cross = '';
+    if (ppl.length) {
+      cross = '<div class="crosslink"><span class="avs" aria-hidden="true">' + ppl.slice(0, 3).map(function (p) { return '<span class="pavatar">' + ini(p.name) + '</span>'; }).join('') + '</span>' +
+        '<button class="xlink per" data-msg="' + ppl[0].id + ':' + j.id + '" data-k="x-' + j.id + '">Message ' + esc(first(ppl[0].name)) + (ppl.length > 1 ? ' or ' + (ppl.length - 1) + ' other' + (ppl.length > 2 ? 's' : '') : '') + ' about this role ' + ic('arrow') + '</button></div>';
+    } else {
+      cross = '<div class="crosslink"><button class="xlink per" data-find="' + c.id + '" data-k="xf-' + j.id + '">' + ic('users') + 'Find people at ' + esc(c.name) + ' to ask about this role</button></div>';
+    }
+    return '<li class="row' + (pinned ? ' pinned' : '') + (done ? ' done' : '') + '"><div class="rtop"><div class="rmain">' +
+      '<a class="rtitle" href="' + j.url + '" target="_blank" rel="noopener">' + esc(j.title) + ic('ext') + '<span class="sr"> (opens job posting)</span></a>' +
+      '<div class="rmeta">' + (tag ? '<button class="cotag" data-goco="' + c.id + '">' + ic('building') + esc(c.name) + '</button>' : '') +
+      '<span>' + ic('pin2', 'sm') + esc(j.loc) + '</span>' + (j.sal ? '<span class="sal">' + j.sal + '</span>' : '') +
+      '<span class="score num ' + sc(j.score) + '" title="Match score">' + j.score + ' match</span></div></div>' + pinBtn(j.id, j.title) + '</div>' +
+      '<div class="ract">' + statusBtn('app', j.id, j.title) +
+      '<button class="disc" data-note="' + key + '" data-k="n-' + key + '" aria-expanded="' + open + '">How you align ' + ic('chevron') + '</button></div>' +
+      '<div class="note"' + (open ? '' : ' hidden') + '><div class="lab">How you align</div>' + esc(j.align) +
+      '<div class="acts"><button class="xlink" data-find="' + c.id + '">' + ic('users') + 'Find people for this role</button></div></div>' + cross + '</li>';
+  }
+  function personRow(p, c, tag) {
+    var key = 'p:' + p.id, open = S.notes.has(key), pinned = S.pins.has(p.id), done = S.connected.has(p.id);
+    var j = findJ(c, p.about) || c.jobs[0];
+    return '<li class="row' + (pinned ? ' pinned' : '') + (done ? ' done' : '') + '"><div class="rtop"><span class="pavatar" aria-hidden="true">' + ini(p.name) + '</span><div class="rmain">' +
+      '<a class="rtitle" href="#" target="_blank" rel="noopener">' + esc(p.name) + ic('ext') + '<span class="sr"> (opens LinkedIn profile)</span></a>' +
+      '<div class="rmeta">' + (tag ? '<button class="cotag" data-goco="' + c.id + '">' + ic('building') + esc(c.name) + '</button>' : '') + '<span>' + esc(p.title) + '</span></div></div>' + pinBtn(p.id, p.name) + '</div>' +
+      '<div class="ract">' + statusBtn('con', p.id, p.name) +
+      '<button class="disc" data-note="' + key + '" data-k="n-' + key + '" aria-expanded="' + open + '">Why connect ' + ic('chevron') + '</button></div>' +
+      '<div class="note p"' + (open ? '' : ' hidden') + '><div class="lab">Why connect</div>' + esc(p.align) + '</div>' +
+      '<div class="crosslink"><button class="xlink per" data-msg="' + p.id + ':' + (j ? j.id : '') + '" data-k="m-' + p.id + '">' + ic('send') + 'Message ' + esc(first(p.name)) + (j ? ' about ' + esc(j.title) : '') + ' ' + ic('arrow') + '</button></div></li>';
+  }
+  function findBtn(c) {
+    var busy = S.finding.has(c.id);
+    return '<button class="btn sm" data-find="' + c.id + '" data-k="f-' + c.id + '"' + (busy ? ' disabled' : '') + '>' + (busy ? '<span class="spin"></span>Searching LinkedIn…' : ic('users') + (c.people.length ? 'Find more people' : 'Find people to connect with')) + '</button>' +
+      (busy ? '<span class="hint" style="font-size:13px;color:var(--text2)">Usually 1 to 2 minutes</span>' : '');
+  }
+  function limited(list, key, n) {
+    var all = S.more.has(key); return { items: all ? list : list.slice(0, n), hidden: all ? 0 : Math.max(0, list.length - n) };
+  }
+  function companyPanel(c) {
+    var open = S.open.has(c.id), jobs = visJobs(c), b = best(c), pinned = anyPinned(c), fc = fitCls(c.score);
+    var nApplied = c.jobs.filter(function (j) { return S.applied.has(j.id); }).length;
+    var head = '<div class="chead"><h3><button class="ctoggle" data-toggle="' + c.id + '" data-k="t-' + c.id + '" aria-expanded="' + open + '" aria-controls="body-' + c.id + '" aria-label="' + esc(c.name) + ', fit ' + c.score + ', ' + c.jobs.length + ' jobs, ' + c.people.length + ' people">' +
+      '<span class="co-ico">' + ic('building', 'lg') + '</span>' +
+      '<span><span class="cname"><span class="cn">' + esc(c.name) + '</span><span class="rank num">#' + rankOf(c) + '</span>' + (anyPinned(c) && !S.pins.has(c.id) ? '<span class="pill pin">' + ic('pin', 'sm') + 'Pinned item</span>' : '') + '</span>' +
+      '<span class="cdesc">' + esc(c.desc) + '</span>' +
+      (b ? '<span class="cbest">' + ic('briefcase', 'sm') + '<span class="bt">Best match: <b>' + esc(b.title) + '</b></span><span class="score num ' + sc(b.score) + '">' + b.score + '</span></span>' : '') + '</span>' +
+      '<span class="cmeta"><span class="counts">' +
+      '<span class="pill job">' + ic('briefcase', 'sm') + c.jobs.length + ' job' + (c.jobs.length === 1 ? '' : 's') + '</span>' +
+      (c.people.length ? '<span class="pill per">' + ic('users', 'sm') + c.people.length + ' people</span>' : '<span class="pill neu">No contacts yet</span>') + '</span>' +
+      '<span class="fit ' + fc + '"><b class="num">' + c.score + '</b><span class="bar"><i style="width:' + c.score + '%"></i></span><small>' + fitLab(c.score) + '</small></span></span>' +
+      ic('chevron', 'chev') + '</button></h3>' + pinBtn(c.id, c.name) + '</div>';
+    var body = '';
+    if (open) {
+      var nk = 'c:' + c.id, no = S.notes.has(nk);
+      var jl = limited(jobs, 'j' + c.id, 3), pl = limited(c.people, 'p' + c.id, 3);
+      body = '<div class="aligned">' + ic('sparkle') + '<div><div class="lab">How you align</div><p class="' + (no ? '' : 'clamp') + '">' + esc(c.align) + '</p>' +
+        '<button class="more" data-note="' + nk + '" data-k="n-' + nk + '" aria-expanded="' + no + '">' + (no ? 'Show less' : 'Read more') + '</button></div></div>' +
+        '<div class="two">' +
+        '<section class="pane jobs" aria-label="Jobs at ' + esc(c.name) + '"><header><h4>' + ic('briefcase') + 'Open jobs <span class="c num">' + jobs.length + '</span></h4>' + (nApplied ? '<span class="pill app num">' + nApplied + ' applied</span>' : '') + '</header>' +
+        (jobs.length ? '<ul class="rows">' + jl.items.map(function (j) { return jobRow(j, c); }).join('') + '</ul>' : '<div class="empty">No matching jobs' + (S.filters.has('notApplied') ? ' left to apply to.' : ' found.') + '</div>') +
+        (jl.hidden ? '<footer><button class="btn xs" data-more="j' + c.id + '" data-k="mj-' + c.id + '">Show ' + jl.hidden + ' more job' + (jl.hidden > 1 ? 's' : '') + ' ' + ic('chevron', 'sm') + '</button></footer>' : '') + '</section>' +
+        '<section class="pane people" aria-label="People at ' + esc(c.name) + '"><header><h4>' + ic('users') + 'People to connect with <span class="c num">' + c.people.length + '</span></h4></header>' +
+        (c.people.length ? '<ul class="rows">' + pl.items.map(function (p) { return personRow(p, c); }).join('') + '</ul>' :
+          '<div class="empty"><span>' + (c.searched ? 'No current employees found yet.' : 'You have not searched for contacts here yet.') + '</span></div>') +
+        '<footer>' + (pl.hidden ? '<button class="btn xs" data-more="p' + c.id + '" data-k="mp-' + c.id + '">Show ' + pl.hidden + ' more people ' + ic('chevron', 'sm') + '</button>' : '') + findBtn(c) + '</footer></section></div>';
+    }
+    return '<article class="co-panel' + (pinned ? ' pinned' : '') + '" id="co-' + c.id + '" data-open="' + open + '">' + head +
+      (open ? '<div class="cbody" id="body-' + c.id + '">' + body + '</div>' : '') + '</article>';
+  }
+  function typeView(cs) {
+    var jobs = [], people = [];
+    cs.forEach(function (c) { visJobs(c).forEach(function (j) { jobs.push([j, c]); }); c.people.forEach(function (p) { people.push([p, c]); }); });
+    jobs.sort(function (a, b) { return b[0].score - a[0].score; });
+    var h = '<section class="tsec" id="t-companies"><h2 style="color:var(--co-d)">' + ic('building', 'lg') + 'Companies <span class="c pill co num">' + cs.length + '</span></h2><div class="list">' +
+      cs.map(function (c) { return '<div class="co-panel' + (anyPinned(c) ? ' pinned' : '') + '"><div class="chead"><button class="ctoggle" data-goco="' + c.id + '" aria-label="Open ' + esc(c.name) + ' in company view"><span class="co-ico">' + ic('building', 'lg') + '</span><span><span class="cname"><span class="cn">' + esc(c.name) + '</span><span class="rank num">#' + rankOf(c) + '</span></span><span class="cdesc">' + esc(c.desc) + '</span></span><span class="cmeta"><span class="counts"><span class="pill job">' + c.jobs.length + (c.jobs.length === 1 ? ' job' : ' jobs') + '</span><span class="pill ' + (c.people.length ? 'per' : 'neu') + '">' + (c.people.length ? c.people.length + ' people' : 'No contacts yet') + '</span></span><span class="fit ' + fitCls(c.score) + '"><b class="num">' + c.score + '</b><span class="bar"><i style="width:' + c.score + '%"></i></span><small>' + fitLab(c.score) + '</small></span></span>' + ic('arrow', 'chev') + '</button>' + pinBtn(c.id, c.name) + '</div></div>'; }).join('') + '</div></section>' +
+      '<section class="tsec" id="t-jobs"><h2 style="color:var(--job-d)">' + ic('briefcase', 'lg') + 'Jobs <span class="c pill job num">' + jobs.length + '</span></h2><div class="tcard"><ul class="rows">' + jobs.map(function (x) { return jobRow(x[0], x[1], true); }).join('') + '</ul></div></section>' +
+      '<section class="tsec" id="t-people"><h2 style="color:var(--per-d)">' + ic('users', 'lg') + 'People <span class="c pill per num">' + people.length + '</span></h2><div class="tcard"><ul class="rows">' + people.map(function (x) { return personRow(x[0], x[1], true); }).join('') + '</ul></div></section>';
+    return h;
+  }
+
+  function renderIndex(cs) {
+    if (S.group === 'type') {
+      $('#index').innerHTML = '<h2>Jump to</h2><ol>' + [['companies', 'building', 'Companies', cs.length], ['jobs', 'briefcase', 'Jobs'], ['people', 'users', 'People']].map(function (x) {
+        return '<li><button data-jumpt="' + x[0] + '"><span class="rk">' + ic(x[1], 'sm') + '</span><span class="nm">' + x[2] + '</span></button></li>'; }).join('') + '</ol>';
+      return;
+    }
+    $('#index').innerHTML = '<h2>Jump to company</h2><ol>' + cs.map(function (c) {
+      return '<li><button data-jump="' + c.id + '"' + (S.active === c.id ? ' aria-current="true"' : '') + '><span class="rk num">' + rankOf(c) + '</span><span class="nm">' + esc(c.name) + '</span>' +
+        (anyPinned(c) ? '<span class="pn" title="Has pinned items">' + ic('pin') + '</span>' : '') + '<span class="sc num">' + c.score + '</span></button></li>'; }).join('') + '</ol>' +
+      '<div class="legend"><span><b class="num" style="color:var(--text2)">82</b> fit score out of 100</span><span><i class="pill job" style="padding:0 7px">jobs</i><i class="pill per" style="padding:0 7px">people</i></span></div>';
+  }
+
+  function render() {
+    var fk = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.k : null;
+    var cs = visible(), nj = 0, np = 0; cs.forEach(function (c) { nj += visJobs(c).length; np += c.people.length; });
+    $('#countline').textContent = 'Showing ' + cs.length + ' of ' + C.length + ' companies · ' + nj + ' jobs · ' + np + ' people';
+    $('#expcol').style.display = S.group === 'company' ? '' : 'none';
+    renderStats(); renderIndex(cs);
+    var L = $('#list');
+    if (!cs.length) L.innerHTML = '<div class="card empty" style="padding:30px;align-items:center;text-align:center"><b style="font:800 18px var(--head)">No companies match these filters</b><span>Try removing a filter to see the rest of your results.</span><button class="btn pri sm" id="clear">Clear filters</button></div>';
+    else L.innerHTML = S.group === 'company' ? cs.map(companyPanel).join('') : typeView(cs);
+    document.querySelectorAll('#filters .chip').forEach(function (b) { b.setAttribute('aria-pressed', S.filters.has(b.dataset.f)); });
+    document.querySelectorAll('[data-group]').forEach(function (b) { b.setAttribute('aria-pressed', S.group === b.dataset.group); });
+    if (fk) { var el = document.querySelector('[data-k="' + fk + '"]'); if (el) el.focus({ preventScroll: true }); }
+    if (S.dp) syncDrawerState();
+  }
+
+  function jump(id) {
+    S.group = 'company'; S.open.add(id); S.active = id; render();
+    var el = document.getElementById('co-' + id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('button,a'); if (!t) return;
+    var d = t.dataset;
+    if (d.toggle) { S.open.has(d.toggle) ? S.open.delete(d.toggle) : S.open.add(d.toggle); S.active = d.toggle; render(); }
+    else if (d.pin) {
+      var was = S.pins.has(d.pin); was ? S.pins.delete(d.pin) : S.pins.add(d.pin); render();
+      var b = document.querySelector('[data-pin="' + d.pin + '"]'); if (b && !was) { b.classList.add('pop'); }
+      var nm = (C.filter(function (c) { return c.id === d.pin; })[0] || {}).name || 'item';
+      toast((was ? 'Unpinned ' : 'Pinned ') + nm, function () { was ? S.pins.add(d.pin) : S.pins.delete(d.pin); render(); });
+    }
+    else if (d.st) { var p = d.st.split(':'), set = p[0] === 'app' ? S.applied : S.connected; set.has(p[1]) ? set.delete(p[1]) : set.add(p[1]); render(); }
+    else if (d.note) { S.notes.has(d.note) ? S.notes.delete(d.note) : S.notes.add(d.note); render(); }
+    else if (d.more) { S.more.add(d.more); render(); }
+    else if (d.jump) { jump(d.jump); }
+    else if (d.jumpt) { var el = document.getElementById('t-' + d.jumpt); if (el) el.scrollIntoView({ behavior: 'smooth' }); }
+    else if (d.goco) { jump(d.goco); }
+    else if (d.msg) { var q = d.msg.split(':'); openDrawer(q[0], q[1], t); }
+    else if (d.find) {
+      var c = C.filter(function (x) { return x.id === d.find; })[0]; S.open.add(c.id); S.finding.add(c.id); render();
+      setTimeout(function () { S.finding.delete(c.id); render(); toast('Search for people at ' + c.name + ' finished. (Mockup: no new results)'); }, 2600);
+    }
+    else if (t.id === 'clear') { S.filters.clear(); render(); }
+    else if (t.id === 'expAll') { visible().forEach(function (c) { S.open.add(c.id); }); render(); }
+    else if (t.id === 'colAll') { S.open.clear(); render(); }
+  });
+  document.querySelectorAll('[data-group]').forEach(function (b) { b.onclick = function () { S.group = b.dataset.group; render(); window.scrollTo({ top: 0 }); }; });
+  document.querySelectorAll('#filters .chip').forEach(function (b) { b.onclick = function () { S.filters.has(b.dataset.f) ? S.filters.delete(b.dataset.f) : S.filters.add(b.dataset.f); render(); }; });
+  $('#sort').onchange = function () { S.sort = this.value; render(); };
+  window.addEventListener('scroll', function () {
+    if (S.group !== 'company') return;
+    var cur = null; document.querySelectorAll('.co-panel[id]').forEach(function (a) { if (a.getBoundingClientRect().top < 220) cur = a.id.slice(3); });
+    if (cur && cur !== S.active) { S.active = cur; document.querySelectorAll('[data-jump]').forEach(function (b) { b.toggleAttribute('aria-current', b.dataset.jump === cur); if (b.dataset.jump === cur) b.setAttribute('aria-current', 'true'); }); }
+  }, { passive: true });
+
+  /* ---------- drawer ---------- */
+  var dr = $('#drawer'), dsc = $('#dscrim'), lastFocus = null;
+  function buildMsg(p, c, j, tone) {
+    var f = first(p.name), role = j ? 'the ' + j.title + ' role' : null;
+    if (tone === 'short') return 'Hi ' + f + ', I’m a software engineer building LLM agents at Dover' + (role ? ' and I’m interested in ' + role + ' at ' + c.name : ' and I admire ' + c.name + '’s work') + '. I’d love to connect.';
+    if (tone === 'direct') return 'Hi ' + f + ', I’m a software engineer at Dover (LLM agents, MCP, Python). ' + (role ? 'I’m applying for ' + role + ' at ' + c.name + ' and' : 'I’m exploring ' + c.name + ' and') + ' would value 10 minutes of your perspective. Open to connecting?';
+    return 'Hi ' + f + ', I’m a software engineer building LLM agents and custom MCPs at Dover. ' + (role ? 'I noticed ' + role + ' at ' + c.name + '. ' : '') + p.hook + ' I’d love to connect.';
+  }
+  function setMsg() { var r = findP(S.dp); var j = S.dj ? findJ(r.c, S.dj) : null; $('#dmsg').value = buildMsg(r.p, r.c, j, S.tone); count(); }
+  function count() { var n = $('#dmsg').value.length; $('#dcc').innerHTML = '<span class="' + (n > 300 ? 'over' : '') + '">' + n + ' / 300</span> characters'; }
+  function syncDrawerState() { $('#dconn').setAttribute('aria-pressed', S.connected.has(S.dp)); }
+  function openDrawer(pid, jid, from) {
+    var r = findP(pid); S.dp = pid; S.dj = jid || ''; S.tone = 'warm'; lastFocus = from || document.activeElement;
+    $('#dav').textContent = ini(r.p.name); $('#dtitle').textContent = 'Message ' + r.p.name; $('#dsub').textContent = r.p.title + ' at ' + r.c.name;
+    $('#dwhy').textContent = r.p.align;
+    $('#drole').innerHTML = '<option value="">General interest in ' + esc(r.c.name) + '</option>' + r.c.jobs.map(function (j) { return '<option value="' + j.id + '">' + esc(j.title) + '</option>'; }).join('');
+    $('#drole').value = S.dj;
+    document.querySelectorAll('#tones button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.tone === 'warm'); });
+    $('#dli').href = '#'; setMsg(); syncDrawerState();
+    $('#dcopy span').textContent = 'Copy message';
+    dr.classList.add('open'); dsc.classList.add('open'); document.body.style.overflow = 'hidden'; $('#dclose').focus();
+  }
+  function closeDrawer() { dr.classList.remove('open'); dsc.classList.remove('open'); document.body.style.overflow = ''; S.dp = null; if (lastFocus && lastFocus.focus) { var k = lastFocus.dataset && lastFocus.dataset.k; var el = k ? document.querySelector('[data-k="' + k + '"]') : lastFocus; (el || lastFocus).focus(); } }
+  $('#dclose').onclick = closeDrawer; dsc.onclick = closeDrawer;
+  $('#drole').onchange = function () { S.dj = this.value; setMsg(); };
+  document.querySelectorAll('#tones button').forEach(function (b) { b.onclick = function () { S.tone = b.dataset.tone; document.querySelectorAll('#tones button').forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); setMsg(); }; });
+  $('#dmsg').oninput = count;
+  $('#dconn').onclick = function () { S.connected.has(S.dp) ? S.connected.delete(S.dp) : S.connected.add(S.dp); render(); toast(S.connected.has(S.dp) ? 'Marked as connected' : 'Marked as not connected'); };
+  $('#dcopy').onclick = function () {
+    var ta = $('#dmsg'), lab = this.querySelector('span'), btn = this;
+    function ok() { lab.textContent = 'Copied!'; btn.querySelector('use').setAttribute('href', '#i-check'); setTimeout(function () { lab.textContent = 'Copy message'; btn.querySelector('use').setAttribute('href', '#i-copy'); }, 2000); toast('Message copied to clipboard'); }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(ta.value).then(ok, function () { ta.select(); document.execCommand('copy'); ok(); });
+    else { ta.select(); try { document.execCommand('copy'); } catch (e) {} ok(); }
+  };
+  document.addEventListener('keydown', function (e) {
+    if (!dr.classList.contains('open')) return;
+    if (e.key === 'Escape') closeDrawer();
+    if (e.key === 'Tab') { var f = dr.querySelectorAll('button,a[href],select,textarea'); var a = f[0], z = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); } }
+  });
+
+  render();
+  if (/^#co-/.test(location.hash)) jump(location.hash.slice(4));
+})();
+</script>
+</body>
+</html>

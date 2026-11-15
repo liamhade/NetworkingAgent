@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Library · Networking Agent (Pipeline)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side" aria-label="Previous searches"></aside>
+  <div class="main">
+    <nav class="nav" id="nav" aria-label="Main"></nav>
+    <main class="page">
+      <div class="lib-head"><h1 id="h"></h1><span class="pill p-applied tnum" id="stat"></span><span class="grow" style="flex:1"></span>
+        <label class="sr" for="sort">Sort</label><select class="sel" id="sort"><option>Most recent</option><option>Pinned first</option><option>Name A–Z</option></select></div>
+      <p style="color:var(--text2);margin:6px 0 16px;font-weight:500" id="blurb"></p>
+      <div class="rows" id="rows"></div>
+    </main>
+  </div>
+</div>
+<script src="data.js"></script>
+<script src="shell.js"></script>
+<script>
+  const type = new URLSearchParams(location.search).get('type') || 'jobs';
+  NA.shell({ active: null, nav: type });
+  const seen = ['Agentic AI roles · NYC', 'Platform engineer at climate startups', 'Quant developer'];
+  let items = [];
+  NA.COMPANIES.forEach(c => {
+    if (type === 'companies') items.push({ t: c.name, m: c.desc, fit: c.score, co: '', pill: c.jobs.length + ' jobs · ' + c.people.length + ' people', pinned: c.pinned });
+    if (type === 'jobs') c.jobs.forEach(j => items.push({ t: j.title, m: [c.name, j.loc, j.sal && '$' + j.sal].filter(Boolean).join(' · '), fit: j.score, pinned: j.pinned, done: j.done }));
+    if (type === 'people') c.people.forEach(p => items.push({ t: p.name, m: p.title + ' · ' + c.name, pinned: p.pinned, done: p.done }));
+  });
+  const meta = { companies: ['Companies', 'building', 'company', 'Every company the agent has surfaced across your searches.'], jobs: ['Jobs', 'briefcase', 'job', 'All openings across searches. Mark the ones you applied to.'], people: ['People', 'user', 'person', 'Everyone worth a message. Mark who you have connected with.'] }[type];
+  document.getElementById('h').textContent = meta[0]; document.getElementById('blurb').textContent = meta[3];
+  function draw() {
+    const s = document.getElementById('sort').value;
+    items.sort((a, b) => s === 'Name A–Z' ? a.t.localeCompare(b.t) : s === 'Pinned first' ? (!!b.pinned - !!a.pinned) : 0);
+    const n = items.filter(i => i.done).length;
+    document.getElementById('stat').textContent = type === 'companies' ? items.length + ' companies' : n + '/' + items.length + (type === 'jobs' ? ' applied' : ' connected');
+    document.getElementById('rows').innerHTML = items.map((i, k) => '<div class="lib-row"><span class="ico ' + meta[2] + '">' + ic(meta[1]) + '</span><div style="min-width:0"><strong>' + i.t + '</strong><div class="m" style="font-size:13px;color:var(--text2)">' + i.m + '</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><span style="font-size:12px;color:var(--text2);font-weight:600">Seen in</span>' + seen.slice(0, 1 + k % 3).map(x => '<a class="pill p-alt" href="results.html">' + x + '</a>').join('') + '</div></div>' +
+      '<div class="card-foot" style="margin:0">' + (i.fit ? '<span class="fit ' + (i.fit >= 75 ? 'hi' : i.fit >= 65 ? 'mid' : 'lo') + '">Fit ' + i.fit + '</span>' : '') + (i.pill ? '<span class="pill p-alt">' + i.pill + '</span>' : '') +
+      (type !== 'companies' ? '<button class="st ' + meta[2] + '" data-k="' + k + '" aria-pressed="' + !!i.done + '">' + (i.done ? '✓ ' : 'Mark ') + (type === 'jobs' ? 'applied' : 'connected') + '</button>' : '') +
+      '<button class="pin" data-p="' + k + '" aria-pressed="' + !!i.pinned + '" aria-label="Pin ' + i.t + '">' + ic('pin') + '</button></div></div>').join('');
+  }
+  document.getElementById('rows').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.k) items[+b.dataset.k].done = !items[+b.dataset.k].done;
+    if (b.dataset.p) items[+b.dataset.p].pinned = !items[+b.dataset.p].pinned;
+    draw();
+  });
+  document.getElementById('sort').onchange = draw; draw();
+</script>
+</body>
+</html>

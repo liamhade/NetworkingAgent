@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Library · Networking Agent (Command Center)</title>
+<link rel="stylesheet" href="styles.css">
+<script>try{var t=localStorage.getItem('cc-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body data-page="library" data-density="comfortable">
+<div class="app">
+  <header class="topbar" id="topbar"></header>
+  <div class="body">
+    <aside class="side" id="side" aria-label="Previous searches"></aside>
+    <main class="page-scroll">
+      <div class="lib">
+        <div class="ctx-row" style="align-items:flex-end">
+          <div><h1 id="h" style="font-size:26px"></h1><p class="muted" id="blurb" style="margin:4px 0 0"></p></div>
+          <div class="ctx-actions"><label class="sr-only" for="sort">Sort</label><select class="sel" id="sort"></select></div>
+        </div>
+        <div style="overflow-x:auto"><table class="tbl" id="tbl"></table></div>
+      </div>
+    </main>
+  </div>
+</div>
+<div class="scrim" id="scrim"></div>
+<script src="data.js"></script>
+<script src="shell.js"></script>
+<script>
+(function(){
+  const {esc, icon} = CC, S = CC.state, D = DATA;
+  const t = new URLSearchParams(location.search).get('t') || 'companies';
+  const initials = n => n.split(' ').slice(0,2).map(w=>w[0]).join('');
+  const seen = '<a class="mini-link" href="results.html">Software engineering roles, particularly...</a>';
+  const cfg = {
+    companies: { h:'Companies', blurb:'Every company the agent has surfaced across your searches.', items:D.companies, sorts:['Most recent','Pinned first','Name A-Z','Most jobs'] },
+    jobs: { h:'Jobs', blurb:'', items:D.jobs, sorts:['Most recent','Pinned first','Applied first','Not applied first','Company A-Z'] },
+    people: { h:'People', blurb:'', items:D.people, sorts:['Most recent','Pinned first','Connected first','Not connected first','Company A-Z'] }
+  }[t];
+  document.getElementById('h').textContent = cfg.h;
+  const ap = D.jobs.filter(j=>S.applied[j.key]).length, cn = D.people.filter(p=>S.connected[p.key]).length;
+  document.getElementById('blurb').textContent = t==='jobs' ? ap+'/'+D.jobs.length+' applied · across all searches' : t==='people' ? cn+'/'+D.people.length+' connected · across all searches' : cfg.blurb;
+  document.getElementById('sort').innerHTML = cfg.sorts.map(s=>'<option>Sort: '+s+'</option>').join('');
+  const pin = x => '<button class="icon-btn pin" data-pin="'+x.key+'" aria-pressed="'+!!S.pins[x.key]+'" aria-label="Pin '+esc(x.name||x.title)+'">'+icon('pin')+'</button>';
+  const st = (x,job) => { const on = job ? S.applied[x.key] : S.connected[x.key]; return on ? '<button class="pill '+(job?'s-applied':'s-connected')+'" data-st="'+x.key+'" aria-pressed="true">'+icon('check')+(job?'Applied':'Connected')+'</button>' : '<button class="btn sm" data-st="'+x.key+'" aria-pressed="false">'+(job?'Mark applied':'Mark connected')+'</button>'; };
+  function render(){
+    const th = {companies:['Company','Fit','Jobs','People','Seen in',''], jobs:['Job','Company','Location','Salary','Match','Status',''], people:['Person','Title','Company','Status','']}[t];
+    const rows = cfg.items.map(x=>{
+      if(t==='companies') return '<tr><td><span class="c-company" style="display:flex;gap:10px;align-items:center"><span class="chip-icon">'+icon('building')+'</span><strong>'+esc(x.name)+'</strong></span></td><td class="num"><strong>'+x.score+'</strong></td><td class="num">'+D.jobs.filter(j=>j.company===x.name).length+'</td><td class="num">'+D.people.filter(p=>p.company===x.name).length+'</td><td class="seen hide-m">'+seen+'</td><td>'+pin(x)+'</td></tr>';
+      if(t==='jobs') return '<tr><td><strong>'+esc(x.title)+'</strong></td><td>'+esc(x.company)+'</td><td class="hide-m muted">'+esc(x.location)+'</td><td class="hide-m muted">'+esc(x.salary||'n/a')+'</td><td class="num"><strong>'+x.score+'</strong></td><td>'+st(x,true)+'</td><td>'+pin(x)+'</td></tr>';
+      return '<tr><td><span class="c-person" style="display:flex;gap:10px;align-items:center"><span class="avatar">'+initials(x.name)+'</span><strong>'+esc(x.name)+'</strong></span></td><td class="muted">'+esc(x.title||'Title not listed')+'</td><td>'+esc(x.company)+'</td><td>'+st(x,false)+'</td><td>'+pin(x)+'</td></tr>';
+    }).join('');
+    document.getElementById('tbl').innerHTML = '<thead><tr>'+th.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody>';
+  }
+  document.addEventListener('click', e=>{
+    const p=e.target.closest('[data-pin]'), s=e.target.closest('[data-st]');
+    if(p){ S.pins[p.dataset.pin] ? delete S.pins[p.dataset.pin] : S.pins[p.dataset.pin]=1; CC.persist(); render(); }
+    if(s){ const m = s.dataset.st.startsWith('job') ? S.applied : S.connected; m[s.dataset.st] ? delete m[s.dataset.st] : m[s.dataset.st]=1; CC.persist(); render(); }
+  });
+  render();
+})();
+</script>
+</body>
+</html>

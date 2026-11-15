@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>New search | Networking Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="search">
+<main class="main" id="main">
+<div class="wrap">
+  <section class="banner">
+    <h1>Find the people behind the job.</h1>
+    <p>Tell the agent what you want. It returns companies worth your time, the jobs open there, and the people to message first.</p>
+    <div class="trio"><span><svg class="i" aria-hidden="true"><use href="#i-building"/></svg>Companies</span><span><svg class="i" aria-hidden="true"><use href="#i-briefcase"/></svg>Jobs</span><span><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>People</span></div>
+  </section>
+
+  <div class="sgrid">
+    <form class="card form" id="form" novalidate>
+      <div>
+        <h2>Start from your resume <span class="pill neu" style="vertical-align:middle;margin-left:6px">Optional</span></h2>
+        <p style="color:var(--text2);font-size:14px;margin:4px 0 12px">Upload a PDF and we fill in your background for you.</p>
+        <div class="savedres" id="saved">
+          <svg class="i" aria-hidden="true"><use href="#i-check"/></svg><span>resume_liam.pdf saved</span><span class="sp"></span>
+          <button type="button" class="btn xs">Download</button><button type="button" class="btn xs" id="replace">Replace</button><button type="button" class="btn xs danger" id="rm">Remove</button>
+        </div>
+        <div class="drop" id="drop" hidden><span class="ic"><svg class="i lg" aria-hidden="true"><use href="#i-upload"/></svg></span><div style="flex:1"><b>Drop a PDF here</b><p>or choose a file, up to 5 MB</p></div><button type="button" class="btn sm" id="pick">Choose file</button></div>
+      </div>
+
+      <div class="field"><label for="bg">Your background <span class="req" aria-hidden="true">*</span><span class="sr">(required)</span></label>
+        <textarea id="bg" rows="4" required>I am a Software Engineer at Dover Corporation since November 2025, building an agentic chat interface with self-hosted LLMs and custom MCP servers. Before that I optimized graph-based runtimes (2.3x speedup) and built a DSCSA-compliant pharmaceutical database. Strongest in Python and C++.</textarea>
+        <div class="hint">Role, skills and the projects you are proudest of. <span id="saveHint">Draft auto-saved.</span></div></div>
+
+      <div class="field"><label for="loc">Location</label><input type="text" id="loc" value="New York, NY"></div>
+
+      <div class="field"><label for="lf">What you are looking for <span class="req" aria-hidden="true">*</span><span class="sr">(required)</span></label>
+        <textarea id="lf" rows="3" required>Software engineering roles, particularly in agentic AI, LLM applications, and backend or data infrastructure. Python or C++ oriented would be ideal.</textarea></div>
+
+      <details class="boards">
+        <summary><svg class="i" aria-hidden="true"><use href="#i-layers"/></svg>Search boards <span class="pill neu num" id="bcount">5 of 8 on</span><svg class="i" aria-hidden="true"><use href="#i-chevron"/></svg></summary>
+        <div id="boards"></div>
+      </details>
+
+      <div class="submit">
+        <button class="btn pri" id="go" type="submit"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg>Find opportunities</button>
+        <span class="why" id="why" aria-live="polite">Takes a few minutes. You can leave this page while it runs.</span>
+      </div>
+    </form>
+
+    <aside class="rail" aria-label="Saved configurations and help">
+      <section class="card" aria-labelledby="cfgh">
+        <h2 id="cfgh"><svg class="i" style="color:var(--co)" aria-hidden="true"><use href="#i-save"/></svg>Saved searches</h2>
+        <button class="btn sm" id="savecfg" style="width:100%;margin-bottom:10px"><svg class="i sm" aria-hidden="true"><use href="#i-plus"/></svg>Save current setup</button>
+        <ul class="cfg" id="cfg"></ul>
+      </section>
+      <section class="card" aria-labelledby="howh">
+        <h2 id="howh">How results are organised</h2>
+        <ol class="how">
+          <li><span class="ic" style="background:var(--co-t);color:var(--co)"><svg class="i" aria-hidden="true"><use href="#i-building"/></svg></span><div><b>Companies first</b><span>Ranked by fit. Open one to see everything there.</span></div></li>
+          <li><span class="ic" style="background:var(--job-t);color:var(--job)"><svg class="i" aria-hidden="true"><use href="#i-briefcase"/></svg></span><div><b>Jobs beside people</b><span>Each opening sits next to the people who can help.</span></div></li>
+          <li><span class="ic" style="background:var(--per-t);color:var(--per)"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg></span><div><b>Messages ready</b><span>Pick a person, pick a role, copy the note.</span></div></li>
+        </ol>
+      </section>
+    </aside>
+  </div>
+</div>
+</main>
+<script src="shell.js"></script>
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var boards = [
+    ['builtin_nyc', 'Built In NYC', 'New York City tech companies and their jobs.', true, 40, ''],
+    ['lever', 'Lever', 'Jobs posted on Lever career pages.', true, 8, ''],
+    ['ashby', 'Ashby', 'Jobs posted on Ashby career pages.', true, 8, ''],
+    ['workable', 'Workable', 'Jobs posted on Workable career pages.', true, 8, ''],
+    ['greenhouse', 'Greenhouse', 'Jobs posted on Greenhouse career pages.', false, 8, ''],
+    ['google', 'Google job searches', 'General Google searches for postings the other boards miss. Slow.', true, 20, ''],
+    ['conservation', 'Conservation jobs', 'Conservation and environmental job boards.', false, 45, ''],
+    ['usajobs', 'USAJOBS', 'US federal government jobs.', false, 20, 'Needs an API key (USAJOBS_API_KEY and USAJOBS_EMAIL)']
+  ];
+  function drawBoards() {
+    $('#boards').innerHTML = boards.map(function (b, i) {
+      var dis = !!b[5];
+      return '<div class="board"><label class="sw"><input type="checkbox" data-b="' + i + '" ' + (b[3] ? 'checked' : '') + (dis ? ' disabled' : '') + ' aria-label="Search ' + b[1] + '"><i></i></label>' +
+        '<div><b>' + b[1] + '</b><div class="d">' + b[2] + '</div>' + (dis ? '<div class="why">' + b[5] + '</div>' : '') + '</div>' +
+        '<div class="num-wrap"><label class="sr" for="mx' + i + '">Max jobs for ' + b[1] + '</label><input class="num-in" type="text" inputmode="numeric" id="mx' + i + '" value="' + b[4] + '"' + (b[3] && !dis ? '' : ' disabled') + ' aria-describedby="x' + i + '"><span class="d" id="x' + i + '"> max jobs</span></div></div>';
+    }).join('');
+    $('#bcount').textContent = boards.filter(function (b) { return b[3]; }).length + ' of 8 on';
+    validate();
+  }
+  $('#boards').addEventListener('change', function (e) { var i = e.target.dataset.b; if (i === undefined) return; boards[i][3] = e.target.checked; drawBoards(); });
+  function validate() {
+    var ok = $('#bg').value.trim() && $('#lf').value.trim() && boards.some(function (b) { return b[3]; });
+    var go = $('#go'); go.disabled = !ok;
+    $('#why').textContent = ok ? 'Takes a few minutes. You can leave this page while it runs.' :
+      (!$('#bg').value.trim() ? 'Add your background to continue.' : !$('#lf').value.trim() ? 'Tell us what you are looking for to continue.' : 'Turn on at least one search board to continue.');
+    $('#why').style.color = ok ? '' : 'var(--danger)';
+  }
+  ['#bg', '#lf'].forEach(function (s) { $(s).addEventListener('input', function () { validate(); $('#saveHint').textContent = 'Draft saved just now.'; }); });
+  $('#form').addEventListener('submit', function (e) { e.preventDefault(); if (!$('#go').disabled) location.href = 'running.html'; });
+  $('#rm').onclick = function () { $('#saved').hidden = true; $('#drop').hidden = false; $('#pick').focus(); };
+  $('#replace').onclick = $('#rm').onclick;
+  $('#pick').onclick = function () { $('#drop').hidden = true; $('#saved').hidden = false; toast('Mockup: resume would upload and auto-fill the fields'); };
+
+  var cfgs = [
+    { id: 1, n: 'NYC AI roles', d: 'Software engineering roles in agentic AI and LLM applications. Python or C++ preferred.' },
+    { id: 2, n: 'Quant dev', d: 'Quantitative developer and low-latency C++ roles at trading firms.' },
+    { id: 3, n: 'Basic', d: '' }
+  ];
+  function drawCfg() {
+    $('#cfg').innerHTML = cfgs.map(function (c) {
+      var body = c.confirm
+        ? '<div class="confirm">Delete this configuration? <button class="btn xs" data-keep="' + c.id + '">Keep</button><button class="btn xs danger" data-del="' + c.id + '">Delete</button></div>'
+        : '<div class="acts"><button class="btn xs" data-load="' + c.id + '">Load</button><button class="btn xs ghost" data-ren="' + c.id + '" aria-label="Rename ' + c.n + '">' + ic('edit', 'sm') + '</button><button class="btn xs ghost" data-ovr="' + c.id + '" aria-label="Overwrite ' + c.n + ' with current form">' + ic('save', 'sm') + '</button><button class="btn xs ghost" data-ask="' + c.id + '" aria-label="Delete ' + c.n + '">' + ic('trash', 'sm') + '</button></div>';
+      return '<li><div class="nm">' + c.n + '</div><div class="d">' + (c.d || 'No description saved. Load to fill the form.') + '</div>' + body + '</li>';
+    }).join('');
+  }
+  $('#cfg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return; var d = b.dataset;
+    var c = cfgs.filter(function (x) { return x.id == (d.load || d.ask || d.keep || d.del || d.ren || d.ovr); })[0];
+    if (d.load) { $('#lf').value = c.d || $('#lf').value; validate(); toast('Loaded ' + c.n); }
+    if (d.ask) c.confirm = true; if (d.keep) c.confirm = false;
+    if (d.del) cfgs = cfgs.filter(function (x) { return x !== c; });
+    if (d.ren) { var n = prompt('Rename configuration', c.n); if (n) c.n = n; }
+    if (d.ovr) toast('Overwrote ' + c.n + ' with the current form');
+    drawCfg();
+  });
+  $('#savecfg').onclick = function () { cfgs.unshift({ id: Date.now(), n: 'New setup', d: $('#lf').value }); drawCfg(); toast('Saved current setup'); };
+  drawCfg(); drawBoards();
+})();
+</script>
+</body>
+</html>

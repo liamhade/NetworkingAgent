@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New search · Networking Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,500..700,0..100;1,9..144,500..700,0..100&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="search">
+<a class="skip" href="#main">Skip to form</a>
+<div class="app">
+  <aside class="side" id="side" aria-label="Previous searches"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <main id="main" class="hero">
+      <div class="hero-top">
+        <p class="eyebrow">New search</p>
+        <h1>Tell us what you want next. We'll find <em>who to meet</em> and <em>where to apply</em>.</h1>
+        <p class="lede">Describe your background and the kind of role you are after. The agent returns companies worth researching, jobs to apply to, and people to connect with, each with a note on why it fits you.</p>
+        <div class="examples">Not sure where to start?
+          <button class="chipbtn" data-ex="0">Backend engineer, New York</button>
+          <button class="chipbtn" data-ex="1">Product designer, fintech</button>
+        </div>
+      </div>
+
+      <form class="form" id="form" novalidate>
+        <div class="field">
+          <span class="lab">Start from your resume <span class="opt">Optional</span></span>
+          <p class="hint">Upload a PDF and we'll fill in the fields below for you.</p>
+          <div id="resume-slot">
+            <div class="drop"><span class="glyph">${''}</span>
+              <div><div class="t">Drop a PDF here</div><div class="s">or choose a file, up to 5 MB</div></div><span class="sp"></span>
+              <button type="button" class="btn btn-sm" data-act="upload">Choose file</button></div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="bg">Your background <span class="req">Required</span></label>
+          <p class="hint">Experience, skills and what you have built. A few sentences is plenty.</p>
+          <textarea class="in" id="bg" rows="5" placeholder="e.g. Software engineer building internal tools and data pipelines..."></textarea>
+        </div>
+        <div class="field">
+          <label for="want">What you are looking for <span class="req">Required</span></label>
+          <textarea class="in" id="want" rows="3" placeholder="e.g. Backend roles in applied AI, Python preferred"></textarea>
+        </div>
+        <div class="field">
+          <label for="loc">Location <span class="opt">Optional</span></label>
+          <input class="in" id="loc" type="text" placeholder="e.g. New York, NY or Remote">
+        </div>
+
+        <div class="acc">
+          <button type="button" class="acc-btn" aria-expanded="false" aria-controls="boards" id="acc-btn"><span id="acc-ic"></span>Where to search<span class="sm" id="board-sum">5 sources on</span><span class="chev-i" id="acc-chev"></span></button>
+          <div class="acc-body" id="boards" hidden></div>
+        </div>
+
+        <div class="submit-row">
+          <button class="btn btn-primary btn-lg" id="go" type="submit" disabled aria-describedby="why-off"><span id="go-ic"></span> Find opportunities</button>
+          <span class="why-off" id="why-off">Add your background and what you are looking for to continue.</span>
+        </div>
+      </form>
+
+      <aside aria-labelledby="cfg-h">
+        <div class="rail-card" style="position:sticky;top:84px">
+          <h2 id="cfg-h" style="font:600 18px var(--serif);margin-bottom:4px">Saved searches</h2>
+          <p style="font-size:14px;color:var(--text-2);margin-bottom:12px">Reuse a setup in one click.</p>
+          <ul class="cfg" id="cfg"></ul>
+          <button class="btn btn-sm" style="margin-top:12px;width:100%" id="save-cfg" type="button"></button>
+        </div>
+      </aside>
+    </main>
+  </div>
+</div>
+<script src="shell.js"></script>
+<script>
+document.querySelector('.drop .glyph').innerHTML = I.upload;
+document.getElementById('acc-ic').innerHTML = I.filter;
+document.getElementById('acc-chev').innerHTML = I.chev;
+document.getElementById('go-ic').innerHTML = I.spark;
+document.getElementById('save-cfg').innerHTML = I.save + ' Save current setup';
+
+const BOARDS = [
+  ['builtin_nyc', 'Built In NYC', 'New York City tech companies and their jobs.', true, 40, ''],
+  ['lever', 'Lever', 'Company career pages hosted on Lever.', true, 8, ''],
+  ['ashby', 'Ashby', 'Company career pages hosted on Ashby.', true, 8, ''],
+  ['workable', 'Workable', 'Company career pages hosted on Workable.', true, 8, ''],
+  ['google', 'Google job searches', 'General Google searches for postings the other boards miss. Slow.', true, 20, ''],
+  ['greenhouse', 'Greenhouse', 'Company career pages hosted on Greenhouse.', false, 8, ''],
+  ['conservation', 'Conservation jobs', 'Conservation and environmental job boards.', false, 45, ''],
+  ['usajobs', 'USAJOBS', 'US federal government jobs.', false, 20, 'Needs an API key (USAJOBS_API_KEY and USAJOBS_EMAIL).']
+];
+const bd = document.getElementById('boards');
+bd.innerHTML = BOARDS.map(b => `<div class="board ${b[5] ? 'na' : ''} ${b[3] ? '' : 'off'}">
+  <span class="sw"><input type="checkbox" ${b[3] ? 'checked' : ''} ${b[5] ? 'disabled' : ''} aria-label="Search ${b[1]}" data-b><i></i></span>
+  <div><div class="n">${b[1]}</div><div class="d">${b[5] || b[2]}</div></div>
+  <label class="d" style="display:flex;align-items:center;gap:8px">Max jobs <input class="in numin" type="number" min="1" max="100" value="${b[4]}" ${b[5] ? 'disabled' : ''}></label></div>`).join('');
+const sum = () => { const n = bd.querySelectorAll('[data-b]:checked').length; document.getElementById('board-sum').textContent = n + (n === 1 ? ' source on' : ' sources on'); return n; };
+const accBtn = document.getElementById('acc-btn');
+accBtn.onclick = () => { const o = accBtn.getAttribute('aria-expanded') === 'true'; accBtn.setAttribute('aria-expanded', String(!o)); bd.hidden = o; };
+
+const bg = document.getElementById('bg'), want = document.getElementById('want'), go = document.getElementById('go'), why = document.getElementById('why-off');
+function check() {
+  const n = sum(), msgs = [];
+  if (!bg.value.trim()) msgs.push('your background');
+  if (!want.value.trim()) msgs.push('what you are looking for');
+  if (!n) msgs.push('at least one source');
+  go.disabled = msgs.length > 0;
+  why.textContent = msgs.length ? 'Still needed: ' + msgs.join(', ') + '.' : 'Takes a few minutes. You can leave the page while it runs.';
+}
+document.getElementById('form').addEventListener('input', check);
+bd.addEventListener('change', (e) => { e.target.closest('.board').classList.toggle('off', !e.target.checked); check(); });
+document.getElementById('form').addEventListener('submit', (e) => { e.preventDefault(); if (!go.disabled) location.href = 'running.html'; });
+
+const CFG = [
+  { n: 'NYC agentic AI', s: 'New York · 5 sources', bg: "Software engineer at Dover Corporation since November 2025, building an agentic chat interface with self-hosted LLMs and custom MCP servers. Previously built a DSCSA-compliant pharmaceutical database in Python and C++.", want: 'Software engineering roles, particularly in agentic AI, LLM applications, and backend or data infrastructure. Python or C++ oriented would be ideal.', loc: 'New York, NY' },
+  { n: 'Basic', s: 'No location · 3 sources', bg: '', want: 'Backend software engineering roles', loc: '' }
+];
+const EX = [CFG[0], { bg: 'Product designer with five years in B2B SaaS, strong in design systems and user research.', want: 'Senior product design roles at fintech companies', loc: 'Remote (US)' }];
+function fill(c) { bg.value = c.bg; want.value = c.want; document.getElementById('loc').value = c.loc; check(); }
+document.getElementById('cfg').innerHTML = CFG.map((c, i) => `<li><button type="button" class="load" data-load="${i}">${c.n}<small>${c.s}</small></button>
+  <button type="button" class="icon-btn" aria-label="Rename ${c.n}" title="Rename">${I.pencil}</button>
+  <button type="button" class="icon-btn" aria-label="Overwrite ${c.n} with current form" title="Overwrite with current form">${I.save}</button>
+  <button type="button" class="icon-btn" aria-label="Delete ${c.n}" title="Delete">${I.trash}</button></li>`).join('');
+document.addEventListener('click', (e) => {
+  const l = e.target.closest('[data-load]'); if (l) { fill(CFG[l.dataset.load]); toast('Loaded "' + CFG[l.dataset.load].n + '"'); }
+  const x = e.target.closest('[data-ex]'); if (x) fill(EX[x.dataset.ex]);
+  const u = e.target.closest('[data-act="upload"]');
+  if (u) {
+    document.getElementById('resume-slot').innerHTML = `<div class="resume-chip">${I.file} resume_2026.pdf<button type="button" class="icon-btn" aria-label="Remove resume" data-act="rm">${I.x}</button></div> <span class="hint" style="margin-left:8px">Fields filled from your resume.</span>`;
+    fill(CFG[0]);
+  }
+  if (e.target.closest('[data-act="rm"]')) location.reload();
+  if (e.target.closest('#save-cfg')) toast('Saved this setup as a new configuration');
+});
+fill(CFG[0]);
+</script>
+</body>
+</html>

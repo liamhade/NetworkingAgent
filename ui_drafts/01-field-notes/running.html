@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Searching… · Networking Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,500..700,0..100;1,9..144,500..700,0..100&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="running" data-hist="b">
+<a class="skip" href="#main">Skip to progress</a>
+<div class="app">
+  <aside class="side" id="side" aria-label="Previous searches"></aside>
+  <div class="main">
+    <header class="topbar" id="topbar"></header>
+    <main id="main" class="page single">
+      <div class="col">
+        <p class="eyebrow"><span class="pill" id="state-pill" style="background:var(--accent-tint);color:var(--accent-h)"><span class="dot-live" aria-hidden="true"></span>Searching</span><span>Remote (US)</span></p>
+        <h1 class="title" id="h1">Looking for <em>data platform engineering</em> roles</h1>
+
+        <div id="live">
+          <section class="run-card" aria-labelledby="rt">
+            <div class="run-top">
+              <div><h2 class="t" id="rt">Finding companies, jobs and people</h2><p class="s">Step <span id="stepn">3</span> of 5 · <span id="stepname">Finding jobs</span></p></div>
+              <span class="sp"></span>
+              <div style="text-align:right"><div class="elapsed" id="el" aria-label="Elapsed time">0:00</div><div class="s" style="font-size:13px;color:var(--text-2)">elapsed</div></div>
+            </div>
+            <ol class="steps" id="steps" aria-label="Search stages"></ol>
+            <div class="notice"><span id="ni"></span><span><strong>You can leave this page.</strong> The search keeps running and shows up under Previous searches.</span><span class="sp"></span>
+              <span id="cancel-slot"><button class="btn btn-sm" data-act="cancel-ask">Cancel search</button></span></div>
+            <div class="log" role="status" aria-live="polite"><div style="font-weight:700;font-size:14px">What the agent is doing</div><ul id="log"></ul>
+              <button class="expand-all" id="log-more" style="margin-top:6px">Show all 38 steps</button></div>
+          </section>
+
+          <section class="sec" aria-labelledby="sofar">
+            <div class="sec-h"><h2 id="sofar">Found so far</h2><span class="ct"><span id="cc">3</span> companies · <span id="jc">4</span> jobs</span></div>
+            <p class="sec-sub">Results appear here as the agent finds them. People are added in the last step.</p>
+            <div class="list" id="found"></div>
+          </section>
+        </div>
+        <div id="end"></div>
+      </div>
+    </main>
+  </div>
+</div>
+<div class="mockstate" role="group" aria-label="Mockup state switcher">Preview state
+  <button data-st="run" aria-pressed="true">Running</button><button data-st="can" aria-pressed="false">Cancelled</button><button data-st="err" aria-pressed="false">Failed</button></div>
+<script src="shell.js"></script>
+<script>
+document.getElementById('ni').innerHTML = I.spark;
+const STEPS = [['Reading your profile', 'Done'], ['Planning the search', 'Done'], ['Finding jobs', 'Built In NYC, Lever, Ashby'], ['Ranking companies', ''], ['Finding people', '']];
+document.getElementById('steps').innerHTML = STEPS.map((s, i) => `<li class="step ${i < 2 ? 'done' : i === 2 ? 'now' : ''}" ${i === 2 ? 'aria-current="step"' : ''}>${s[0]}<small>${i < 2 ? 'Done' : i === 2 ? s[1] : 'Waiting'}</small></li>`).join('');
+const LOG = ['Searching Ashby jobs for "data platform engineer"…', 'Lever jobs for data platform engineer: 8 jobs', 'Built In NYC jobs for data platform engineer: 15 jobs', 'Planning: 3 boards, 14 search terms', 'Reading your profile'];
+document.getElementById('log').innerHTML = LOG.map((l, i) => `<li class="${i === 0 ? 'shimmer' : ''}">${l}</li>`).join('');
+let more = false; document.getElementById('log-more').onclick = (e) => {
+  more = !more; const ul = document.getElementById('log');
+  if (more) { for (let i = 0; i < 10; i++) ul.insertAdjacentHTML('beforeend', `<li>Earlier step ${LOG.length + i + 1}: checked a posting</li>`); e.target.textContent = 'Show fewer'; }
+  else { ul.innerHTML = LOG.map((l, i) => `<li class="${i === 0 ? 'shimmer' : ''}">${l}</li>`).join(''); e.target.textContent = 'Show all 38 steps'; }
+};
+const FOUND = [['Tracksuit', 'Brand tracking platform with offices in New York, London, Sydney and Auckland.', 2], ['Two Sigma', 'Systematic investment manager applying machine learning and large-scale data to markets.', 2], ['Citadel', 'Global financial institution and market maker building low-latency trading systems.', 1], ['Alchemi', 'Applied AI company building LLM-driven automation for enterprise teams.', 1], ['Palantir', 'Data integration and analytics software for government and commercial customers.', 1]];
+let n = 0;
+const foundEl = document.getElementById('found');
+function add(first) {
+  const f = FOUND[n++]; foundEl.querySelectorAll('.skeleton').forEach(s => s.remove());
+  foundEl.insertAdjacentHTML('beforeend', `<div class="co ${first ? '' : 'pop-in'}"><div class="co-head"><div class="co-toggle" style="cursor:default"><span class="rank">${n}</span><span class="glyph glyph-co">${I.building}</span><span class="co-main"><span class="co-name">${f[0]}</span><span class="co-desc">${f[1]}</span></span><span class="co-counts"><span class="pill pill-job">${I.briefcase}${f[2]} ${f[2] > 1 ? 'jobs' : 'job'}</span></span></div><div class="co-side"><span class="pill pill-neutral">Scoring…</span></div></div></div>`);
+  if (n < FOUND.length) foundEl.insertAdjacentHTML('beforeend', '<div class="skeleton" aria-hidden="true"></div>');
+  const c = document.getElementById('cc'); c.textContent = n; document.getElementById('jc').textContent = FOUND.slice(0, n).reduce((a, x) => a + x[2], 0);
+  c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump');
+}
+add(true); add(true); add(true); foundEl.insertAdjacentHTML('beforeend', '<div class="skeleton" aria-hidden="true"></div>');
+let tick = setInterval(() => { if (n < FOUND.length) add(); else { clearInterval(tick); foundEl.querySelectorAll('.skeleton').forEach(s => s.remove()); } }, 3500);
+let sec = 94; const el = document.getElementById('el');
+const timer = setInterval(() => { sec++; el.textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); }, 1000); el.textContent = '1:34';
+
+const slot = document.getElementById('cancel-slot');
+function setState(st) {
+  document.querySelectorAll('.mockstate button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.st === st)));
+  const live = document.getElementById('live'), end = document.getElementById('end'), pill = document.getElementById('state-pill');
+  if (st === 'run') { live.hidden = false; end.innerHTML = ''; pill.innerHTML = '<span class="dot-live" aria-hidden="true"></span>Searching'; pill.style.cssText = 'background:var(--accent-tint);color:var(--accent-h)'; return; }
+  clearInterval(timer);
+  live.hidden = true;
+  if (st === 'can') {
+    pill.innerHTML = 'Cancelled'; pill.className = 'pill pill-neutral'; pill.style.cssText = '';
+    end.innerHTML = `<div class="banner cancelled"><div style="font-size:26px;color:var(--text-2)">${I.stop}</div><div><h2>You cancelled this search</h2><p>It found ${n} companies and ${FOUND.slice(0, n).reduce((a, x) => a + x[2], 0)} jobs before stopping. People were not searched yet.</p></div><span class="sp"></span><a class="btn btn-primary" href="results.html">${I.search} See what was found</a><a class="btn" href="search.html">${I.refresh} Edit and re-run</a></div>`;
+  } else {
+    pill.innerHTML = 'Failed'; pill.style.cssText = 'background:#FCE9E7;color:#991B1B';
+    end.innerHTML = `<div class="banner error" role="alert"><div style="font-size:26px;color:var(--danger)">${I.warn}</div><div><h2>The search stopped at step 3 of 5</h2><p>Lever did not respond after three tries. Nothing you entered was lost, and the ${n} companies found so far are kept.</p></div><span class="sp"></span><a class="btn btn-primary" href="running.html">${I.refresh} Try again</a><a class="btn" href="search.html">Edit search</a></div>`;
+  }
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act],[data-st]'); if (!b) return;
+  if (b.dataset.st) { setState(b.dataset.st); return; }
+  if (b.dataset.act === 'cancel-ask') slot.innerHTML = `<span style="font-weight:600">Stop this search?</span> <button class="btn btn-sm btn-ghost" data-act="cancel-no">Keep searching</button> <button class="btn btn-sm btn-danger" data-act="cancel-yes">Yes, cancel</button>`;
+  if (b.dataset.act === 'cancel-no') slot.innerHTML = '<button class="btn btn-sm" data-act="cancel-ask">Cancel search</button>';
+  if (b.dataset.act === 'cancel-yes') setState('can');
+});
+if (location.hash === '#cancel') document.querySelector('[data-act="cancel-ask"]').click();
+</script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Searching… · Networking Agent (Pipeline)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side" aria-label="Previous searches"></aside>
+  <div class="main">
+    <nav class="nav" id="nav" aria-label="Main"></nav>
+    <main class="page">
+      <p class="crumb"><a href="search.html">Searches</a> › <span>Started just now</span></p>
+      <h1>Agentic AI and backend engineering roles in New York</h1>
+
+      <section class="runcard" aria-labelledby="run-h">
+        <div class="runtop">
+          <span class="ico company" style="width:40px;height:40px"><svg class="i spin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg></span>
+          <div class="grow"><h2 id="run-h">Searching job boards and LinkedIn</h2><p aria-live="polite" id="run-sub">You can leave this page. The agent keeps working and the search will wait in Previous searches.</p></div>
+          <span class="pill p-alt tnum" id="elapsed">0:00</span>
+          <span class="pill p-company" id="c-co">0 companies</span><span class="pill p-job" id="c-jobs">0 jobs</span><span class="pill p-person" id="c-ppl">0 people</span>
+          <button class="btn btn-danger btn-sm" id="cancel">Cancel search</button>
+        </div>
+        <ol class="steps" id="steps"></ol>
+      </section>
+      <div id="banner"></div>
+      <div id="root"></div>
+    </main>
+  </div>
+</div>
+
+<div class="scrim-d" id="scrim-d"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" aria-hidden="true"></aside>
+
+<script src="data.js"></script>
+<script src="shell.js"></script>
+<script src="board.js"></script>
+<script>
+  NA.shell({ active: 'run', nav: 'search' });
+  const STEPS = ['Reading your profile', 'Finding companies', 'Finding jobs', 'Finding people', 'Writing why-it-fits notes'];
+  const B = NA.board; B.init({ running: true });
+  const cos = B.cos(), n = cos.length;
+  // timeline: lanes, then jobs, then people, then notes, then done
+  const events = [];
+  for (let i = 0; i < n; i++) events.push({ s: 1, run: () => { cos[i].vis.lane = true; } });
+  for (let i = 0; i < n; i++) events.push({ s: 2, run: () => { cos[i].vis.jobs = true; cos[i].jobs.forEach(j => B.state.arrive.add(j.key)); } });
+  for (let i = 0; i < n; i++) events.push({ s: 3, run: () => { cos[i].vis.people = true; cos[i].people.forEach(p => B.state.arrive.add(p.key)); } });
+  events.push({ s: 4, run: () => {} });
+  let tick = -2, stage = 0, t0 = Date.now(), timer, clock, over = false;
+
+  function steps() {
+    document.getElementById('steps').innerHTML = STEPS.map((s, i) => '<li class="' + (i < stage ? 'ok' : i === stage ? 'on' : '') + '"' + (i === stage ? ' aria-current="step"' : '') + '><i></i>' + (i < stage ? '✓ ' : '') + s + '</li>').join('');
+  }
+  function clockTick() { const s = Math.floor((Date.now() - t0) / 1000); document.getElementById('elapsed').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  function step() {
+    if (over) return;
+    tick++;
+    if (tick < 0) { stage = 0; steps(); return; }
+    if (tick >= events.length) return finish();
+    const ev = events[tick]; ev.run(); stage = ev.s; steps(); B.render();
+  }
+  function finish() {
+    over = true; clearInterval(timer); clearInterval(clock); stage = 5; steps();
+    document.getElementById('cancel').hidden = true;
+    document.querySelector('.runtop .ico').innerHTML = '<svg class="i" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg>';
+    document.getElementById('run-h').textContent = 'Search complete';
+    document.getElementById('run-sub').textContent = 'Everything landed in the New column. Pin the ones you like to start your shortlist.';
+    document.getElementById('banner').innerHTML = '<div class="banner ok"><span>Done in ' + document.getElementById('elapsed').textContent + '.</span><a class="btn btn-primary btn-sm" href="results.html">Open full results</a></div>';
+    document.querySelector('.hist li.active .h-meta').innerHTML = '<span class="dot"></span>Just now';
+    const c = document.querySelector('.hist li.active [data-cancel]'); if (c) c.remove();
+    toast('Search complete');
+  }
+  function cancel() {
+    if (over) return; over = true; clearInterval(timer); clearInterval(clock);
+    document.getElementById('cancel').hidden = true;
+    document.querySelector('.runcard').style.borderColor = 'var(--text2)';
+    document.getElementById('run-h').textContent = 'Search cancelled';
+    document.getElementById('run-sub').textContent = 'Partial results are kept below. Nothing is lost.';
+    document.querySelector('.runtop .ico').innerHTML = '<svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    document.getElementById('steps').innerHTML = STEPS.map((s, i) => '<li' + (i < stage ? ' class="ok"' : '') + '><i></i>' + s + '</li>').join('');
+    document.getElementById('banner').innerHTML = '<div class="banner cancel"><span>Cancelled at step ' + Math.max(stage, 1) + ' of 5. Companies found so far are shown.</span><a class="btn btn-ghost btn-sm" href="running.html">Re-run search</a></div>';
+    const c = document.querySelector('.hist li.active [data-cancel]'); if (c) c.remove();
+    document.querySelector('.hist li.active .h-meta').innerHTML = '<span class="dot can"></span>Cancelled just now';
+  }
+  document.getElementById('cancel').onclick = () => { cancel(); toast('Search cancelled'); };
+  document.addEventListener('na-cancel', cancel);
+  document.addEventListener('na-render', e => {
+    const d = e.detail;
+    document.getElementById('c-co').textContent = d.companies + (d.companies === 1 ? ' company' : ' companies');
+    document.getElementById('c-jobs').textContent = d.jobs + ' jobs'; document.getElementById('c-ppl').textContent = d.people + ' people';
+  });
+  steps(); B.render();
+  timer = setInterval(step, 1500); clock = setInterval(clockTick, 1000);
+</script>
+</body>
+</html>

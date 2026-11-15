@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Results · Networking Agent (Calm Focus)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+.sticky{position:sticky;top:0;z-index:30;background:rgba(245,247,242,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+.sticky .row1{display:flex;align-items:center;gap:20px;padding:14px 0 6px}
+.sticky h1{font-size:28px;line-height:1.2;font-weight:700}
+.sticky .meta{font-size:14px;color:var(--text-2);margin-top:2px}
+.sticky .grow{flex:1;min-width:0}
+.ringbox{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:8px 16px 8px 10px}
+.ring{position:relative;width:48px;height:48px}
+.ring svg{transform:rotate(-90deg);width:48px;height:48px}
+.ring circle{fill:none;stroke-width:6}
+.ring .bg{stroke:var(--surface-alt)}
+.ring .fg{stroke:var(--accent);stroke-linecap:round;stroke-dasharray:125.66;stroke-dashoffset:125.66;transition:stroke-dashoffset .6s ease}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font:700 13px var(--font-h)}
+.ringbox .l1{font:600 15px var(--font-h);line-height:1.2}
+.ringbox .l2{font-size:13px;color:var(--text-2)}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:6px 0 0}
+.tab{display:flex;align-items:center;gap:9px;border:0;background:transparent;padding:12px 18px;border-radius:14px 14px 0 0;font:600 16px var(--font-h);color:var(--text-2);border-bottom:3px solid transparent;white-space:nowrap;min-height:48px}
+.tab:hover{color:var(--text);background:var(--surface-alt)}
+.tab .c{font:600 12.5px var(--font-b);border-radius:99px;padding:1px 9px;background:var(--surface-alt);color:var(--text-2)}
+.tab[aria-selected=true]{color:var(--text);border-bottom-color:var(--accent);background:linear-gradient(#fff0,#E2EEE680)}
+.tab[aria-selected=true] .c{background:var(--accent);color:#fff}
+.tab.t-company[aria-selected=true]{border-color:var(--company)}.tab.t-job[aria-selected=true]{border-color:var(--job)}.tab.t-person[aria-selected=true]{border-color:var(--person)}
+.tab .tic{width:28px;height:28px;border-radius:9px;display:grid;place-items:center}
+.t-company .tic{background:var(--company-tint);color:var(--company-ink)}.t-job .tic{background:var(--job-tint);color:var(--job-ink)}.t-person .tic{background:var(--person-tint);color:var(--person-ink)}
+
+.hero{margin:28px 0 8px;border-radius:24px;padding:28px 32px;background:radial-gradient(900px 260px at 100% 0,#F3E6BF 0,#F3E6BF00 60%),radial-gradient(700px 300px at 0 100%,#CFE5D5 0,#CFE5D500 70%),var(--surface);border:1px solid var(--border);box-shadow:var(--shadow)}
+.hero .k{display:flex;align-items:center;gap:8px;font:600 13px var(--font-b);text-transform:uppercase;letter-spacing:.08em;color:var(--accent)}
+.hero h2{font-size:24px;line-height:1.3;margin:6px 0 8px;font-weight:700;max-width:30em}
+.hero p{max-width:62ch;color:var(--text);font-size:16px}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.stat{display:flex;align-items:center;gap:10px;background:#fffc;border:1px solid var(--border);border-radius:14px;padding:8px 14px;font-size:14px;color:var(--text-2);font-weight:500}
+.stat b{font:700 20px var(--font-h);color:var(--text)}
+.stat .tic{width:30px;height:30px;border-radius:10px;display:grid;place-items:center}
+
+.picks{margin:28px 0}
+.sechead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sechead h2{font-size:24px;font-weight:700}
+.sechead p{font-size:14.5px;color:var(--text-2)}
+.pickrow{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.pick{position:relative;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 18px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;transition:transform .18s,box-shadow .18s}
+.pick:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.pick::before{content:"";position:absolute;left:18px;right:18px;top:-1px;height:4px;border-radius:0 0 6px 6px}
+.pick.company::before{background:var(--company)}.pick.job::before{background:var(--job)}.pick.person::before{background:var(--person)}
+.pick h3{font-size:18px;line-height:1.3;font-weight:650}
+.pick .why{font-size:14.5px;color:var(--text-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pick .go{margin-top:auto;display:flex;align-items:center;gap:6px;color:var(--accent);font-weight:600;font-size:14.5px}
+
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:22px 0 14px}
+.toolbar h2{font-size:24px;font-weight:700;margin-right:6px}
+.toolbar .sp{flex:1}
+.chip{border:1.5px solid var(--border);background:var(--surface);border-radius:99px;padding:6px 14px;font-weight:600;font-size:14.5px;min-height:40px;color:var(--text-2)}
+.chip:hover{border-color:var(--input-border);color:var(--text)}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip.filter{display:inline-flex;align-items:center;gap:8px;background:var(--company-tint);color:var(--company-ink);border-color:#CBBBE6}
+.sortsel{display:flex;align-items:center;gap:8px;font-size:14.5px;color:var(--text-2)}
+.sortsel select{width:auto;min-height:40px;padding:6px 12px}
+
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 22px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;transition:box-shadow .2s,border-color .2s;animation:rise .35s ease-out both}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}}
+.card:hover{box-shadow:var(--shadow-lg)}
+.card::before{content:"";position:absolute;left:0;top:22px;bottom:22px;width:5px;border-radius:0 6px 6px 0}
+.card.company::before{background:var(--company)}.card.job::before{background:var(--job)}.card.person::before{background:var(--person)}
+.card.is-pinned{border-color:#E3CF8A;background:linear-gradient(#FFFDF4,#fff 60%)}
+.card.flash{outline:3px solid var(--company);outline-offset:3px}
+.card.done .name{color:var(--text-2)}
+.chead{display:flex;align-items:flex-start;gap:12px}
+.cic{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;flex:none;font:700 16px var(--font-h)}
+.cic.company{background:var(--company-tint);color:var(--company-ink)}.cic.job{background:var(--job-tint);color:var(--job-ink)}.cic.person{background:var(--person-tint);color:var(--person-ink)}
+.ctitle{flex:1;min-width:0}
+.name{font-size:19px;line-height:1.3;font-weight:650;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.name a.ext{color:inherit;text-decoration:none}
+.name a.ext:hover{text-decoration:underline}
+.name .exti{color:var(--text-2);display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px}
+.name .exti:hover{background:var(--surface-alt);color:var(--text)}
+.sub{font-size:14px;color:var(--text-2);display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:2px;align-items:center}
+.sub .co{display:inline-flex;align-items:center;gap:6px;border:0;background:var(--company-tint);color:var(--company-ink);border-radius:99px;padding:2px 10px 2px 8px;font:600 13px var(--font-b);min-height:28px}
+.sub .co:hover{background:#E3D8F3}
+.sub .salary{font-weight:600;color:var(--text)}
+.blurb{font-size:15px;color:var(--text)}
+.note{font-size:15px;line-height:1.6}
+.note .lab{display:block;font:600 12.5px var(--font-b);text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:2px}
+.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card.open .clamp{-webkit-line-clamp:unset;display:block}
+.extra{display:none;flex-direction:column;gap:12px}
+.card.open .extra{display:flex}
+.msg{background:var(--connected-tint);border-radius:14px;padding:14px 16px;font-size:14.5px;color:#10344D}
+.msg .top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;font:600 12.5px var(--font-b);text-transform:uppercase;letter-spacing:.06em;color:#174B70}
+.msg p{font-size:14.5px}
+.copybtn{display:inline-flex;align-items:center;gap:6px;border:1.5px solid #7BA3C2;background:#fff;color:#174B70;border-radius:10px;padding:5px 12px;font-weight:600;font-size:13.5px;min-height:36px;text-transform:none;letter-spacing:0}
+.copybtn:hover{background:#F1F7FB}
+.copybtn.ok{background:var(--applied);color:#fff;border-color:var(--applied)}
+.cfoot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:10px;border-top:1px solid var(--border)}
+.cfoot .sp{flex:1}
+.link{border:0;background:transparent;color:var(--accent);font-weight:600;font-size:14.5px;display:inline-flex;align-items:center;gap:4px;padding:8px 8px;min-height:40px;border-radius:10px}
+.link:hover{background:var(--accent-tint)}
+.link .chev{transition:transform .2s}
+.card.open .link .chev{transform:rotate(180deg)}
+.status{display:inline-flex;align-items:center;gap:8px;border-radius:99px;padding:6px 14px 6px 10px;min-height:40px;font-weight:600;font-size:14.5px;border:1.5px dashed var(--input-border);background:transparent;color:var(--text)}
+.status:hover{background:var(--surface-alt)}
+.status .box{width:18px;height:18px;border-radius:6px;border:2px solid var(--input-border);display:grid;place-items:center;color:#fff}
+.status .box svg{width:13px;height:13px;stroke-width:3;opacity:0}
+.status[aria-pressed=true]{border-style:solid;color:#fff}
+.status.job[aria-pressed=true]{background:var(--applied);border-color:var(--applied)}
+.status.person[aria-pressed=true]{background:var(--connected);border-color:var(--connected)}
+.status[aria-pressed=true] .box{background:#fff3;border-color:#fff}
+.status[aria-pressed=true] .box svg{opacity:1}
+.counts{display:flex;gap:8px;flex-wrap:wrap}
+.cnt{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:99px;padding:4px 12px 4px 10px;font:600 13.5px var(--font-b);min-height:34px}
+.cnt.job{background:var(--job-tint);color:var(--job-ink)}.cnt.person{background:var(--person-tint);color:var(--person-ink)}
+.cnt:hover{filter:brightness(.95);text-decoration:underline}
+.more{display:flex;flex-direction:column;align-items:center;gap:8px;margin:26px 0 10px}
+.more .meta{font-size:14px;color:var(--text-2)}
+.bar{width:220px;height:6px;background:var(--surface-alt);border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);transition:width .4s}
+.spin{width:16px;height:16px;border-radius:50%;border:2.5px solid #fff5;border-top-color:#fff;animation:sp .8s linear infinite}
+.btn.sec .spin{border-color:#0002;border-top-color:var(--accent)}
+@keyframes sp{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:48px 20px;background:var(--surface);border:1.5px dashed var(--border);border-radius:var(--radius);grid-column:1/-1}
+.empty h3{font-size:20px;margin-bottom:6px}.empty p{color:var(--text-2);margin-bottom:14px}
+.foot{height:60px}
+
+/* drawer */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(480px,100vw);background:var(--surface);z-index:65;box-shadow:var(--shadow-lg);transform:translateX(105%);transition:transform .28s ease;display:flex;flex-direction:column}
+.drawer.open{transform:none}
+.dh{padding:22px 24px 16px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start}
+.dh h2{font-size:22px;line-height:1.3;font-weight:700}
+.db{padding:20px 24px;overflow:auto;display:flex;flex-direction:column;gap:18px;flex:1}
+.db h3{font:600 13px var(--font-b);text-transform:uppercase;letter-spacing:.07em;color:var(--text-2);margin-bottom:6px}
+.rel{display:flex;flex-direction:column;gap:6px}
+.rel button{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid var(--border);background:var(--bg);border-radius:12px;padding:10px 12px;min-height:44px}
+.rel button:hover{background:var(--surface-alt)}
+.df{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;background:var(--bg)}
+
+@media (max-width:1100px){.pickrow{grid-template-columns:1fr}}
+@media (max-width:820px){
+  .grid{grid-template-columns:1fr}
+  .sticky h1{font-size:22px}
+  .sticky .row1{flex-wrap:wrap;gap:10px}
+  .ringbox{padding:6px 12px 6px 8px}.ringbox .l2{display:none}
+  .hero{padding:20px}.hero h2{font-size:21px}
+  .tab{padding:10px 12px;font-size:15px}
+  .tab .tic{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side" aria-label="Previous searches"></aside>
+  <div class="main">
+    <nav class="topnav" id="topnav" aria-label="Main"></nav>
+
+    <header class="sticky">
+      <div class="wrap">
+        <div class="row1">
+          <div class="grow">
+            <h1>Agentic AI &amp; backend roles</h1>
+            <p class="meta">New York, NY · Python / C++ · searched yesterday at 3:45 PM · <a href="search.html">Edit and re-run</a></p>
+          </div>
+          <div class="ringbox" aria-live="polite">
+            <div class="ring"><svg viewBox="0 0 48 48" aria-hidden="true"><circle class="bg" cx="24" cy="24" r="20"/><circle class="fg" id="ringfg" cx="24" cy="24" r="20"/></svg><b id="ringpct">0%</b></div>
+            <div><div class="l1" id="ringl1">Your plan</div><div class="l2" id="ringl2"></div></div>
+          </div>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Result type">
+          <button class="tab t-company" role="tab" id="tab-companies" aria-selected="true" aria-controls="panel" data-tab="companies"><span class="tic">__IC_BUILDING__</span>Companies <span class="c num" id="cnt-companies">6</span></button>
+          <button class="tab t-job" role="tab" id="tab-jobs" aria-selected="false" aria-controls="panel" data-tab="jobs"><span class="tic">__IC_BRIEFCASE__</span>Jobs <span class="c num" id="cnt-jobs">12</span></button>
+          <button class="tab t-person" role="tab" id="tab-people" aria-selected="false" aria-controls="panel" data-tab="people"><span class="tic">__IC_USER__</span>People <span class="c num" id="cnt-people">14</span></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap" id="top">
+      <section class="hero" aria-labelledby="sum-h">
+        <div class="k" id="sum-h">__IC_SPARK__ What the agent found</div>
+        <h2>Three strong matches for agentic AI work in New York, led by Tracksuit.</h2>
+        <p>You are targeting agentic AI, LLM application and backend roles in New York, with a preference for Python or C++. The strongest matches are Tracksuit's production AI agent role, Two Sigma's Python and C++ quant engineering roles, and Citadel's Python engineering roles. Alchemi, Palantir and Capital One are less certain fits on seniority or posting detail.</p>
+        <div class="stats">
+          <div class="stat"><span class="tic" style="background:var(--company-tint);color:var(--company-ink)">__IC_BUILDING__</span><b class="num">6</b> companies</div>
+          <div class="stat"><span class="tic" style="background:var(--job-tint);color:var(--job-ink)">__IC_BRIEFCASE__</span><b class="num">12</b> open jobs</div>
+          <div class="stat"><span class="tic" style="background:var(--person-tint);color:var(--person-ink)">__IC_USER__</span><b class="num">14</b> people</div>
+        </div>
+      </section>
+
+      <section class="picks" aria-labelledby="picks-h">
+        <div class="sechead"><div><h2 id="picks-h">Start here: top picks</h2><p>The best next move in each category. Everything else is one tab away.</p></div></div>
+        <div class="pickrow" id="picks"></div>
+      </section>
+
+      <section aria-labelledby="list-h">
+        <div class="toolbar">
+          <h2 id="list-h">Companies</h2>
+          <button class="chip" id="f-pinned" aria-pressed="false">Pinned only</button>
+          <button class="chip" id="f-todo" aria-pressed="false">To do only</button>
+          <span id="cofilter"></span>
+          <span class="sp"></span>
+          <label class="sortsel">Sort <select class="in" id="sort" aria-label="Sort"><option value="fit">Best fit first</option><option value="pinned">Pinned first</option><option value="az">A to Z</option></select></label>
+        </div>
+        <div id="panel" role="tabpanel" aria-labelledby="tab-companies"><div class="grid" id="grid"></div></div>
+        <div class="more" id="more"></div>
+      </section>
+      <div class="foot"></div>
+    </main>
+  </div>
+</div>
+<div class="scrim" id="scrim"></div>
+<div class="scrim" id="dscrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dtitle" aria-hidden="true"></aside>
+
+<script src="shell.js"></script>
+<script>
+Shell.init({active:'search',current:'a'});
+</script>
+<script>
+/* ---------- data (from database/users/TEST_USER/searches/7258...json, notes shortened) ---------- */
+const C=[
+ {id:'tracksuit',name:'Tracksuit',score:82,url:'https://www.builtinnyc.com/company/tracksuit',desc:'Brand tracking platform that helps marketers prove their brand building is working, with offices in New York, London, Sydney and Auckland.',al:"You have shipped LLM tooling and MCP integrations at Dover, which matches Tracksuit's focus on production AI agents and MCP servers for go-to-market teams. Your DSCSA-compliant pharmaceutical database work also shows you can own production systems end to end."},
+ {id:'twosigma',name:'Two Sigma',score:80,url:'https://www.builtinnyc.com/company/two-sigma',desc:'Quantitative investment management and trading firm that applies science, AI and technology to financial markets.',al:'The roles lean on Python and C++, which you prefer, and the Generative AI engineering posting overlaps with your LLM application work. Seniority looks reachable for the quantitative software engineer tracks.'},
+ {id:'citadel',name:'Citadel',score:78,url:'https://www.builtinnyc.com/company/citadel',desc:'Investment firm with engineering teams that build platforms for research, trading and data infrastructure.',al:'Python-heavy backend and data infrastructure work lines up with your database and platform background. The graduate posting is a stretch on seniority, so lead with the Python Software Engineer role.'},
+ {id:'alchemi',name:'Alchemi',score:75,url:'https://jobs.ashbyhq.com/alchemi',desc:'Company with an open AI Engineer role posted on its Ashby careers page.',al:'An AI Engineer opening that matches your agent and MCP experience. Little is public about team size or stack, so treat it as a promising but unverified fit.'},
+ {id:'palantir',name:'Palantir',score:74,url:'https://www.builtinnyc.com/company/palantir',desc:'Software company that builds data analysis and AI platforms for government and enterprise customers.',al:'Applied AI roles value engineers who ship LLM systems in production. The internship listing is below your level, so focus on the applied AI posting.'},
+ {id:'capone',name:'Capital One',score:60,url:'https://www.builtinnyc.com/company/capital-one',desc:'Large bank and financial services company with AI platform teams in New York.',al:'Gen AI platform work is relevant, but the Engineer 4 level is a seniority reach for you and the posting detail is thin. Keep as a backup.'}
+];
+const J=[
+ {id:'j1',co:'tracksuit',title:'AI Engineer - GTM',loc:'New York, NY',sal:'$162K-205K',score:85,url:'https://www.builtinnyc.com/job/ai-engineer-gtm/12251267',al:"You already build self-hosted LLM agents and custom MCPs, which maps directly to this role's agent and MCP server work. The posting asks for LLM work in production, and your Dover experience covers that."},
+ {id:'j2',co:'citadel',title:'Software Engineer - University Graduate (US)',loc:'New York, NY',sal:'$235K-300K',score:84,url:'#',al:'Strong compensation and a Python-first stack. Aimed at new graduates, so your professional experience should stand out, but check that the level is right for you.'},
+ {id:'j3',co:'twosigma',title:'Quantitative Software Engineer: Fast Engineering',loc:'New York, NY',sal:'$165K-300K',score:80,url:'#',al:'Low-latency Python and C++ engineering matches your stated language preference and your backend data work.'},
+ {id:'j4',co:'citadel',title:'Python Software Engineer',loc:'New York, NY',sal:'$200K-3M',score:80,url:'#',al:'A Python backend role on platforms for research and trading. Your pharmaceutical database and API work is relevant evidence.'},
+ {id:'j5',co:'twosigma',title:'Quantitative Software Engineer: Generative AI',loc:'New York, NY',sal:'$165K-300K',score:78,url:'#',al:'Generative AI engineering inside a quant firm. Your self-hosted LLM and agent experience is the headline here.'},
+ {id:'j6',co:'alchemi',title:'AI Engineer',loc:'NYC preferred',sal:'',score:76,url:'#',al:'Open AI Engineer role on Ashby. Your agentic chat interface is a direct match, though the posting is brief.'},
+ {id:'j7',co:'palantir',title:'Software Engineer - Applied AI, Defense Applications',loc:'New York, NY',sal:'',score:75,url:'#',al:'Applied AI work shipping LLM systems to customers. Your production deployment experience fits; defence domain knowledge is the gap.'},
+ {id:'j8',co:'twosigma',title:'Software Engineer, Trading Engineering',loc:'New York, NY',sal:'$165K-250K',score:70,url:'#',al:'Backend engineering for trading systems. Python and C++ match, but the domain is less about AI than your goal.'},
+ {id:'j9',co:'palantir',title:'Software Engineer, Internship - Sovereign AI Systems',loc:'New York, NY',sal:'',score:70,url:'#',al:'Interesting AI work but an internship, so likely below your level.'},
+ {id:'j10',co:'twosigma',title:'Software Engineer',loc:'New York, NY',sal:'$165K-325K',score:68,url:'#',al:'General engineering opening. A safe fallback at a firm where you already have a stronger posting.'},
+ {id:'j11',co:'capone',title:'AI Engineer 4 (Gen AI Platform Services)',loc:'New York, NY',sal:'$197K-246K',score:60,url:'#',al:'Gen AI platform services is on-topic, but the Engineer 4 level is a reach.'},
+ {id:'j12',co:'capone',title:'AI Engineer 4 (AI Foundations)',loc:'New York, NY',sal:'$197K-246K',score:58,url:'#',al:'Foundational AI platform work. Same level question as the other Capital One role.'}
+];
+const hook={
+ keniel:'I would love to hear how your team ships LLM products.',river:'I would love to hear how engineering is organised around AI at Tracksuit.',claire:'I would love to hear how GTM engineering works day to day.',trey:'I would love to hear what the team is working on.',
+ xiaofan:'Your work on modeling languages sounds close to the tooling I enjoy.',jingbin:'I would love to hear what quant engineering looks like day to day.',joel:'I would love to hear what the team builds.',john:'I would love to hear how the teams are structured.',yousef:'I would love to hear about the engineering culture.',cheryl:'I would love to hear about your experience on the team.',clay:'I would love to hear about the engineering culture.',julian:'I would love to hear how you found the move to Two Sigma.',ian:'I would love to hear how your team hires engineers.',jesse:'I would love to hear what the engineering work looks like.'};
+const Pp=[
+ ['keniel','Keniel Yao','Head of Data Science','tracksuit','Leads AI product work at Tracksuit, close to the LLM applications you build at Dover. A short chat could show how the team ships LLM products.',1],
+ ['river','River Vaughn Vink','Engineering Leader','tracksuit','An engineering leader who can speak to how AI agents are built and staffed, and who could route you to the GTM engineering hiring manager.'],
+ ['claire','Claire Li','GTM Engineer','tracksuit','Works in the exact function your target role sits in, so she can describe the day-to-day of the AI Engineer - GTM job.'],
+ ['trey','Trey Hodges','Title not listed','tracksuit','Listed at Tracksuit. A lower-priority contact, but a quick note can open a second thread into the team.'],
+ ['xiaofan','Xiaofan Yang','Engineering Manager, Modeling Languages','twosigma','A manager whose team builds languages and tooling in Python and C++, the stack you prefer. Good person to ask about team needs.'],
+ ['ian','Ian Friedman','VP, Engineering Manager','twosigma','Senior engineering leader who likely influences hiring on the engineering roles you are considering.'],
+ ['jesse','Jesse Brizzi','Vice President, Software Engineer','twosigma','Senior IC who can describe what progression looks like for software engineers at Two Sigma.'],
+ ['john','John Zhang','Engineering Manager','twosigma','Engineering manager who may own an opening matching your backend and platform experience.'],
+ ['jingbin','Jingbin Li','Quantitative Software Engineer','twosigma','Works in the quantitative engineering track you are applying to, a good peer-level conversation.'],
+ ['joel','Joel Abraham','Quantitative Software Engineer','twosigma','Peer on the same track. Ask what the interview loop is like.'],
+ ['yousef','Yousef Amin','Software Engineer','twosigma','Software engineer who can give an honest view of day-to-day work and tooling.'],
+ ['clay','Clay Wang','Software Engineer','twosigma','Software engineer at Two Sigma, useful for a casual culture check.'],
+ ['julian','Julian Woo','Software Engineer','twosigma','Another engineer on the team. Good for a referral conversation later in the process.'],
+ ['cheryl','Cheryl Lin','Title not listed','twosigma','Listed at Two Sigma without a title. Lowest priority of the group.']
+];
+const coName=id=>C.find(c=>c.id===id).name;
+const L=Pp.map((p,i)=>({id:'p_'+p[0],co:p[3],name:p[1],title:p[2],al:p[4],top:p[5],url:'https://www.linkedin.com/in/'+p[1].toLowerCase().replace(/ /g,'-'),
+  msg:`Hi ${p[1].split(' ')[0]}, I'm a software engineer building an agentic chat interface with self-hosted LLMs and custom MCPs at Dover, so ${coName(p[3])}'s work caught my eye. ${hook[p[0]]} I'd love to connect.`,
+  score:null,rank:i}));
+
+/* ---------- state ---------- */
+const S={tab:(location.hash||'#companies').slice(1),shown:{companies:4,jobs:4,people:4},pin:{},done:{},open:{},pinOnly:false,todo:false,sort:'fit',coFilter:null};
+if(!['companies','jobs','people'].includes(S.tab))S.tab='companies';
+['tracksuit','twosigma'].forEach(k=>S.pin['c_'+k]=1);S.pin.j1=1;S.pin.p_keniel=1;S.pin.p_xiaofan=1;S.done.j1=1;S.done.p_keniel=1;
+const $=s=>document.querySelector(s);
+const IC={building:ic('building'),briefcase:ic('briefcase'),user:ic('user')};
+const kind={companies:'company',jobs:'job',people:'person'};
+const initials=n=>n.split(' ').map(w=>w[0]).slice(0,2).join('');
+const fitCls=s=>s>=80?'strong':s>=70?'good':'maybe';
+const fitLbl=s=>s>=80?'Strong fit':s>=70?'Good fit':'Possible fit';
+const fit=s=>`<span class="fit ${fitCls(s)}"><span class="n num">${s}</span><span class="l">${fitLbl(s)}</span></span>`;
+const key=(t,x)=>t==='companies'?'c_'+x.id:x.id;
+const isPin=k=>!!S.pin[k], isDone=k=>!!S.done[k];
+
+/* hydrate templated icon tokens */
+document.querySelectorAll('.tic,.k,.stat').forEach(el=>{el.innerHTML=el.innerHTML.replace('__IC_BUILDING__',ic('building')).replace('__IC_BRIEFCASE__',ic('briefcase')).replace('__IC_USER__',ic('user')).replace('__IC_SPARK__',ic('spark'))});
+document.querySelectorAll('.tab .tic').forEach(el=>{});
+
+/* ---------- rendering ---------- */
+function items(t){
+  let a=t==='companies'?C:t==='jobs'?J:L;
+  a=a.map(x=>({x,k:key(t,x)}));
+  if(S.coFilter&&t!=='companies')a=a.filter(o=>o.x.co===S.coFilter);
+  if(S.pinOnly)a=a.filter(o=>isPin(o.k));
+  if(S.todo&&t!=='companies')a=a.filter(o=>!isDone(o.k));
+  const sc=o=>o.x.score??(100-o.x.rank);
+  if(S.sort==='fit')a.sort((p,q)=>sc(q)-sc(p));
+  if(S.sort==='pinned')a.sort((p,q)=>(isPin(q.k)-isPin(p.k))||(sc(q)-sc(p)));
+  if(S.sort==='az')a.sort((p,q)=>(p.x.name||p.x.title).localeCompare(q.x.name||q.x.title));
+  return a;
+}
+function cardHTML(t,o){
+  const x=o.x,k=o.k,pin=isPin(k),dn=isDone(k),open=S.open[k];
+  const cls=`card ${kind[t]} ${pin?'is-pinned':''} ${dn?'done':''} ${open?'open':''}`;
+  const nm=t==='people'?x.name:t==='jobs'?x.title:x.name;
+  const url=x.url;
+  const icon=t==='people'?initials(x.name):IC[t==='jobs'?'briefcase':'building'];
+  const sub=t==='companies'?'':t==='jobs'
+   ?`<div class="sub"><button class="co" data-act="goco" data-co="${x.co}" aria-label="Open company ${coName(x.co)}">${ic('building')}${coName(x.co)}</button><span>${x.loc}</span>${x.sal?`<span class="salary">${x.sal}</span>`:''}</div>`
+   :`<div class="sub"><span>${x.title}</span><button class="co" data-act="goco" data-co="${x.co}" aria-label="Open company ${coName(x.co)}">${ic('building')}${coName(x.co)}</button></div>`;
+  const nums=t==='companies'?(()=>{const j=J.filter(a=>a.co===x.id).length,p=L.filter(a=>a.co===x.id).length;return {j,p}})():null;
+  const fscore=t==='people'?'':fit(x.score);
+  const label=t==='companies'?'How you align':t==='jobs'?'How you align':'Why connect';
+  const status=t==='jobs'?`<button class="status job" data-act="done" aria-pressed="${dn}" aria-label="Applied to ${nm.replace(/"/g,'')}"><span class="box">${ic('check')}</span>${dn?'Applied':'Mark applied'}</button>`
+    :t==='people'?`<button class="status person" data-act="done" aria-pressed="${dn}" aria-label="Connected with ${nm}"><span class="box">${ic('check')}</span>${dn?'Connected':'Mark connected'}</button>`:'';
+  const findp=t==='companies'?`<button class="btn sec sm" data-act="find">${ic('user')}<span>${nums.p?'Find more people':'Find people'}</span></button>`:t==='jobs'?`<button class="btn sec sm" data-act="find" title="Find people who work on this role's team">${ic('user')}<span>Find people for this job</span></button>`:'';
+  return `<article class="${cls}" data-k="${k}" data-t="${t}" id="card-${k}">
+   <div class="chead">
+     <div class="cic ${kind[t]}" aria-hidden="true">${icon}</div>
+     <div class="ctitle">
+       <h3 class="name"><a class="ext" href="${url}" target="_blank" rel="noopener">${nm}</a><a class="exti" href="${url}" target="_blank" rel="noopener" aria-label="Open ${nm.replace(/"/g,'')} in a new tab">${ic('ext')}</a></h3>
+       ${sub}
+     </div>
+     <button class="iconbtn pin" data-act="pin" aria-pressed="${pin}" aria-label="Pin ${nm.replace(/"/g,'')}" title="${pin?'Unpin':'Pin'}">${ic('pin')}</button>
+   </div>
+   ${t==='companies'?`<p class="blurb ${open?'':'clamp'}">${x.desc}</p><div class="counts">${fscore}<button class="cnt job" data-act="seejobs" data-co="${x.id}">${ic('briefcase')}${nums.j} job${nums.j===1?'':'s'}</button><button class="cnt person" data-act="seepeople" data-co="${x.id}">${ic('user')}${nums.p} ${nums.p===1?'person':'people'}</button></div>`:
+     t==='jobs'?`<div>${fscore}</div>`:''}
+   <p class="note clamp"><span class="lab">${label}</span>${x.al}</p>
+   <div class="extra">
+     ${t==='people'?`<div class="msg"><div class="top"><span>Example LinkedIn message</span><button class="copybtn" data-act="copy">${ic('copy')}<span>Copy</span></button></div><p>${x.msg}</p><p class="num" style="font-size:12.5px;color:#2F4F66;margin-top:6px">${x.msg.length} characters</p></div>`:''}
+   </div>
+   <div class="cfoot">
+     ${status}
+     <button class="link" data-act="toggle" aria-expanded="${!!open}">${open?'Show less':'Why it fits'} ${ic('chev','chev')}</button>
+     <span class="sp"></span>
+     ${findp}
+     <button class="btn sm sec" data-act="drawer">Details ${ic('arrow')}</button>
+   </div>
+ </article>`;
+}
+function render(){
+  const t=S.tab,all=items(t),n=S.shown[t],vis=all.slice(0,n);
+  document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  $('#panel').setAttribute('aria-labelledby','tab-'+t);
+  $('#list-h').textContent=t==='companies'?'Companies to look at':t==='jobs'?'Jobs to apply to':'People to connect with';
+  $('#f-todo').style.display=t==='companies'?'none':'';
+  $('#f-todo').textContent=t==='jobs'?'Not applied yet':'Not connected yet';
+  $('#cofilter').innerHTML=S.coFilter&&t!=='companies'?`<button class="chip filter" data-act="clearco" aria-label="Remove company filter ${coName(S.coFilter)}">${ic('building')} At ${coName(S.coFilter)} ${ic('x')}</button>`:'';
+  $('#grid').innerHTML=vis.length?vis.map(o=>cardHTML(t,o)).join(''):`<div class="empty"><h3>Nothing here with these filters</h3><p>${S.coFilter?'No '+t+' found at '+coName(S.coFilter)+' yet.':'Try clearing a filter.'}</p><button class="btn pri" data-act="clearall">Clear filters</button></div>`;
+  const left=all.length-vis.length;
+  $('#more').innerHTML=all.length?`<div class="meta num">Showing ${vis.length} of ${all.length}</div><div class="bar" aria-hidden="true"><i style="width:${vis.length/all.length*100}%"></i></div>${left>0?`<button class="btn sec" id="showmore">Show ${Math.min(5,left)} more ${ic('chev')}</button>`:''}`:'';
+  $('#cnt-companies').textContent=C.length;
+  ring();
+}
+function ring(){
+  const jobsPeople=[...J,...L];
+  const planned=jobsPeople.filter(x=>isPin(x.id)||isDone(x.id));
+  const done=planned.filter(x=>isDone(x.id)).length;
+  const pins=Object.values(S.pin).filter(Boolean).length;
+  const pct=planned.length?Math.round(done/planned.length*100):0;
+  $('#ringfg').style.strokeDashoffset=125.66*(1-pct/100);
+  $('#ringpct').textContent=pct+'%';
+  $('#ringl1').textContent=`${done} of ${planned.length} steps done`;
+  $('#ringl2').textContent=`${pins} pinned · applied or connected`;
+}
+function pickHTML(){
+  const c=C[0],j=J[0],p=L[0];
+  const pk=(t,k,ic_,nm,sub,why,fitv)=>`<button class="pick ${t}" data-pick="${k}" data-t="${t}s"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><span class="pill ${t}">${ic_}${t==='company'?'Company':t==='job'?'Job':'Person'}</span>${fitv?fit(fitv):''}</div><h3>${nm}</h3><p style="font-size:14px;color:var(--text-2);margin-top:-4px">${sub}</p><p class="why">${why}</p><span class="go">See why it fits ${ic('arrow')}</span></button>`;
+  $('#picks').innerHTML=
+    pk('company','c_tracksuit',ic('building'),c.name,'1 job · 4 people',c.al,c.score)+
+    pk('job','j1',ic('briefcase'),j.title,'Tracksuit · New York, NY · $162K-205K',j.al,j.score)+
+    pk('person','p_keniel',ic('user'),p.name,p.title+' · Tracksuit',p.al,null);
+}
+
+/* ---------- interactions ---------- */
+function go(tab,opts){S.tab=tab;S.shown[tab]=Math.max(S.shown[tab],4);if(opts)Object.assign(S,opts);history.replaceState(null,'','#'+tab);render()}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.coFilter=null;go(b.dataset.tab)});
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('keydown',e=>{
+  const ts=[...document.querySelectorAll('.tab')],i=ts.indexOf(b);
+  if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=ts[(i+(e.key==='ArrowRight'?1:ts.length-1))%ts.length];n.focus();n.click()}}));
+$('#f-pinned').onclick=e=>{S.pinOnly=!S.pinOnly;e.currentTarget.setAttribute('aria-pressed',S.pinOnly);render()};
+$('#f-todo').onclick=e=>{S.todo=!S.todo;e.currentTarget.setAttribute('aria-pressed',S.todo);render()};
+$('#sort').onchange=e=>{S.sort=e.target.value;render()};
+document.addEventListener('click',e=>{
+  const sm=e.target.closest('#showmore');if(sm){S.shown[S.tab]+=5;render();const cards=document.querySelectorAll('.card');cards[Math.min(cards.length-1,S.shown[S.tab]-5)]?.querySelector('a.ext')?.focus({preventScroll:false});return}
+  const pk=e.target.closest('.pick');if(pk){const t=pk.dataset.t;S.coFilter=null;S.shown[t]=Math.max(S.shown[t],10);S.pinOnly=false;S.todo=false;$('#f-pinned').setAttribute('aria-pressed',false);$('#f-todo').setAttribute('aria-pressed',false);S.sort='fit';$('#sort').value='fit';S.open[pk.dataset.pick]=true;go(t);flash(pk.dataset.pick);return}
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const card=b.closest('.card'),k=card&&card.dataset.k,t=card&&card.dataset.t,act=b.dataset.act;
+  if(act==='pin'){S.pin[k]=!S.pin[k];b.classList.add('pop');Shell.toast(S.pin[k]?'Pinned. It now counts toward your plan.':'Unpinned.');
+     refreshCard(card)}
+  else if(act==='done'){S.done[k]=!S.done[k];Shell.toast(S.done[k]?(t==='jobs'?'Nice. Marked as applied.':'Marked as connected. Great work.'):'Status cleared.');refreshCard(card)}
+  else if(act==='toggle'){S.open[k]=!S.open[k];refreshCard(card);}
+  else if(act==='copy'){const x=L.find(p=>p.id===k);navigator.clipboard&&navigator.clipboard.writeText(x.msg).catch(()=>{});b.classList.add('ok');b.querySelector('span').textContent='Copied';setTimeout(()=>{b.classList.remove('ok');b.querySelector('span').textContent='Copy'},1800)}
+  else if(act==='drawer')openDrawer(t,k);
+  else if(act==='goco'){S.coFilter=null;S.shown.companies=6;S.pinOnly=false;go('companies');flash('c_'+b.dataset.co)}
+  else if(act==='seejobs'){S.pinOnly=false;S.todo=false;go('jobs',{coFilter:b.dataset.co})}
+  else if(act==='seepeople'){S.pinOnly=false;S.todo=false;go('people',{coFilter:b.dataset.co})}
+  else if(act==='clearco'){S.coFilter=null;render()}
+  else if(act==='clearall'){S.coFilter=null;S.pinOnly=false;S.todo=false;$('#f-pinned').setAttribute('aria-pressed',false);$('#f-todo').setAttribute('aria-pressed',false);render()}
+  else if(act==='find'){const sp=b.querySelector('span'),old=sp.textContent;b.disabled=true;sp.textContent='Searching…';b.insertAdjacentHTML('afterbegin','<i class="spin"></i>');
+     setTimeout(()=>{b.disabled=false;b.querySelector('.spin')?.remove();sp.textContent=old;Shell.toast('Found 3 more people. They will appear in the People tab.')},2200)}
+  else if(act==='dnone'){}
+});
+function refreshCard(card){
+  const k=card.dataset.k,t=card.dataset.t;
+  const o=items(t).find(o=>o.k===k)||{x:(t==='companies'?C:t==='jobs'?J:L).find(x=>key(t,x)===k),k};
+  const wasFocus=document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.act;
+  const tmp=document.createElement('div');tmp.innerHTML=cardHTML(t,o);const n=tmp.firstElementChild;n.style.animation='none';card.replaceWith(n);
+  if(wasFocus)n.querySelector('[data-act="'+wasFocus+'"]')?.focus();
+  ring();
+}
+function flash(k){
+  setTimeout(()=>{const el=document.getElementById('card-'+k);if(!el)return;el.scrollIntoView({block:'center',behavior:'smooth'});el.classList.add('flash');setTimeout(()=>el.classList.remove('flash'),2200)},60)}
+
+/* ---------- drawer ---------- */
+let lastFocus=null;
+function openDrawer(t,k){
+  const x=(t==='companies'?C:t==='jobs'?J:L).find(a=>key(t,a)===k);
+  const d=$('#drawer');lastFocus=document.activeElement;
+  const nm=x.name||x.title,cid=t==='companies'?x.id:x.co;
+  const rel=(arr,tt)=>arr.map(a=>`<button data-rel="${tt}|${key(tt,a)}">${tt==='jobs'?ic('briefcase'):ic('user')}<span><b style="font-family:var(--font-h)">${a.title&&tt==='jobs'?a.title:a.name}</b>${tt==='people'?`<br><span style="font-size:13.5px;color:var(--text-2)">${a.title}</span>`:`<br><span style="font-size:13.5px;color:var(--text-2)">${a.sal||a.loc}</span>`}</span></button>`).join('')||'<p style="color:var(--text-2)">None found yet.</p>';
+  d.innerHTML=`<div class="dh"><div style="flex:1"><span class="pill ${kind[t]}">${t==='companies'?ic('building')+'Company':t==='jobs'?ic('briefcase')+'Job':ic('user')+'Person'}</span><h2 id="dtitle" style="margin-top:8px">${nm}</h2>
+    ${t!=='companies'?`<p style="color:var(--text-2);margin-top:2px">${t==='jobs'?x.loc+(x.sal?' · '+x.sal:''):x.title} at <b>${coName(cid)}</b></p>`:`<p style="color:var(--text-2);margin-top:2px">${x.desc}</p>`}
+    ${x.score?`<div style="margin-top:10px">${fit(x.score)}</div>`:''}</div>
+    <button class="iconbtn" id="dclose" aria-label="Close details">${ic('x')}</button></div>
+   <div class="db">
+    <div><h3>${t==='people'?'Why connect':'How you align'}</h3><p class="note">${x.al}</p></div>
+    ${t==='people'?`<div class="msg"><div class="top"><span>Example LinkedIn message</span><button class="copybtn" data-dcopy>${ic('copy')}<span>Copy</span></button></div><p>${x.msg}</p><p class="num" style="font-size:12.5px;color:#2F4F66;margin-top:6px">${x.msg.length} characters</p></div>`:''}
+    ${t==='companies'?`<div><h3>Open jobs here (${J.filter(a=>a.co===x.id).length})</h3><div class="rel">${rel(J.filter(a=>a.co===x.id),'jobs')}</div></div><div><h3>People to connect with (${L.filter(a=>a.co===x.id).length})</h3><div class="rel">${rel(L.filter(a=>a.co===x.id).slice(0,4),'people')}</div></div>`:
+      `<div><h3>At ${coName(cid)}</h3><div class="rel"><button data-rel="companies|c_${cid}">${ic('building')}<span><b style="font-family:var(--font-h)">${coName(cid)}</b><br><span style="font-size:13.5px;color:var(--text-2)">${J.filter(a=>a.co===cid).length} job${J.filter(a=>a.co===cid).length===1?'':'s'} · ${L.filter(a=>a.co===cid).length} people · fit ${C.find(c=>c.id===cid).score}</span></span></button></div></div>`}
+   </div>
+   <div class="df">
+    ${t==='jobs'?`<a class="btn pri" href="${x.url}" target="_blank" rel="noopener">View posting ${ic('ext')}</a>`:t==='people'?`<a class="btn pri" href="${x.url}" target="_blank" rel="noopener">Open LinkedIn ${ic('ext')}</a>`:`<a class="btn pri" href="${x.url}" target="_blank" rel="noopener">Company page ${ic('ext')}</a>`}
+    ${t==='companies'?`<button class="btn sec" id="dfind">${ic('user')}<span>Find more people</span></button>`:t==='jobs'?`<button class="btn sec" id="dfind">${ic('user')}<span>Find people for this job</span></button>`:''}
+    <button class="btn sec" id="dpin" aria-pressed="${isPin(k)}">${ic('pin')}<span>${isPin(k)?'Pinned':'Pin'}</span></button>
+   </div>`;
+  d.classList.add('open');d.setAttribute('aria-hidden','false');$('#dscrim').classList.add('show');$('#dclose').focus();
+  $('#dclose').onclick=closeDrawer;
+  const dc=d.querySelector('[data-dcopy]');if(dc)dc.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(x.msg).catch(()=>{});dc.classList.add('ok');dc.querySelector('span').textContent='Copied';setTimeout(()=>{dc.classList.remove('ok');dc.querySelector('span').textContent='Copy'},1800)};
+  const df=$('#dfind');if(df)df.onclick=()=>{const s=df.querySelector('span'),o=s.textContent;s.textContent='Searching…';df.disabled=true;setTimeout(()=>{df.disabled=false;s.textContent=o;Shell.toast('Found 3 more people.')},2000)};
+  $('#dpin').onclick=()=>{S.pin[k]=!S.pin[k];const p=$('#dpin');p.setAttribute('aria-pressed',S.pin[k]);p.querySelector('span').textContent=S.pin[k]?'Pinned':'Pin';render()};
+  d.querySelectorAll('[data-rel]').forEach(b=>b.onclick=()=>{const [tt,kk]=b.dataset.rel.split('|');openDrawer(tt,kk)});
+}
+function closeDrawer(){$('#drawer').classList.remove('open');$('#drawer').setAttribute('aria-hidden','true');$('#dscrim').classList.remove('show');lastFocus&&lastFocus.focus&&lastFocus.focus()}
+$('#dscrim').onclick=closeDrawer;
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#drawer').classList.contains('open'))closeDrawer();
+  if(e.key==='Tab'&&$('#drawer').classList.contains('open')){const f=[...$('#drawer').querySelectorAll('button,a[href]')].filter(x=>!x.disabled);if(!f.length)return;const a=f[0],z=f[f.length-1];if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus()}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus()}}});
+window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(['companies','jobs','people'].includes(h)&&h!==S.tab){S.coFilter=null;go(h)}});
+
+pickHTML();render();
+</script>
+</body>
+</html>
