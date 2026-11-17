@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Networking Agent: UI redesign drafts, round 2</title>
+<style>
+  :root { --bg:#F6F7F9; --card:#fff; --ink:#111827; --muted:#4B5563; --line:#E5E7EB; --accent:#4338CA; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width:1200px; margin:0 auto; padding:48px 24px 80px; }
+  h1 { font-size:32px; margin:0 0 8px; }
+  .lede { color:var(--muted); margin:0 0 20px; max-width:75ch; }
+  .lede a, footer a { color:var(--accent); }
+  .feedback { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 32px; font-size:15px; color:var(--muted); }
+  .feedback strong { color:var(--ink); }
+  .feedback ul { margin:6px 0 0; padding-left:20px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:24px; }
+  article { background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+  .shots { position:relative; aspect-ratio:16/10; border-bottom:1px solid var(--line); background:#E5E7EB; }
+  .shots img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:top left; display:block; transition:opacity .2s; }
+  .shots img.dark { opacity:0; }
+  article.show-dark .shots img.dark { opacity:1; }
+  .theme { position:absolute; right:10px; bottom:10px; z-index:1; font:600 13px system-ui; border:1px solid rgba(0,0,0,.15); background:#fff; color:var(--ink); border-radius:999px; padding:4px 12px; cursor:pointer; }
+  .theme:focus-visible, .links a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .body { padding:18px 20px 20px; display:flex; flex-direction:column; gap:8px; flex:1; }
+  h2 { font-size:20px; margin:0; }
+  .tag { font-size:13px; color:var(--muted); }
+  .swatches { display:flex; gap:6px; }
+  .swatches span { width:22px; height:22px; border-radius:6px; border:1px solid rgba(0,0,0,.1); }
+  p { margin:0; color:var(--muted); font-size:15px; }
+  .links { display:flex; flex-wrap:wrap; gap:8px; margin-top:auto; padding-top:10px; }
+  .links a { font-size:14px; text-decoration:none; color:var(--accent); border:1px solid var(--line); border-radius:999px; padding:4px 12px; }
+  .links a:first-child { background:var(--accent); color:#fff; border-color:var(--accent); }
+  footer { margin-top:40px; color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>UI redesign drafts: round 2</h1>
+  <p class="lede">Five new drafts built from your notes in <a href="../updating-ui.md">updating-ui.md</a>. Each one starts in light mode, has a light/dark toggle, and has working results, search and running pages plus a README. The full brief is in <a href="BRIEF.md">BRIEF.md</a>, and round 1 is in <a href="../ui_drafts_v1/index.html">ui_drafts_v1</a>.</p>
+
+  <div class="feedback">
+    <strong>What carried over from round 1</strong>
+    <ul>
+      <li><strong>Command Center:</strong> the three-pane layout, now light by default with a dark-mode toggle.</li>
+      <li><strong>Company Map:</strong> the company-grouped results page and the Harbor colours.</li>
+      <li><strong>Field Notes:</strong> only the Linen colours, not its layout.</li>
+      <li><strong>Pipeline and Calm Focus:</strong> dropped.</li>
+    </ul>
+  </div>
+
+  <div class="grid">
+    <article>
+      <div class="shots">
+        <img src="01-command-linen/preview.png" alt="Command · Linen, light mode">
+        <img class="dark" src="01-command-linen/preview-dark.png" alt="Command · Linen, dark mode">
+        <button class="theme" type="button" aria-pressed="false">Show dark</button>
+      </div>
+      <div class="body">
+        <h2>1 · Command · Linen</h2>
+        <div class="tag">Command Center layout · Linen palette · warm espresso dark mode</div>
+        <div class="swatches"><span style="background:#FAF6F0"></span><span style="background:#C2410C"></span><span style="background:#7C3AED"></span><span style="background:#0F766E"></span><span style="background:#B45309"></span></div>
+        <p>The layout you liked, in the colours you liked: searches on the left, a list in the middle, and a details pane on the right that opens on the top company. Includes keyboard shortcuts and Ctrl+K search.</p>
+        <div class="links"><a href="01-command-linen/results.html">Results</a><a href="01-command-linen/search.html">Search</a><a href="01-command-linen/running.html">Running</a><a href="01-command-linen/library.html">Library</a><a href="01-command-linen/README.md">README</a></div>
+      </div>
+    </article>
+    <article>
+      <div class="shots">
+        <img src="02-command-harbor/preview.png" alt="Command · Harbor, light mode">
+        <img class="dark" src="02-command-harbor/preview-dark.png" alt="Command · Harbor, dark mode">
+        <button class="theme" type="button" aria-pressed="false">Show dark</button>
+      </div>
+      <div class="body">
+        <h2>2 · Command · Harbor</h2>
+        <div class="tag">Command Center layout · Harbor palette · navy dark mode</div>
+        <div class="swatches"><span style="background:#F4F7FB"></span><span style="background:#1D4ED8"></span><span style="background:#6D28D9"></span><span style="background:#0369A1"></span><span style="background:#0F766E"></span></div>
+        <p>The same three-pane layout in Company Map's cool blues. It also brings over Company Map's best touches: labelled fit bars, coloured stat cards, and "Message X about Y" links in the details pane.</p>
+        <div class="links"><a href="02-command-harbor/results.html">Results</a><a href="02-command-harbor/search.html">Search</a><a href="02-command-harbor/running.html">Running</a><a href="02-command-harbor/library.html">Library</a><a href="02-command-harbor/README.md">README</a></div>
+      </div>
+    </article>
+    <article>
+      <div class="shots">
+        <img src="03-map-split/preview.png" alt="Map · Split, light mode">
+        <img class="dark" src="03-map-split/preview-dark.png" alt="Map · Split, dark mode">
+        <button class="theme" type="button" aria-pressed="false">Show dark</button>
+      </div>
+      <div class="body">
+        <h2>3 · Map · Split</h2>
+        <div class="tag">Company Map results + Command Center details pane · Harbor palette</div>
+        <div class="swatches"><span style="background:#F4F7FB"></span><span style="background:#1D4ED8"></span><span style="background:#6D28D9"></span><span style="background:#0369A1"></span><span style="background:#0F766E"></span></div>
+        <p>Combines both liked layouts. The middle column is Company Map's company panels with the jump-to index. Clicking anything opens it in a permanent details pane on the right instead of a drawer. The header is shrunk to one strip so the first company is visible straight away.</p>
+        <div class="links"><a href="03-map-split/results.html">Results</a><a href="03-map-split/search.html">Search</a><a href="03-map-split/running.html">Running</a><a href="03-map-split/library.html">Library</a><a href="03-map-split/README.md">README</a></div>
+      </div>
+    </article>
+    <article>
+      <div class="shots">
+        <img src="04-map-linen/preview.png" alt="Map · Linen, light mode">
+        <img class="dark" src="04-map-linen/preview-dark.png" alt="Map · Linen, dark mode">
+        <button class="theme" type="button" aria-pressed="false">Show dark</button>
+      </div>
+      <div class="body">
+        <h2>4 · Map · Linen</h2>
+        <div class="tag">Company Map layout · Linen palette · warm espresso dark mode</div>
+        <div class="swatches"><span style="background:#FAF6F0"></span><span style="background:#C2410C"></span><span style="background:#7C3AED"></span><span style="background:#0F766E"></span><span style="background:#B45309"></span></div>
+        <p>The Company Map results page you liked, in Field Notes' warm colours. The header is tightened so the first company is visible straight away. The connect message still opens in a side drawer.</p>
+        <div class="links"><a href="04-map-linen/results.html">Results</a><a href="04-map-linen/search.html">Search</a><a href="04-map-linen/running.html">Running</a><a href="04-map-linen/library.html">Library</a><a href="04-map-linen/README.md">README</a></div>
+      </div>
+    </article>
+    <article>
+      <div class="shots">
+        <img src="05-command-tree/preview.png" alt="Command · Tree, light mode">
+        <img class="dark" src="05-command-tree/preview-dark.png" alt="Command · Tree, dark mode">
+        <button class="theme" type="button" aria-pressed="false">Show dark</button>
+      </div>
+      <div class="body">
+        <h2>5 · Command · Tree</h2>
+        <div class="tag">Command Center layout with a company tree · Linen backgrounds + Harbor accents</div>
+        <div class="swatches"><span style="background:#FAF6F0"></span><span style="background:#1D4ED8"></span><span style="background:#6D28D9"></span><span style="background:#0369A1"></span><span style="background:#0F766E"></span></div>
+        <p>The three-pane layout, but the list is a tree like a file explorer: each company expands into its jobs and people, and arrow keys move through it. A toggle switches back to flat Companies/Jobs/People lists. Warm backgrounds with Harbor's blue and violet accents.</p>
+        <div class="links"><a href="05-command-tree/results.html">Results</a><a href="05-command-tree/search.html">Search</a><a href="05-command-tree/running.html">Running</a><a href="05-command-tree/library.html">Library</a><a href="05-command-tree/README.md">README</a></div>
+      </div>
+    </article>
+  </div>
+  <footer>The mockups use fixed sample data; actions like Find People are simulated. Fonts load from Google Fonts and fall back to system fonts when offline. The swatches show each draft's light-mode colours.</footer>
+</main>
+<script>
+  document.querySelectorAll('.theme').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const card = btn.closest('article');
+      const dark = card.classList.toggle('show-dark');
+      btn.setAttribute('aria-pressed', String(dark));
+      btn.textContent = dark ? 'Show light' : 'Show dark';
+    });
+  });
+</script>
+</body>
+</html>

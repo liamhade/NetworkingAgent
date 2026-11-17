@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New search · Networking Agent (Command · Tree)</title>
+<link rel="stylesheet" href="styles.css">
+<script>try{var t=localStorage.getItem('cnt-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body data-page="search">
+<div class="app">
+  <header class="topbar" id="topbar"></header>
+  <div class="body">
+    <aside class="side" id="side" aria-label="Previous searches"></aside>
+    <main class="page-scroll" id="main">
+      <div class="hero">
+        <form class="form" id="form" novalidate>
+          <div>
+            <div class="eyebrows"><span class="pill c-company">Companies</span><span class="pill c-job">Jobs</span><span class="pill c-person">People</span></div>
+            <h1>Tell the agent what you want. Get <em>companies, jobs and people</em> worth your time.</h1>
+            <p class="lead">Describe your background and target. The agent searches job boards and LinkedIn in the background, then explains why each result fits you.</p>
+          </div>
+
+          <div class="field">
+            <div class="lab"><span id="resumeLab">Resume</span><span class="opt">Optional · PDF · autofills the fields below</span></div>
+            <div class="resume" id="resume" role="group" aria-labelledby="resumeLab">
+              <span class="chip-icon c-job"><i data-icon="user"></i></span>
+              <div class="grow"><div class="name">resume_2026.pdf</div><div class="meta">Saved · 84 KB · updated 3 days ago</div></div>
+              <button type="button" class="btn sm" id="replace"><i data-icon="upload"></i>Replace</button>
+              <button type="button" class="icon-btn" aria-label="Remove saved resume" id="rmResume"><i data-icon="x"></i></button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="bg"><span>Your background <span class="req">Required</span></span><span class="opt" id="bgCount">0 characters</span></label>
+            <textarea class="in" id="bg" rows="5" placeholder="Current role, skills, projects, what you are good at...">I am a Software Engineer at Dover Corporation since November 2025, building an agentic chat interface with self-hosted LLMs and custom MCP integrations. Before that I built a DSCSA-compliant pharmaceutical database. Strong in Python and C++, backend and data infrastructure.</textarea>
+          </div>
+          <div class="field">
+            <label for="loc"><span>Location</span><span class="opt">Optional</span></label>
+            <input class="in" id="loc" value="New York, NY">
+          </div>
+          <div class="field">
+            <label for="want"><span>What you are looking for <span class="req">Required</span></span></label>
+            <textarea class="in" id="want" rows="3" placeholder="Roles, industries, stack, seniority...">Software engineering roles, particularly in agentic AI, LLM applications, and backend or data infrastructure. Python or C++ oriented would be ideal.</textarea>
+          </div>
+
+          <details class="boards" id="boards">
+            <summary><i data-icon="search"></i>Search boards <span class="pill" id="bsum" style="--c:var(--accent)">5 of 8 on</span><i data-icon="down" class="chev"></i></summary>
+            <div id="boardList"></div>
+          </details>
+
+          <div class="submit-row">
+            <button type="submit" class="btn primary big" id="go"><i data-icon="sparkle"></i>Find opportunities</button>
+            <span class="muted" id="goHint" style="font-size:13px"><kbd id="goKey">Ctrl Enter</kbd> to run · takes a few minutes · runs in the background</span>
+          </div>
+        </form>
+
+        <aside class="side-col" aria-label="Saved configurations">
+          <div class="cfg">
+            <h2>Saved configurations <button class="btn sm" id="saveCfg"><i data-icon="save"></i>Save current</button></h2>
+            <div id="cfgList"></div>
+          </div>
+          <div class="tips"><strong style="color:var(--text)">Shortcuts</strong>
+            <div><kbd id="k1">Ctrl K</kbd> command palette</div>
+            <div><kbd>N</kbd> new search from anywhere</div>
+            <div><kbd>j</kbd><kbd>k</kbd> move through results</div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+<div class="scrim" id="scrim"></div>
+<script src="data.js"></script>
+<script src="shell.js"></script>
+<script>
+(function(){
+  const {esc, icon, toast} = CC;
+  document.getElementById('goKey').textContent = CC.mod + ' Enter'; document.getElementById('k1').textContent = CC.mod + ' K';
+  const boards = [
+    ['builtin_nyc','Built In NYC','New York City tech companies and their jobs.',true,40,null],
+    ['conservation','Conservation jobs','Environmental and conservation organisations.',false,45,null],
+    ['greenhouse','Greenhouse','Jobs hosted on Greenhouse applicant tracking.',false,8,null],
+    ['lever','Lever','Jobs hosted on Lever applicant tracking.',true,8,null],
+    ['ashby','Ashby','Jobs hosted on Ashby applicant tracking.',true,8,null],
+    ['workable','Workable','Jobs hosted on Workable applicant tracking.',true,8,null],
+    ['usajobs','USAJOBS','Needs an API key (USAJOBS_API_KEY and USAJOBS_EMAIL).',false,20,'Unavailable'],
+    ['google','Google job searches','General Google searches for postings the other boards miss. Slow.',true,20,null]
+  ];
+  function renderBoards(){
+    document.getElementById('boardList').innerHTML = boards.map((b,i)=>'<div class="board'+(b[3]?'':' off')+'"><button type="button" class="switch" role="switch" aria-checked="'+b[3]+'" aria-label="'+esc(b[1])+'" data-i="'+i+'"'+(b[5]?' disabled':'')+'></button><div><b>'+esc(b[1])+'</b><small>'+esc(b[2])+'</small></div>'+
+      (b[5]?'<span class="pill" style="--c:var(--danger)">Unavailable</span>':'<label class="muted" style="font-size:12px">Max jobs <input class="num-in" type="number" min="1" max="100" value="'+b[4]+'" aria-label="Max jobs for '+esc(b[1])+'"'+(b[3]?'':' disabled')+'></label>')+'</div>').join('');
+    const on = boards.filter(b=>b[3]).length; document.getElementById('bsum').textContent = on+' of '+boards.length+' on'; validate();
+    document.querySelectorAll('.switch').forEach(s=>s.onclick=()=>{const b=boards[+s.dataset.i]; b[3]=!b[3]; renderBoards();});
+  }
+  const bg=document.getElementById('bg'), want=document.getElementById('want'), go=document.getElementById('go'), hint=document.getElementById('goHint');
+  function validate(){
+    document.getElementById('bgCount').textContent = bg.value.length+' characters';
+    const ok = bg.value.trim() && want.value.trim() && boards.some(b=>b[3]);
+    go.disabled = !ok; go.setAttribute('aria-disabled', !ok);
+    hint.innerHTML = ok ? '<kbd>'+CC.mod+' Enter</kbd> to run · takes a few minutes · runs in the background' : 'Add '+(!bg.value.trim()?'your background':!want.value.trim()?'what you are looking for':'at least one search board')+' to continue.';
+  }
+  bg.oninput = want.oninput = validate;
+  document.getElementById('form').onsubmit = e => { e.preventDefault(); if(!go.disabled) location.href='running.html'; };
+  document.addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ document.getElementById('form').requestSubmit(); } });
+
+  let cfgs = [
+    {id:1,name:'Agentic AI, NYC',sub:'Python · C++ · 5 boards',bg:bg.value,want:want.value,loc:'New York, NY'},
+    {id:2,name:'Backend fintech',sub:'Payments · NYC · 3 boards',bg:'Backend engineer with Python and C++ experience in data-heavy systems.',want:'Backend roles at fintech and payments companies.',loc:'New York, NY'},
+    {id:3,name:'Basic',sub:'Empty background',bg:'',want:'',loc:''}
+  ];
+  function renderCfg(){
+    document.getElementById('cfgList').innerHTML = cfgs.map(c=>'<div class="cfg-item"><button class="cfg-load" data-load="'+c.id+'"><b>'+esc(c.name)+'</b><small>'+esc(c.sub)+'</small></button>'+
+      '<button class="icon-btn" data-ren="'+c.id+'" aria-label="Rename '+esc(c.name)+'" title="Rename">'+icon('edit')+'</button><button class="icon-btn" data-ow="'+c.id+'" aria-label="Overwrite '+esc(c.name)+' with current form" title="Overwrite with current form">'+icon('save')+'</button><button class="icon-btn" data-rm="'+c.id+'" aria-label="Delete '+esc(c.name)+'" title="Delete">'+icon('trash')+'</button></div>').join('');
+    const q=(a,f)=>document.querySelectorAll('['+a+']').forEach(b=>b.onclick=()=>f(cfgs.find(c=>c.id==b.getAttribute(a)),b));
+    q('data-load',c=>{bg.value=c.bg;want.value=c.want;document.getElementById('loc').value=c.loc;validate();toast('Loaded "'+c.name+'"');});
+    q('data-ow',c=>{c.bg=bg.value;c.want=want.value;toast('Overwrote "'+c.name+'"');});
+    q('data-ren',c=>{const n=prompt('Rename configuration',c.name); if(n){c.name=n;renderCfg();}});
+    q('data-rm',c=>{ if(confirm('Delete "'+c.name+'"?')){cfgs=cfgs.filter(x=>x!==c);renderCfg();toast('Configuration deleted');}});
+  }
+  document.getElementById('saveCfg').onclick=()=>{const n=prompt('Name this configuration','New configuration'); if(n){cfgs.unshift({id:Date.now(),name:n,sub:'Just saved',bg:bg.value,want:want.value,loc:document.getElementById('loc').value});renderCfg();toast('Saved "'+n+'"');}};
+  document.getElementById('rmResume').onclick=()=>{ document.getElementById('resume').innerHTML='<span class="chip-icon c-job">'+icon('upload')+'</span><div class="grow"><div class="name">Drop a PDF resume here</div><div class="meta">or click to browse</div></div><button type="button" class="btn sm">Upload</button>'; };
+  renderBoards(); renderCfg();
+})();
+</script>
+</body>
+</html>

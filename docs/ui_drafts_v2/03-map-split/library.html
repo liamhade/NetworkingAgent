@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Library | Networking Agent</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('na-theme')==='dark'?'dark':'light'}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
+</head>
+<body data-page="library">
+<main class="main" id="main">
+<div class="wrap page" style="max-width:980px">
+  <div class="lib-head"><h1 id="h1">Companies</h1><span class="pill neu num" id="chip"></span><span style="flex:1"></span>
+    <label class="tb-lab" for="sort">Sort</label>
+    <select id="sort" style="width:auto"><option value="fit">Best fit first</option><option value="pinned">Pinned first</option><option value="name">Name A-Z</option></select></div>
+  <p id="blurb" style="color:var(--text2);max-width:64ch"></p>
+  <div class="lib-tabs"><div class="seg" role="group" aria-label="Library type" id="tabs">
+    <button data-t="companies" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="#i-building"/></svg>Companies</button>
+    <button data-t="jobs" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="#i-briefcase"/></svg>Jobs</button>
+    <button data-t="people" aria-pressed="false"><svg class="i sm" aria-hidden="true"><use href="#i-users"/></svg>People</button></div></div>
+  <div class="tcard" id="rows"></div>
+</div>
+</main>
+<script src="shell.js"></script>
+<script src="data.js"></script>
+<script>
+(function () {
+  var C = DATA.companies, pins = new Set(DATA.init.pins), applied = new Set(DATA.init.applied), conn = new Set(DATA.init.connected);
+  var type = (location.hash || '#companies').slice(1), sort = 'fit';
+  var $ = function (s) { return document.querySelector(s); };
+  var blurbs = { companies: 'Every company the agent has surfaced across your searches. Open one in a results view to see its jobs and people side by side.', jobs: 'Jobs from all searches. Each one links back to its company.', people: 'People you could contact, across all searches. Each one links to their company and role.' };
+  function ini(n) { var p = n.split(' '); return (p[0][0] + (p[p.length - 1][0] || '')).toUpperCase(); }
+  function pin(id, n) { var on = pins.has(id); return '<button class="ibtn pin" data-pin="' + id + '" aria-pressed="' + on + '" aria-label="Pin ' + esc(n) + '">' + ic('pin') + '</button>'; }
+  function seen() { return '<div class="rmeta"><span>Last seen yesterday</span><span>in 1 search:</span><a class="pill neu" href="results.html" style="text-decoration:none">Agentic AI and backend…</a></div>'; }
+  function render() {
+    document.querySelectorAll('#tabs button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.t === type); });
+    $('#h1').textContent = type[0].toUpperCase() + type.slice(1); $('#blurb').textContent = blurbs[type];
+    var out = [];
+    C.forEach(function (c) {
+      if (type === 'companies') out.push({ id: c.id, n: c.name, k: c.score, c: c, h: c });
+      if (type === 'jobs') c.jobs.forEach(function (j) { out.push({ id: j.id, n: j.title, k: j.score, c: c, j: j }); });
+      if (type === 'people') c.people.forEach(function (p) { out.push({ id: p.id, n: p.name, k: 0, c: c, p: p }); });
+    });
+    out.sort(function (a, b) { return sort === 'name' ? a.n.localeCompare(b.n) : sort === 'pinned' ? (pins.has(b.id) - pins.has(a.id)) || b.k - a.k : b.k - a.k; });
+    var nj = out.filter(function (x) { return x.j; }).length, np = out.filter(function (x) { return x.p; }).length;
+    $('#chip').textContent = type === 'jobs' ? applied.size + '/' + nj + ' applied' : type === 'people' ? conn.size + '/' + np + ' connected' : out.length + ' companies';
+    $('#rows').innerHTML = '<ul class="rows">' + out.map(function (x) {
+      var cotag = '<a class="cotag" href="results.html#co-' + x.c.id + '" style="text-decoration:none">' + ic('building') + esc(x.c.name) + '</a>';
+      if (x.h) return '<li class="row"><div class="rtop"><span class="co-ico">' + ic('building', 'lg') + '</span><div class="rmain"><a class="rtitle" href="results.html#co-' + x.c.id + '" style="font-size:18px">' + esc(x.c.name) + '</a><div class="rmeta"><span class="pill job">' + x.c.jobs.length + ' jobs</span><span class="pill per">' + x.c.people.length + ' people</span><span class="score num ' + (x.k >= 80 ? 's1' : 's2') + '">Fit ' + x.k + '</span></div></div>' + pin(x.id, x.n) + '</div>' + seen() + '</li>';
+      if (x.j) return '<li class="row"><div class="rtop"><div class="rmain"><a class="rtitle" href="#">' + esc(x.n) + ic('ext') + '</a><div class="rmeta">' + cotag + '<span>' + esc(x.j.loc) + '</span>' + (x.j.sal ? '<span class="sal">' + x.j.sal + '</span>' : '') + '<span class="score num ' + (x.k >= 80 ? 's1' : 's2') + '">' + x.k + ' match</span></div></div>' + pin(x.id, x.n) + '</div><div class="ract"><button class="status app" data-st="a:' + x.id + '" aria-pressed="' + applied.has(x.id) + '">' + ic('check', 'on') + '<span class="on">Applied</span><span class="off">Mark applied</span></button></div>' + seen() + '</li>';
+      return '<li class="row"><div class="rtop"><span class="pavatar">' + ini(x.n) + '</span><div class="rmain"><a class="rtitle" href="#">' + esc(x.n) + ic('ext') + '</a><div class="rmeta"><span>' + esc(x.p.title) + '</span>' + cotag + '</div></div>' + pin(x.id, x.n) + '</div><div class="ract"><button class="status con" data-st="c:' + x.id + '" aria-pressed="' + conn.has(x.id) + '">' + ic('check', 'on') + '<span class="on">Connected</span><span class="off">Mark connected</span></button></div>' + seen() + '</li>';
+    }).join('') + '</ul>';
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.t) { type = b.dataset.t; history.replaceState(null, '', '#' + type); render(); }
+    if (b.dataset.pin) { pins.has(b.dataset.pin) ? pins.delete(b.dataset.pin) : pins.add(b.dataset.pin); render(); }
+    if (b.dataset.st) { var s = b.dataset.st.split(':'), set = s[0] === 'a' ? applied : conn; set.has(s[1]) ? set.delete(s[1]) : set.add(s[1]); render(); }
+  });
+  $('#sort').onchange = function () { sort = this.value; render(); };
+  render();
+})();
+</script>
+</body>
+</html>

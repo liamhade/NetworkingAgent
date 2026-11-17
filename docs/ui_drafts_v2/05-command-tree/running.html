@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Searching... · Networking Agent (Command · Tree)</title>
+<link rel="stylesheet" href="styles.css">
+<script>try{var t=localStorage.getItem('cnt-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body data-page="running" data-search="run1" data-density="comfortable">
+<div class="app">
+  <header class="topbar" id="topbar"></header>
+  <div class="body">
+    <aside class="side" id="side" aria-label="Previous searches"></aside>
+    <main class="page-scroll">
+      <div class="run-wrap">
+        <div class="crumbs"><a href="search.html">Search</a><i data-icon="right"></i><span>Running</span></div>
+        <div class="run-top">
+          <div>
+            <h1 style="font-size:22px;max-width:56ch">Data platform and ML infrastructure roles, remote friendly</h1>
+            <div class="ctx-sub"><span class="tag">Remote · US</span><span class="tag">Boards: Built In NYC, Lever, Ashby, Google</span></div>
+          </div>
+          <div class="ctx-actions"><button class="btn danger" id="cancel"><i data-icon="stop"></i>Cancel search</button></div>
+        </div>
+
+        <section class="run-card" aria-label="Search progress" id="card">
+          <div class="run-top">
+            <h2 id="status"><span class="brand-mark" style="width:28px;height:28px"><i data-icon="sparkle" class="spin"></i></span><span id="statusTxt">Finding jobs on Built In NYC</span></h2>
+            <div style="text-align:right"><div class="timer num" id="timer" aria-label="Elapsed time">1:12</div><div class="muted" style="font-size:12px">elapsed</div></div>
+          </div>
+          <div class="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="48" id="pb"><i id="pbi" style="width:48%"></i></div>
+          <div class="muted" style="font-size:12px" id="pct">Step 3 of 5 · about 2 more minutes</div>
+          <ol class="steps" id="steps"></ol>
+          <div class="notice"><i data-icon="clock"></i><span>You can leave this page. The search keeps running and shows up under <strong style="color:var(--text)">Running</strong> in the sidebar.</span></div>
+        </section>
+
+        <div class="live-grid" id="liveGrid">
+          <div class="live-stat c-company"><span class="chip-icon"><i data-icon="building"></i></span><div><b class="num" id="nC">0</b><span>companies</span></div></div>
+          <div class="live-stat c-job"><span class="chip-icon"><i data-icon="briefcase"></i></span><div><b class="num" id="nJ">0</b><span>jobs</span></div></div>
+          <div class="live-stat c-person"><span class="chip-icon"><i data-icon="user"></i></span><div><b class="num" id="nP">0</b><span>people</span></div></div>
+        </div>
+
+        <h2 style="font-size:16px;margin:22px 0 0">Results so far <span class="muted" style="font-weight:400;font-size:13px">streaming in, ranked when the search finishes</span></h2>
+        <div class="live-list" id="live" aria-live="polite"></div>
+
+        <section class="run-card" aria-label="Activity log">
+          <div class="run-top"><strong>Activity</strong><span class="muted num" id="logN" style="font-size:12px">0 events</span></div>
+          <div class="log" id="log"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+<div class="scrim" id="scrim"></div>
+<script src="data.js"></script>
+<script src="shell.js"></script>
+<script>
+(function(){
+  const {esc, icon, toast} = CC;
+  const STEPS = [['Understand profile','Resume and goals'],['Find companies','Built In NYC, Lever'],['Find jobs','Postings per company'],['Find people','LinkedIn employees'],['Write notes','Why it fits']];
+  const found = [['Tracksuit','building','c-company',82],['Two Sigma','building','c-company',80],['Citadel','building','c-company',78],['Alchemi','building','c-company',75],['Palantir','building','c-company',74]];
+  let t = 72, step = 2, running = true, nC=0, nJ=0, nP=0, shown = 0, logs = [];
+  const fmt = s => Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+  function log(m){ logs.unshift([fmt(t), m]); document.getElementById('log').innerHTML = logs.map(l=>'<div><time>'+l[0]+'</time><span>'+esc(l[1])+'</span></div>').join(''); document.getElementById('logN').textContent = logs.length+' events'; }
+  ['Reading your profile','Planning: agentic AI and data platform roles, remote','Searching Built In NYC jobs for data platform engineer','Built In NYC: 15 jobs found','Searching Lever for ML infrastructure roles'].reverse().forEach(m=>log(m));
+  function bump(id){ const el=document.getElementById(id); el.textContent = el.textContent; el.closest('.live-stat').classList.remove('bump'); void el.offsetWidth; el.closest('.live-stat').classList.add('bump'); }
+  function renderSteps(){
+    document.getElementById('steps').innerHTML = STEPS.map((s,i)=>'<li class="step'+(i<step?' done':i===step?' active':'')+'"><div class="st-i">'+(i<step?icon('check'):i===step?icon('loader','spin'):icon('clock'))+(i+1)+'. '+s[0]+'</div><small>'+s[1]+'</small></li>').join('');
+    const pct = Math.min(100, Math.round((step*20) + (running?10:0)));
+    document.getElementById('pbi').style.width = pct+'%'; document.getElementById('pb').setAttribute('aria-valuenow', pct);
+    document.getElementById('pct').textContent = running ? 'Step '+Math.min(step+1,5)+' of 5 · about '+Math.max(1,5-step)+' more minutes' : '';
+    document.getElementById('statusTxt').textContent = ['Reading your profile','Finding companies','Finding jobs on Built In NYC','Finding people on LinkedIn','Writing why-it-fits notes'][Math.min(step,4)];
+  }
+  function renderLive(){
+    let html = found.slice(0,shown).map((c,i)=>'<div class="row" style="grid-template-columns:1fr"><div class="row-main"><span class="rank num">'+(i+1)+'</span><span class="chip-icon c-company">'+icon('building')+'</span><span class="row-text"><span class="row-title">'+c[0]+'</span><span class="row-sub">Scoring fit... '+(Math.random()>.5?'jobs found':'checking postings')+'</span></span></div></div>').join('');
+    for(let i=shown;i<Math.min(shown+3,6);i++) html += '<div class="skel"><i style="width:16px;height:12px"></i><i style="width:28px;height:28px;border-radius:8px"></i><div style="flex:1"><i style="width:'+(35+i*7)+'%;height:12px;display:block"></i><i style="width:'+(55+i*6)+'%;height:10px;display:block;margin-top:7px"></i></div></div>';
+    document.getElementById('live').innerHTML = html;
+  }
+  renderSteps(); renderLive();
+  const iv = setInterval(()=>{
+    if(!running) return; t++; document.getElementById('timer').textContent = fmt(t);
+    if(t%4===0 && shown<found.length){ shown++; nC=shown; nJ+=1+(shown%2); nP+=shown>2?2:0; log('Found '+found[shown-1][0]+' · matching jobs'); ['nC','nJ','nP'].forEach(id=>{document.getElementById(id).textContent={nC,nJ,nP}[id]; bump(id);}); renderLive(); }
+    if(t%10===0 && step<4){ step++; log('Starting: '+STEPS[step][0]); renderSteps(); }
+    if(step>=4 && shown>=found.length && t%10===5) done();
+  },1000);
+  function done(){
+    running=false; clearInterval(iv); step=5; renderSteps(); document.getElementById('pbi').style.width='100%';
+    document.getElementById('statusTxt').textContent='Search complete'; log('Done: 6 companies, 12 jobs, 14 people');
+    document.getElementById('cancel').outerHTML='<a class="btn primary" href="results.html">View results'+icon('right')+'</a>'; toast('Search complete. 6 companies found.');
+  }
+  document.addEventListener('click', e=>{
+    const c = e.target.closest('#cancel'); if(!c) return;
+    if(!c.dataset.arm){ c.dataset.arm=1; c.innerHTML=icon('stop')+'Really cancel? Click again'; setTimeout(()=>{ if(c.isConnected){delete c.dataset.arm; c.innerHTML=icon('stop')+'Cancel search';}},3000); return; }
+    running=false; clearInterval(iv); log('Cancelled by you');
+    document.getElementById('statusTxt').textContent='Cancelled · '+shown+' companies found so far'; document.getElementById('pct').textContent='Partial results are kept.';
+    c.outerHTML='<div style="display:flex;gap:8px"><a class="btn" href="search.html">'+icon('edit')+'Edit &amp; re-run</a><a class="btn primary" href="results.html">View partial results</a></div>'; toast('Search cancelled');
+  });
+})();
+</script>
+</body>
+</html>
