@@ -12,7 +12,9 @@ Open `results.html` (centrepiece), `search.html`, `running.html`, `library.html`
 | Inactive toggles must pass AA | Chips, segmented buttons and status toggles use text2/text on solid tokens; checked in both themes. |
 
 ## Palette (light / dark)
-bg `#FAF6F0` / `#0A0A0B`; surface `#FFFFFF` / `#141416`; alt `#F2EBE0` / `#1E1F23`; border `#E4D9C8` / `#2E3036`; input outline `#8F7B63` / `#6B7280`; text `#2B2420` / `#F2F4F7`; text2 `#6B5E54` / `#A8B0BD`; accent `#C2410C` / `#7DC4FF` (hover `#9A3412` / `#A8D8FF`, on-accent `#FFFFFF` / `#04121F`); company `#7C3AED` / `#A5B8FF`; job `#0F766E` / `#7DD3FC`; person `#B45309` / `#8BE3F0`; pinned `#A16207` / `#BFE3FF`; applied `#15803D` / `#86E1D5`; connected `#1D4ED8` / `#9CC8FF`; danger `#B91C1C` / `#FCA5A5` (dark mode's only warm colour, kept for failed/delete states). Each entity also has `-d` (text on tint) and `-t` (tint) steps.
+Light mode is deliberately restrained (owner feedback: too many colours): warm neutrals, terracotta for actions/companies/pins, one teal for positive states (applied, connected, strong fit), and red only for errors. Jobs and people are told apart by icon and label, not colour.
+
+bg `#FAF6F0` / `#0A0A0B`; surface `#FFFFFF` / `#141416`; alt `#F2EBE0` / `#1E1F23`; border `#E4D9C8` / `#2E3036`; input outline `#8F7B63` / `#6B7280`; text `#2B2420` / `#F2F4F7`; text2 `#6B5E54` / `#A8B0BD`; accent `#C2410C` / `#7DC4FF` (hover `#9A3412` / `#A8D8FF`, on-accent `#FFFFFF` / `#04121F`); company `#C2410C` / `#A5B8FF`; job `#6B5E54` / `#7DD3FC`; person `#6B5E54` / `#8BE3F0`; pinned `#C2410C` / `#BFE3FF`; applied `#0F766E` / `#86E1D5`; connected `#0F766E` / `#9CC8FF`; danger `#B91C1C` / `#FCA5A5` (dark mode's only warm colour, kept for failed/delete states). Each entity also has `-d` (text on tint) and `-t` (tint) steps.
 Accent vs person: both warm, so person is always paired with a round avatar or users icon and an amber tint; accent is used for actions and links only.
 
 ## Type scale

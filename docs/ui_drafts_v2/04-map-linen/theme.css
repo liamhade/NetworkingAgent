@@ -4,12 +4,13 @@
   --bg:#FAF6F0; --surface:#FFFFFF; --alt:#F2EBE0; --border:#E4D9C8; --input:#8F7B63;
   --text:#2B2420; --text2:#6B5E54;
   --accent:#C2410C; --accent-h:#9A3412; --accent-t:#FBE8DD; --on-accent:#FFFFFF; --accent-dis:#D9936F; --accent-line:#EBBFA6;
-  --co:#7C3AED; --co-d:#5B21B6; --co-t:#F1EAFB;
-  --job:#0F766E; --job-d:#115E59; --job-t:#DDF0EA;
-  --per:#B45309; --per-d:#8A3F08; --per-t:#FBEAD2;
-  --pin:#A16207; --pin-d:#7C4A06; --pin-t:#FAEFC5;
-  --app:#15803D; --app-d:#166534; --app-t:#E0F2E2;
-  --con:#1D4ED8; --con-d:#1E40AF; --con-t:#E3EAFB;
+  /* Restrained light palette: warm neutrals + terracotta (actions, companies, pins) + one teal for positive states. */
+  --co:#C2410C; --co-d:#9A3412; --co-t:#FBE8DD;
+  --job:#6B5E54; --job-d:#4A3F37; --job-t:#F2EBE0;
+  --per:#6B5E54; --per-d:#4A3F37; --per-t:#F2EBE0;
+  --pin:#C2410C; --pin-d:#9A3412; --pin-t:#FBE8DD;
+  --app:#0F766E; --app-d:#115E59; --app-t:#DDF0EA;
+  --con:#0F766E; --con-d:#115E59; --con-t:#DDF0EA;
   --danger:#B91C1C; --danger-t:#FCE8E6; --danger-line:#EDB4AE;
   --inv-bg:#2B2420; --inv-fg:#FAF6F0; --toast-link:#F3B08C;
   --focus:#9A3412; --panel-grad:#FDFAF6; --bar:rgba(250,246,240,.94); --scrim:rgba(43,36,32,.45);
