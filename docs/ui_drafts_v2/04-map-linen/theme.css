@@ -22,22 +22,22 @@
   --body:var(--ui);
 }
 :root[data-theme=dark]{
-  color-scheme:dark;
-  --bg:#1B1512; --surface:#261E19; --alt:#352A22; --border:#4A3C31; --input:#9A8674;
-  --text:#F4ECE2; --text2:#C0B1A1;
-  --accent:#F08A5D; --accent-h:#F7A482; --accent-t:#43271A; --on-accent:#2A140A; --accent-dis:#8A5B45; --accent-line:#6B3F2B;
-  --co:#B89CF8; --co-d:#CFBBFB; --co-t:#372B52;
-  --job:#4FCBBA; --job-d:#7DE2D4; --job-t:#16403B;
-  --per:#F2B04C; --per-d:#F7C97C; --per-t:#4B3516;
-  --pin:#E9D26A; --pin-d:#F3E08C; --pin-t:#463D14;
-  --app:#6FD08A; --app-d:#93E3A8; --app-t:#1C3F28;
-  --con:#8FB1FF; --con-d:#B2C9FF; --con-t:#202F58;
-  --danger:#FF9087; --danger-t:#4C2320; --danger-line:#7A3A35;
-  --inv-bg:#F4ECE2; --inv-fg:#1B1512; --toast-link:#9A3412;
-  --focus:#F7A482; --panel-grad:#2A211B; --bar:rgba(27,21,18,.94); --scrim:rgba(10,6,4,.6);
-  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 14px rgba(0,0,0,.25);
-  --shadow-lg:0 12px 40px rgba(0,0,0,.5);
-  --sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23C0B1A1' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+  /* Dark: neutral blacks with a light-blue accent family (no warm reds/oranges). */
+  --bg:#0A0A0B; --surface:#141416; --alt:#1E1F23; --border:#2E3036; --input:#6B7280;
+  --text:#F2F4F7; --text2:#A8B0BD;
+  --accent:#7DC4FF; --accent-h:#A8D8FF; --accent-t:#0F2536; --on-accent:#04121F; --accent-dis:#3E5F7A; --accent-line:#24496A;
+  --co:#A5B8FF; --co-d:#C3D0FF; --co-t:#1A2140;
+  --job:#7DD3FC; --job-d:#A9E2FD; --job-t:#0D2A38;
+  --per:#8BE3F0; --per-d:#B4EEF6; --per-t:#0E2C31;
+  --pin:#BFE3FF; --pin-d:#DCEFFF; --pin-t:#1B2A38;
+  --app:#86E1D5; --app-d:#B0EDE6; --app-t:#10302D;
+  --con:#9CC8FF; --con-d:#C2DDFF; --con-t:#142A45;
+  --danger:#FCA5A5; --danger-t:#241A1C; --danger-line:#4A3034;
+  --inv-bg:#E6F2FF; --inv-fg:#0A0A0B; --toast-link:#1D5FA8;
+  --focus:#A8D8FF; --panel-grad:#17181B; --bar:rgba(10,10,11,.94); --scrim:rgba(0,0,0,.65);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.35);
+  --shadow-lg:0 12px 40px rgba(0,0,0,.6);
+  --sel-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23A8B0BD' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
 }
 *{box-sizing:border-box}
 html{scroll-behavior:smooth;scroll-padding-top:130px}

@@ -7,12 +7,12 @@ Open `results.html` (centrepiece), `search.html`, `running.html`, `library.html`
 |---|---|
 | Likes the results page | Kept: collapsible company panels, jobs and people side by side, sticky jump-to index, Group by Company/Type, filter chips, sort, cross-links, connect-message drawer, pins, Applied/Connected toggles, copy feedback. |
 | Likes Field Notes colours, not its format | Full Linen re-theme (cream, terracotta, violet/teal/amber). Fraunces is used only for modest headings (24px h1); no editorial layout, no "Start here" card band, no right rail. |
-| Wants light default plus toggle | Light default, warm espresso dark (not grey-black), same tokens swapped via `html[data-theme]`. |
+| Wants light default plus toggle | Light default; dark mode is neutral black with a light-blue accent family (revised per owner: no dark reds/oranges). Same tokens swapped via `html[data-theme]`. |
 | v1 flaw: ~480px header above first company | Header is now title/meta row, one summary strip (inline stats, one-line summary with "Read full summary", compact "Start here" link) and the sticky toolbar. First panel starts at y=380 at 1440x900 and its body is open above the fold (v1: ~860). |
 | Inactive toggles must pass AA | Chips, segmented buttons and status toggles use text2/text on solid tokens; checked in both themes. |
 
 ## Palette (light / dark)
-bg `#FAF6F0` / `#1B1512`; surface `#FFFFFF` / `#261E19`; alt `#F2EBE0` / `#352A22`; border `#E4D9C8` / `#4A3C31`; input outline `#8F7B63` / `#9A8674`; text `#2B2420` / `#F4ECE2`; text2 `#6B5E54` / `#C0B1A1`; accent `#C2410C` / `#F08A5D` (hover `#9A3412` / `#F7A482`, on-accent `#FFFFFF` / `#2A140A`); company `#7C3AED` / `#B89CF8`; job `#0F766E` / `#4FCBBA`; person `#B45309` / `#F2B04C`; pinned `#A16207` / `#E9D26A`; applied `#15803D` / `#6FD08A`; connected `#1D4ED8` / `#8FB1FF`; danger `#B91C1C` / `#FF9087`. Each entity also has `-d` (text on tint) and `-t` (tint) steps.
+bg `#FAF6F0` / `#0A0A0B`; surface `#FFFFFF` / `#141416`; alt `#F2EBE0` / `#1E1F23`; border `#E4D9C8` / `#2E3036`; input outline `#8F7B63` / `#6B7280`; text `#2B2420` / `#F2F4F7`; text2 `#6B5E54` / `#A8B0BD`; accent `#C2410C` / `#7DC4FF` (hover `#9A3412` / `#A8D8FF`, on-accent `#FFFFFF` / `#04121F`); company `#7C3AED` / `#A5B8FF`; job `#0F766E` / `#7DD3FC`; person `#B45309` / `#8BE3F0`; pinned `#A16207` / `#BFE3FF`; applied `#15803D` / `#86E1D5`; connected `#1D4ED8` / `#9CC8FF`; danger `#B91C1C` / `#FCA5A5` (dark mode's only warm colour, kept for failed/delete states). Each entity also has `-d` (text on tint) and `-t` (tint) steps.
 Accent vs person: both warm, so person is always paired with a round avatar or users icon and an amber tint; accent is used for actions and links only.
 
 ## Type scale
