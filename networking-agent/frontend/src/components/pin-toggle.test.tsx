@@ -14,28 +14,20 @@ describe('PinToggle', () => {
     expect(screen.getByRole('button', { name: 'Pin for later' })).toBeInTheDocument()
   })
 
-  it('unpinned: aria-pressed false and the outline icon', () => {
+  it('unpinned: aria-pressed false, with a decorative pin icon', () => {
     const { container } = render(<PinToggle name="Acme" isPinned={false} onChange={vi.fn()} />)
     const button = screen.getByRole('button', { name: 'Pin Acme' })
     expect(button).toHaveAttribute('aria-pressed', 'false')
-    expect(button).toHaveClass('text-foreground-icon-tertiary')
-    expect(button).not.toHaveClass('text-button-ghost-foreground')
-    const icon = container.querySelector('svg')
-    expect(icon).toHaveAttribute('aria-hidden')
+    expect(button).toHaveClass('ibtn', 'pin')
+    expect(button).toHaveAttribute('title', 'Pin for later')
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
   })
 
-  it('pinned: aria-pressed true, accent styling and a different (filled) icon', () => {
-    const unpinned = render(<PinToggle name="Acme" isPinned={false} onChange={vi.fn()} />)
-    const outlinePath = unpinned.container.querySelector('svg path')?.getAttribute('d')
-    unpinned.unmount()
-
-    const { container } = render(<PinToggle name="Acme" isPinned onChange={vi.fn()} />)
+  it('pinned: aria-pressed true (the theme fills the icon) and an Unpin tooltip', () => {
+    render(<PinToggle name="Acme" isPinned onChange={vi.fn()} />)
     const button = screen.getByRole('button', { name: 'Pin Acme' })
     expect(button).toHaveAttribute('aria-pressed', 'true')
-    expect(button).toHaveClass('text-button-ghost-foreground')
-    const filledPath = container.querySelector('svg path')?.getAttribute('d')
-    expect(filledPath).toBeTruthy()
-    expect(filledPath).not.toBe(outlinePath)
+    expect(button).toHaveAttribute('title', 'Unpin')
   })
 
   it('clicking calls onChange with the next state', async () => {

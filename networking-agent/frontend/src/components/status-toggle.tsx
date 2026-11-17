@@ -1,40 +1,38 @@
-import { RiCheckLine } from '@remixicon/react'
-import { ToggleButton } from 'react-aria-components'
-import { CHIP_COLORS } from '@/components/base/badges/chip'
-import { cx } from '@/utils/cx'
+import { Icon } from '@/components/icon'
 
-/** Toggle labels, exactly as shown to the user. */
-const STATUS_LABELS = {
-  job: { on: 'APPLIED', off: 'NOT APPLIED' },
-  person: { on: 'CONNECTED', off: 'NOT CONNECTED' },
+/** Visible labels: [off, on]. */
+const LABELS = {
+  job: ['Mark applied', 'Applied'],
+  person: ['Mark connected', 'Connected'],
 } as const
 
 interface StatusToggleProps {
-  kind: keyof typeof STATUS_LABELS
+  kind: keyof typeof LABELS
+  /** The job title or person's name, for the accessible name ("Mark applied: Data Analyst"). */
+  name: string
   isSelected: boolean
   onChange: (isSelected: boolean) => void
+  /** Overrides the "off" label (the message drawer says "Mark as connected"). */
+  offLabel?: string
 }
 
 /**
- * APPLIED / CONNECTED toggle on job and person rows. A React Aria `ToggleButton` styled
- * like the BoardUI caption `Chip`: lime with a check when on, neutral when off. The
- * visible text is the accessible name; React Aria adds `aria-pressed` for the state.
+ * APPLIED / CONNECTED toggle on job and person rows: a dashed pill that reads "Mark applied"
+ * when off, and a solid teal "Applied" with a check when on (`aria-pressed`).
  */
-export function StatusToggle({ kind, isSelected, onChange }: StatusToggleProps) {
-  const labels = STATUS_LABELS[kind]
+export function StatusToggle({ kind, name, isSelected, onChange, offLabel }: StatusToggleProps) {
+  const [off, on] = LABELS[kind]
   return (
-    <ToggleButton
-      isSelected={isSelected}
-      onChange={onChange}
-      className={cx(
-        'inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 whitespace-nowrap text-caption-1-semibold select-none',
-        'button-press-motion outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring',
-        isSelected ? CHIP_COLORS.lime : CHIP_COLORS.neutral,
-        !isSelected && 'hover:bg-background-tertiary-hover',
-      )}
+    <button
+      type="button"
+      className={`status ${kind === 'job' ? 'app' : 'con'}`}
+      aria-pressed={isSelected}
+      aria-label={name ? `${off}: ${name}` : off}
+      onClick={() => onChange(!isSelected)}
     >
-      {isSelected && <RiCheckLine aria-hidden className="size-3.5 shrink-0" />}
-      {isSelected ? labels.on : labels.off}
-    </ToggleButton>
+      {isSelected && <Icon name="check" />}
+      <span className="on">{on}</span>
+      <span className="off">{offLabel ?? off}</span>
+    </button>
   )
 }

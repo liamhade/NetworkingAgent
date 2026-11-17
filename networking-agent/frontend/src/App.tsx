@@ -8,6 +8,7 @@ import {
   getPins,
   getSavedResume,
   getSearch,
+  getSearchBoards,
   getSearchParams,
   getStatuses,
   listSearchConfigs,
@@ -18,6 +19,7 @@ import {
   streamSearchEvents,
   updateSearchConfig,
   type AgentEvent,
+  type BoardInfo,
   type CompanyResult,
   type PinKind,
   type PinMap,
@@ -30,13 +32,16 @@ import {
   type StatusMap,
   type User,
 } from '@/api'
+import { AppShell } from '@/components/app-shell'
 import { SearchConfigs } from '@/components/search-configs'
 import { SearchHistory } from '@/components/search-history'
-import { TopNav } from '@/components/top-nav'
+import { ToastProvider } from '@/components/toast'
 import { CompaniesPage, JobsPage, PeoplePage } from '@/pages/entities'
 import { Hero } from '@/pages/hero'
-import { Results } from '@/pages/results'
+import { ErrorBanner, Results } from '@/pages/results'
+import { Running } from '@/pages/running'
 import { withRetry } from '@/utils/retry'
+import { useTheme } from '@/utils/theme'
 import { useKeyedToggles } from '@/utils/use-keyed-toggles'
 import { type View, viewFromHash, viewHash } from '@/utils/view'
 
@@ -75,6 +80,11 @@ export default function App() {
   const abort = useRef<AbortController | null>(null)
 
   const [user, setUser] = useState<User | null>(null)
+  const { theme, setTheme } = useTheme()
+  /** Small screens: the Previous Searches drawer. */
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  /** Board labels for the results / running headers ("Built In NYC, Greenhouse"). */
+  const [boardList, setBoardList] = useState<BoardInfo[]>([])
   const [history, setHistory] = useState<SearchSummary[]>([])
   const historyRef = useRef<SearchSummary[]>([])
   useEffect(() => {
@@ -127,6 +137,11 @@ export default function App() {
       .catch(() => {
         // The name is cosmetic; the panel works without it.
       })
+    withRetry(getSearchBoards, signal)
+      .then(setBoardList)
+      .catch(() => {
+        // Cosmetic: headers fall back to the board ids.
+      })
     withRetry(listSearches, signal)
       .then((searches) => {
         setHistory(searches)
@@ -134,7 +149,7 @@ export default function App() {
       })
       .catch((caught: Error) => {
         if (!signal.aborted) setHistoryError('Could not load previous searches.')
-        console.error(caught)
+        if (!signal.aborted) console.error(caught)
       })
       .finally(() => {
         if (!signal.aborted) setHistoryLoading(false)
@@ -145,7 +160,9 @@ export default function App() {
         setForm(params)
         setFormVersion((current) => current + 1)
       })
-      .catch((caught: Error) => console.error(caught)) // Defaults apply.
+      .catch((caught: Error) => {
+        if (!signal.aborted) console.error(caught) // Defaults apply.
+      })
     withRetry(listSearchConfigs, signal)
       .then((loaded) => {
         setConfigs(loaded)
@@ -153,25 +170,27 @@ export default function App() {
       })
       .catch((caught: Error) => {
         if (!signal.aborted) setConfigsError('Could not load search configurations.')
-        console.error(caught)
+        if (!signal.aborted) console.error(caught)
       })
       .finally(() => {
         if (!signal.aborted) setConfigsLoading(false)
       })
     withRetry(getSavedResume, signal)
       .then(setSavedResume)
-      .catch((caught: Error) => console.error(caught))
+      .catch((caught: Error) => {
+        if (!signal.aborted) console.error(caught)
+      })
     withRetry(getStatuses, signal)
       .then(marks.load)
       .catch((caught: Error) => {
         if (!signal.aborted) marks.setError('Could not load APPLIED / CONNECTED marks.')
-        console.error(caught)
+        if (!signal.aborted) console.error(caught)
       })
     withRetry(getPins, signal)
       .then(pinState.load)
       .catch((caught: Error) => {
         if (!signal.aborted) pinState.setError('Could not load your pins.')
-        console.error(caught)
+        if (!signal.aborted) console.error(caught)
       })
   }
 
@@ -394,29 +413,131 @@ export default function App() {
     )
   }
 
+  /** New search from the results page: keep the profile, clear what was searched for. */
+  const newSearch = () => {
+    back()
+    setForm((current) => ({ ...current, looking_for: '' }))
+  }
+
+  const activeSearch = history.find((entry) => entry.id === activeId) ?? null
+  const boardLabels = Object.entries(form.boards ?? {})
+    .filter(([, setting]) => setting.enabled)
+    .map(([id]) => boardList.find((board) => board.id === id)?.label ?? id)
+  const meta = {
+    title: activeSearch?.title || form.looking_for,
+    location: form.location,
+    createdAt: activeSearch?.created_at ?? null,
+    boards: boardLabels,
+  }
+
+  const searchPage = () => {
+    if (page === 'hero') {
+      return (
+        <Hero
+          key={formVersion}
+          initial={form}
+          onSubmit={search}
+          savedResume={savedResume}
+          onSavedResumeChange={setSavedResume}
+          onChange={(request) => (draft.current = request)}
+          configs={
+            <SearchConfigs
+              configs={configs}
+              loading={configsLoading}
+              error={configsError}
+              activeId={activeConfigId}
+              onSave={saveConfig}
+              onLoad={loadConfig}
+              onRename={renameConfig}
+              onOverwrite={overwriteConfig}
+              onDelete={removeConfig}
+            />
+          }
+        />
+      )
+    }
+    if (running || (error && !results)) {
+      const ended = error === CANCELLED_MESSAGE ? 'cancelled' : 'error'
+      return (
+        <Running
+          key={activeId ?? 'new'}
+          title={meta.title}
+          location={meta.location}
+          boards={meta.boards}
+          startedAt={meta.createdAt}
+          statuses={statuses}
+          state={running ? 'running' : ended}
+          message={error}
+          onCancel={activeId ? () => cancel(activeId) : undefined}
+          onRetry={() => search(form)}
+          onEdit={back}
+        />
+      )
+    }
+    if (!results) {
+      return (
+        <div className="wrap">
+          <p className="loading">
+            <span className="spin" aria-hidden="true" />
+            Loading this search…
+          </p>
+        </div>
+      )
+    }
+    return (
+      <>
+        {error && <ErrorBanner message={error} />}
+        <Results
+          key={activeId ?? 'new'}
+          results={results}
+          meta={meta}
+          entityStatuses={entityStatuses}
+          statusError={statusError}
+          onToggleStatus={toggleStatus}
+          {...pinProps}
+          searchId={activeId}
+          onCompanyFound={(company) => activeId && companyFound(activeId, company)}
+          onEdit={back}
+          onNewSearch={newSearch}
+        />
+      </>
+    )
+  }
+
   return (
-    <div className="flex min-h-svh flex-wrap bg-background-full lg:flex-nowrap">
-      <SearchHistory
-        searches={history}
-        loading={historyLoading}
-        error={historyError}
-        activeId={activeId}
+    <ToastProvider>
+      <AppShell
+        view={view}
         user={user}
-        onSelect={openSaved}
-        onNewSearch={back}
-        onCancel={cancel}
-        cancelError={cancelError}
-        onDelete={remove}
-        deleteError={deleteError}
-      />
-      <div className="min-w-0 flex-1 basis-112">
-        <TopNav view={view} />
-        {view === 'companies' ? (
-          <CompaniesPage
-            refreshKey={entitiesVersion}
-            onOpenSearch={openSaved}
-            {...pinProps}
+        theme={theme}
+        onThemeChange={setTheme}
+        sidebarOpen={sidebarOpen}
+        onSidebarOpenChange={setSidebarOpen}
+        sidebar={
+          <SearchHistory
+            searches={history}
+            loading={historyLoading}
+            error={historyError}
+            activeId={activeId}
+            user={user}
+            open={sidebarOpen}
+            onSelect={(id) => {
+              setSidebarOpen(false)
+              openSaved(id)
+            }}
+            onNewSearch={() => {
+              setSidebarOpen(false)
+              back()
+            }}
+            onCancel={cancel}
+            cancelError={cancelError}
+            onDelete={remove}
+            deleteError={deleteError}
           />
+        }
+      >
+        {view === 'companies' ? (
+          <CompaniesPage refreshKey={entitiesVersion} onOpenSearch={openSaved} {...pinProps} />
         ) : view === 'jobs' ? (
           <JobsPage
             refreshKey={entitiesVersion}
@@ -435,44 +556,10 @@ export default function App() {
             onToggleStatus={toggleStatus}
             {...pinProps}
           />
-        ) : page === 'hero' ? (
-          <Hero
-            key={formVersion}
-            initial={form}
-            onSubmit={search}
-            savedResume={savedResume}
-            onSavedResumeChange={setSavedResume}
-            onChange={(request) => (draft.current = request)}
-          />
         ) : (
-          <Results
-            statuses={statuses}
-            results={results}
-            error={error}
-            running={running}
-            entityStatuses={entityStatuses}
-            statusError={statusError}
-            onToggleStatus={toggleStatus}
-            {...pinProps}
-            searchId={activeId}
-            onCompanyFound={(company) => activeId && companyFound(activeId, company)}
-            onBack={back}
-          />
+          searchPage()
         )}
-      </div>
-      {view === 'search' && page === 'hero' && (
-        <SearchConfigs
-          configs={configs}
-          loading={configsLoading}
-          error={configsError}
-          activeId={activeConfigId}
-          onSave={saveConfig}
-          onLoad={loadConfig}
-          onRename={renameConfig}
-          onOverwrite={overwriteConfig}
-          onDelete={removeConfig}
-        />
-      )}
-    </div>
+      </AppShell>
+    </ToastProvider>
   )
 }

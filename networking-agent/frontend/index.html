@@ -1,10 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Networking Agent</title>
+    <!-- Apply the saved light/dark theme before first paint (see src/utils/theme.ts). -->
+    <script>
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem('na-theme') === 'dark' ? 'dark' : 'light'
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

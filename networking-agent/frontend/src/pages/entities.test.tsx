@@ -58,24 +58,27 @@ async function renderPage(kind: EntityKind) {
   const user = userEvent.setup()
   render(<App />)
   const main = screen.getByRole('main')
-  await waitFor(() => expect(within(main).getAllByRole('article')).toHaveLength(3))
+  await waitFor(() => expect(rows(main)).toHaveLength(3))
   // Let the GET /api/pins load land before interacting.
   await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/pins', expect.anything()))
   return { user, main }
 }
 
-/** Card titles in on-screen order. */
+/** The entity rows of the page's list. */
+const rows = (main: HTMLElement) =>
+  within(main).queryAllByRole('listitem').filter((item) => item.classList.contains('row'))
+
+/** Row titles in on-screen order (without the screen-reader "(opens …)" suffix). */
 const cardTitles = (main: HTMLElement) =>
-  within(main)
-    .getAllByRole('article')
-    .map((card) => within(card).getByRole('heading').textContent)
+  rows(main).map((row) =>
+    within(row).getByRole('heading').textContent?.replace(/ \(opens [^)]*\)$/, ''),
+  )
 
 const pinButton = (main: HTMLElement, name: string) =>
   within(main).getByRole('button', { name: `Pin ${name}` })
 
 async function chooseSort(user: ReturnType<typeof userEvent.setup>, main: HTMLElement, label: string) {
-  await user.click(within(main).getByRole('button', { name: /Sort/ }))
-  await user.click(await screen.findByRole('option', { name: label }))
+  await user.selectOptions(within(main).getByRole('combobox', { name: 'Sort' }), label)
 }
 
 describe('entity pages: pins', () => {

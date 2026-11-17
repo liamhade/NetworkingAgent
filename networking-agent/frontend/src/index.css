@@ -1,8 +1,0 @@
-/* BoardUI's theme reads its typeface from --font-inter. */
-:root {
-  --font-inter: 'Inter Variable';
-}
-
-body {
-  margin: 0;
-}

@@ -104,14 +104,16 @@ describe('SearchBoards', () => {
     )
   })
 
-  it('disables the increase stepper at the maximum', async () => {
-    render(
-      <SearchBoards value={{ greenhouse: { enabled: true, max_jobs: 40 } }} onChange={vi.fn()} />,
-    )
-    await open()
+  it('ignores non-digits and resets an empty field to the current limit', async () => {
+    const onChange = vi.fn()
+    render(<SearchBoards onChange={onChange} />)
+    const user = await open()
     const field = screen.getByRole('textbox', { name: 'Jobs from Greenhouse' })
-    const increase = field.closest('[role=group]')?.querySelector('[slot=increment]')
-    expect(increase).toBeDisabled()
+    await user.clear(field)
+    await user.type(field, 'ab')
+    await user.tab()
+    expect(field).toHaveValue('8')
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('warns when every board is off', async () => {

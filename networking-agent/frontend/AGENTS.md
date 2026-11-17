@@ -1,45 +1,41 @@
-<!-- boardui:rules:start -->
-# BoardUI design rules
+# Map · Linen design rules
 
-This project uses BoardUI (React + Tailwind CSS v4, source-owned components under `components/`). These rules always apply when writing UI code. MCP tools are on demand; these rules are not optional context.
+The UI follows the owner-approved **Map · Linen** design
+([`docs/ui_drafts_v2/04-map-linen/`](../../docs/ui_drafts_v2/04-map-linen/README.md); port plan in
+[`docs/map-linen-ui/plan.md`](../docs/map-linen-ui/plan.md)). React + plain CSS: no Tailwind, no
+component library. These rules apply whenever you write UI code.
 
-## Components first
+## Styles live in `src/styles/linen.css`
 
-- Before hand-building any UI element, check for an installed BoardUI component under `components/base/` and `components/application/`, and prefer it.
-- Missing a component? Install it (BoardUI MCP `install_components`, or `npx boardui@latest add <name>`) instead of writing a lookalike.
-- Import through the aliases configured in `boardui.json`, e.g. `import { Button } from "@/components/base/buttons/button"`.
+- Tokens are CSS variables on `:root[data-theme=light|dark]` (`--bg`, `--surface`, `--alt`,
+  `--border`, `--text`, `--text2`, `--accent`, entity colours `--co` / `--job` / `--per` /
+  `--pin` / `--app` / `--con` with `-d` (text on tint) and `-t` (tint) steps, `--danger`).
+- Components use `var(--token)` only. **Never write a hex or rgb colour outside the token
+  blocks**; if a colour is missing, add a token to both themes.
+- Reuse the existing classes before adding new ones: `.btn` (`.pri`, `.sm`, `.xs`, `.ghost`,
+  `.danger`), `.ibtn`, `.pill.*`, `.chip`, `.status.app|.con`, `.card`, `.co-panel`, `.pane`,
+  `.row`, `.note`, `.disc`, `.xlink`, `.drawer`, `.toast`, `.alert`. New classes go at the end
+  of `linen.css`; avoid inline `style` except for computed values (e.g. a fit bar width).
+- Light is the default. The theme toggle sets `data-theme` on `<html>` and saves it in
+  `localStorage` (`na-theme`); `index.html` applies it before first paint.
+- Breakpoints: 1180px (index becomes chips, search rail stacks), 980px (sidebar becomes a
+  drawer), 720px (compact).
 
-## Color: semantic tokens only
+## Typography
 
-- Never use raw palette classes (`text-gray-500`, `bg-white`, `border-neutral-200`) or hex/oklch literals. Every color rides a BoardUI semantic token, which also makes dark mode automatic.
-- Text: `text-text-primary`, `text-text-secondary`, `text-text-tertiary`, `text-text-placeholder`, errors `text-text-error-primary`.
-- Surfaces: `bg-background-primary-default`, `bg-background-secondary-default` / `-hover`, `bg-background-tertiary-default`, page ground `bg-background-full`.
-- Borders: `border-border-button-default` / `-hover`, hairlines `border-separator-border`, tables `border-border-table`, errors `border-border-error-default`.
-- Icons: `text-foreground-icon-primary` through `text-foreground-icon-quaternary`.
-- Charts: the `chart-1` … `chart-5` tokens (plus `-active` variants). CTAs and selection states: the `accent-50` … `accent-950` ramp.
-- Dark mode flips tokens via the `.dark` class on `<html>`. Do not write `dark:` overrides with raw colors; if a token pair looks wrong in dark mode, pick a different token, not a literal.
+- Fraunces (`var(--head)`, self-hosted via `@fontsource-variable/fraunces`) for headings, company
+  names and row titles; Source Sans 3 (`var(--ui)`) for everything else.
+- Scale: body 16, meta 13.5–14, h1 24, company name 20, row title 15.5.
 
-## Typography: composite utilities only
+## Components and mechanics
 
-- Use BoardUI's composite type utilities: `text-title-1-medium`, `text-title-2-medium`, `text-title-3-semibold`, `text-headline-medium`, `text-body-medium`, `text-body-regular`, `text-body-2-*`, `text-caption-1-semibold`, and friends. Each sets size, weight, line-height, and letter-spacing together.
-- Never rebuild type by stacking `text-sm font-medium leading-5`; if a style seems missing, look in `styles/typography.css` before inventing one.
-
-## Spacing and shape
-
-- Stay on Tailwind's spacing scale (`gap-2`, `p-4`, `mt-6`); prefer flex/grid `gap` over per-child margins. Arbitrary values (`p-[13px]`) only when matching an existing BoardUI component exactly.
-- Cards and panels: `rounded-3xl` with `border-border-button-default`. Inputs and menu rows: `rounded-md` to `rounded-xl`. Pills: `rounded-full`.
-
-## Mechanics
-
-- Direction: wrap the app (or a mixed-language region) in `DirectionProvider` from `@/components/foundations/direction/direction`, with an explicit BCP 47 `locale` (`ar`, `he`, `en-US`, `zh-CN`). Set matching `lang` and `dir` on `<html>` for full-app RTL. CSS `dir` alone does not configure React Aria keyboard navigation or portal placement. Use `useDirection()` for custom interactions and put its value on custom portal roots.
-- Use logical styles: `ms`/`me`, `ps`/`pe`, `start`/`end`, `text-start`/`text-end`, `border-s`/`border-e`, `rounded-s`/`rounded-e`, and inline logical CSS properties. Mirror navigation/disclosure glyphs and horizontal drawer motion in RTL. Preserve physical coordinates for measured geometry, charts, canvas, and decorative art. Keep code, OTP digits, email addresses and URLs in explicit LTR regions; isolate mixed text with `<bdi>` or `dir="auto"`. Translating labels and formatting application data is separate from layout direction. See https://www.boardui.com/rtl.
-
-- Internal vertical scroll regions must soften the top edge with a progressive blur and surface fade once scrolled, rather than sharply clipping content. Keep headers outside the scroll region. Use a stationary, `pointer-events-none`, `aria-hidden` overlay in a relative wrapper: a 24px masked 1px backdrop blur, a 16px masked 4px backdrop blur, and a gradient from the enclosing semantic surface token to transparent. Ramp each layer's opacity from 0 to 1 over the first 24px of scrolling; keep it invisible at scrollTop 0. Apply opacity to the individual layers, never the overlay parent (a translucent parent creates a backdrop root and can break blur at normal browser zoom). Verify top/reset, overflow, light/dark mode, and 100% zoom; preserve keyboard scrolling and do not blur the whole content area. The `scroll-fade` registry item ships this recipe as `ScrollFade` + `useScrollFade` (`@/components/foundations/scroll-fade/scroll-fade`); reuse it rather than rebuilding the layers.
-
-- Merge classes with `cx()` from `@/utils/cx` (tailwind-merge aware of BoardUI's composite text styles). No string concatenation, no plain `clsx`.
-- Icons come from `@remixicon/react`, passed as component references (`leadingIcon={RiAddLine}`), not rendered elements.
-- Form components build on `react-aria-components`; extend the installed BoardUI form components rather than raw `<input>`/`<select>`.
-- Focus states: `outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring`.
-
-When unsure about a token, a component's API, or working example code, ask the BoardUI MCP server: `get_theme`, `get_component`, `get_usage_examples`.
-<!-- boardui:rules:end -->
+- Icons: `<Icon name="…" />` from `@/components/icon` (the draft's stroke icon set). Icons are
+  decorative (`aria-hidden`); label the control instead. Add new icons to its `PATHS` map.
+- Merge classes with `cx()` from `@/utils/cx`.
+- Use native, labelled form controls (`<input>`, `<textarea>`, `<select>`, checkbox with
+  `role="switch"`), each with a visible `<label>` or an `aria-label`.
+- Toggles expose `aria-pressed`; disclosures expose `aria-expanded` / `aria-controls`.
+- Toasts: `useToast()` from `@/utils/use-toast` (offer Undo for reversible actions like pins).
+- Text must meet WCAG AA in both themes, including inactive toggles and chips.
+- Keep non-component exports (helpers, constants, hooks) in `src/utils/` so component files only
+  export components (fast refresh).

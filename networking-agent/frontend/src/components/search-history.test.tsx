@@ -38,7 +38,7 @@ describe('SearchHistory status', () => {
       />,
     )
     expect(screen.getAllByText('Searching…')).toHaveLength(1)
-    expect(screen.getByRole('progressbar', { name: 'Search in progress' })).toBeInTheDocument()
+    expect(screen.getByText('Status: Searching')).toBeInTheDocument()
     expect(screen.getAllByText('Failed')).toHaveLength(1)
     expect(screen.getByText('Title c')).toBeInTheDocument()
   })

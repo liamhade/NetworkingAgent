@@ -1,5 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { RiCheckLine, RiErrorWarningLine, RiSearchLine } from '@remixicon/react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import {
   deleteSavedResume,
   getSavedResume,
@@ -8,14 +7,13 @@ import {
   type SavedResume,
   type SearchRequest,
 } from '@/api'
-import { Button } from '@/components/base/buttons/button'
-import { FileUpload } from '@/components/base/file-upload/file-upload'
-import { Input } from '@/components/base/input/input'
-import { Spinner } from '@/components/base/spinner/spinner'
-import { Textarea } from '@/components/base/textarea/textarea'
+import { Icon } from '@/components/icon'
 import { SavedResumeChip } from '@/components/saved-resume'
 import { SearchBoards } from '@/components/search-boards'
 import { anyBoardOn } from '@/utils/boards'
+import { cx } from '@/utils/cx'
+
+const MAX_RESUME_BYTES = 10 * 1024 * 1024
 
 interface HeroProps {
   initial: SearchRequest
@@ -25,6 +23,8 @@ interface HeroProps {
   onSavedResumeChange?: (resume: SavedResume | null) => void
   /** Called with the form as it would be searched (boards filled in) whenever it changes. */
   onChange?: (request: SearchRequest) => void
+  /** The right rail's "Saved searches" card. */
+  configs?: React.ReactNode
 }
 
 type ResumeState =
@@ -33,18 +33,19 @@ type ResumeState =
   | { status: 'done'; name: string }
   | { status: 'error'; message: string }
 
+/** The search page: the form card, with saved configurations and a short how-to on the right. */
 export function Hero({
   initial,
   onSubmit,
   savedResume = null,
   onSavedResumeChange,
   onChange,
+  configs,
 }: HeroProps) {
   const [form, setForm] = useState<SearchRequest>(initial)
   const [resume, setResume] = useState<ResumeState>({ status: 'idle' })
   // The boards config as the panel shows it (defaults filled in); null until the list loads.
   const [shownBoards, setShownBoards] = useState<BoardsConfig | null>(null)
-
   // True while the user picks a new file to replace the saved resume.
   const [replacing, setReplacing] = useState(false)
 
@@ -52,6 +53,12 @@ export function Hero({
     setForm((current) => ({ ...current, [field]: value }))
 
   const handleResume = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      return setResume({ status: 'error', message: 'Please choose a PDF file.' })
+    }
+    if (file.size > MAX_RESUME_BYTES) {
+      return setResume({ status: 'error', message: 'That PDF is over 10 MB.' })
+    }
     setResume({ status: 'reading', name: file.name })
     try {
       const profile = await parseResume(file)
@@ -82,11 +89,15 @@ export function Hero({
     }
   }
 
-  const canSubmit =
-    form.background.trim() !== '' &&
-    form.looking_for.trim() !== '' &&
-    resume.status !== 'reading' &&
-    (shownBoards === null || anyBoardOn(shownBoards))
+  const boardsOk = shownBoards === null || anyBoardOn(shownBoards)
+  const missing = !form.background.trim()
+    ? 'Add your background to continue.'
+    : !form.looking_for.trim()
+      ? 'Tell us what you are looking for to continue.'
+      : !boardsOk
+        ? 'Turn on at least one search board to continue.'
+        : null
+  const canSubmit = missing === null && resume.status !== 'reading'
 
   // The form as a search would send it: boards as shown (defaults filled in), so a search
   // (or a saved configuration) is self-describing. The resume file is not part of it.
@@ -103,87 +114,229 @@ export function Hero({
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 py-16">
-      <header className="flex flex-col gap-3 text-center">
-        <h1 className="text-display-3-semibold text-text-primary">
-          Find your next role, and the people behind it
-        </h1>
-        <p className="text-body-regular text-text-secondary">
-          Tell us about yourself. We'll find companies worth researching, open jobs that fit, and
-          people to reach out to.
-        </p>
-      </header>
-
-      <section className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-headline-medium text-text-primary">Start from your resume</h2>
-          <span className="text-caption-1-medium text-text-tertiary">Optional · PDF</span>
+    <div className="wrap">
+      <div className="head search-head">
+        <div>
+          <h1>Find the people behind the job</h1>
+          <div className="sub">
+            Tell the agent what you want. It returns companies, the jobs open there, and the people
+            to message first.
+          </div>
         </div>
-        {savedResume && !replacing ? (
-          <SavedResumeChip
-            resume={savedResume}
-            onReplace={() => setReplacing(true)}
-            onRemove={removeResume}
-            disabled={resume.status === 'reading'}
-          />
-        ) : (
-          <>
-            <FileUpload
-              allowedExtensions={['pdf']}
-              maxBytes={10 * 1024 * 1024}
-              onUploadComplete={handleResume}
-            />
-            {replacing && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="small"
-                onClick={() => setReplacing(false)}
+      </div>
+
+      <div className="sgrid">
+        <form className="card form" onSubmit={submit} noValidate>
+          <div>
+            <h2>
+              Start from your resume <span className="pill neu">Optional</span>
+            </h2>
+            <p className="lead">Upload a PDF and we fill in your background for you.</p>
+            {savedResume && !replacing ? (
+              <SavedResumeChip
+                resume={savedResume}
+                onReplace={() => setReplacing(true)}
+                onRemove={removeResume}
                 disabled={resume.status === 'reading'}
-              >
-                Keep saved resume
-              </Button>
+              />
+            ) : (
+              <>
+                <DropZone onFile={handleResume} disabled={resume.status === 'reading'} />
+                {replacing && (
+                  <button
+                    type="button"
+                    className="btn xs ghost"
+                    onClick={() => setReplacing(false)}
+                    disabled={resume.status === 'reading'}
+                  >
+                    Keep saved resume
+                  </button>
+                )}
+              </>
             )}
+            <ResumeStatus state={resume} />
+          </div>
+
+          <Field
+            label="Your background"
+            required
+            hint="Role, skills and the projects you are proudest of."
+          >
+            {(id, describedBy) => (
+              <textarea
+                id={id}
+                rows={4}
+                required
+                aria-describedby={describedBy}
+                placeholder="I'm a data analyst with 3 years of SQL and Python experience in payments…"
+                value={form.background}
+                onChange={(event) => update('background')(event.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="Location">
+            {(id) => (
+              <input
+                id={id}
+                type="text"
+                placeholder="Brooklyn, NY"
+                value={form.location}
+                onChange={(event) => update('location')(event.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="What you are looking for" required>
+            {(id) => (
+              <textarea
+                id={id}
+                rows={3}
+                required
+                placeholder="Senior analytics roles at fintech startups, hybrid or remote"
+                value={form.looking_for}
+                onChange={(event) => update('looking_for')(event.target.value)}
+              />
+            )}
+          </Field>
+
+          <SearchBoards
+            value={form.boards}
+            onChange={(boards) => setForm((existing) => ({ ...existing, boards }))}
+            onLoaded={setShownBoards}
+          />
+
+          <div className="submit">
+            <button className="btn pri" type="submit" disabled={!canSubmit}>
+              <Icon name="search" />
+              Find opportunities
+            </button>
+            <span className={cx('why', missing && 'bad')} aria-live="polite">
+              {missing ?? 'Takes a few minutes. You can leave this page while it runs.'}
+            </span>
+          </div>
+        </form>
+
+        <aside className="rail" aria-label="Saved searches and help">
+          {configs}
+          <section className="card" aria-labelledby="howh">
+            <h2 id="howh">How results are organised</h2>
+            <ol className="how">
+              <li>
+                <span className="ic tint-co">
+                  <Icon name="building" />
+                </span>
+                <div>
+                  <b>Companies first</b>
+                  <span>Ranked by fit. Open one to see everything there.</span>
+                </div>
+              </li>
+              <li>
+                <span className="ic tint-job">
+                  <Icon name="briefcase" />
+                </span>
+                <div>
+                  <b>Jobs beside people</b>
+                  <span>Each opening sits next to the people who can help.</span>
+                </div>
+              </li>
+              <li>
+                <span className="ic tint-per">
+                  <Icon name="users" />
+                </span>
+                <div>
+                  <b>Messages ready</b>
+                  <span>Pick a person, read why they matter, copy the note.</span>
+                </div>
+              </li>
+            </ol>
+          </section>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function Field({
+  label,
+  required,
+  hint,
+  children,
+}: {
+  label: string
+  required?: boolean
+  hint?: string
+  children: (id: string, describedBy?: string) => React.ReactNode
+}) {
+  const id = useId()
+  return (
+    <div className="field">
+      <label htmlFor={id}>
+        {label}
+        {required && (
+          <>
+            {' '}
+            <span className="req" aria-hidden="true">
+              *
+            </span>
+            <span className="sr">(required)</span>
           </>
         )}
-        <ResumeStatus state={resume} />
-      </section>
+      </label>
+      {children(id, hint ? `${id}-hint` : undefined)}
+      {hint && (
+        <div className="hint" id={`${id}-hint`}>
+          {hint}
+        </div>
+      )}
+    </div>
+  )
+}
 
-      <form onSubmit={submit} className="flex flex-col gap-5">
-        <Textarea
-          label="Your background"
-          placeholder="I'm a data analyst with 3 years of SQL and Python experience in payments…"
-          value={form.background}
-          onChange={update('background')}
-          rows={5}
-          resize="vertical"
-          isRequired
-        />
-        <Input
-          label="Where you live"
-          placeholder="Brooklyn, NY"
-          value={form.location}
-          onChange={update('location')}
-        />
-        <Textarea
-          label="What you're looking for"
-          placeholder="Senior analytics roles at fintech startups, hybrid or remote"
-          value={form.looking_for}
-          onChange={update('looking_for')}
-          rows={3}
-          resize="vertical"
-          isRequired
-        />
-        <SearchBoards
-          value={form.boards}
-          onChange={(boards) => setForm((current) => ({ ...current, boards }))}
-          onLoaded={setShownBoards}
-        />
-        <Button type="submit" variant="primary" leadingIcon={RiSearchLine} disabled={!canSubmit}>
-          Find opportunities
-        </Button>
-      </form>
-    </main>
+/** Click or drop a PDF. */
+function DropZone({ onFile, disabled }: { onFile: (file: File) => void; disabled: boolean }) {
+  const input = useRef<HTMLInputElement>(null)
+  const [drag, setDrag] = useState(false)
+  return (
+    <div
+      className={cx('drop', drag && 'drag')}
+      onDragOver={(event) => {
+        event.preventDefault()
+        setDrag(true)
+      }}
+      onDragLeave={() => setDrag(false)}
+      onDrop={(event) => {
+        event.preventDefault()
+        setDrag(false)
+        const file = event.dataTransfer.files[0]
+        if (file && !disabled) onFile(file)
+      }}
+    >
+      <span className="ic">
+        <Icon name="upload" size="lg" />
+      </span>
+      <div className="grow">
+        <b>Drop a PDF here</b>
+        <p>or choose a file, up to 10 MB</p>
+      </div>
+      <button
+        type="button"
+        className="btn sm"
+        disabled={disabled}
+        onClick={() => input.current?.click()}
+      >
+        Choose file
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="application/pdf,.pdf"
+        aria-label="Resume PDF"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          if (file) onFile(file)
+          event.target.value = ''
+        }}
+      />
+    </div>
   )
 }
 
@@ -191,23 +344,23 @@ function ResumeStatus({ state }: { state: ResumeState }) {
   if (state.status === 'idle') return null
   if (state.status === 'reading') {
     return (
-      <p className="flex items-center gap-2 text-body-2-regular text-text-secondary">
-        <Spinner size="sm" aria-hidden />
+      <p className="resume-msg">
+        <span className="spin" aria-hidden="true" />
         Reading {state.name}…
       </p>
     )
   }
   if (state.status === 'done') {
     return (
-      <p className="flex items-center gap-2 text-body-2-regular text-text-secondary">
-        <RiCheckLine aria-hidden className="size-4 text-foreground-icon-primary" />
+      <p className="resume-msg">
+        <Icon name="check" size="sm" />
         Filled in from {state.name}. Review and edit below.
       </p>
     )
   }
   return (
-    <p role="alert" className="flex items-center gap-2 text-body-2-regular text-text-error-primary">
-      <RiErrorWarningLine aria-hidden className="size-4" />
+    <p role="alert" className="resume-msg err">
+      <Icon name="alert" size="sm" />
       {state.message}
     </p>
   )

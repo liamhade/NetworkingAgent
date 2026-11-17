@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '@/api'
@@ -195,7 +195,8 @@ describe('App background searches', () => {
     render(<App />)
     await user.click(await screen.findByText('Climate roles'))
     expect(await screen.findByText('This search was cancelled.')).toBeInTheDocument()
-    expect(screen.getByText('Cancelled')).toBeInTheDocument()
+    const sidebar = screen.getByRole('complementary', { name: 'Previous searches' })
+    expect(within(sidebar).getByText('Cancelled')).toBeInTheDocument()
   })
 
   it('shows why a failed search failed when opened', async () => {
@@ -284,5 +285,81 @@ describe('App background searches', () => {
     await user.click(screen.getByRole('link', { name: 'Search' }))
     expect(await screen.findByText('Done while away')).toBeInTheDocument()
     expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
+  })
+})
+
+describe('App running page', () => {
+  const followed = () => {
+    m.listSearches.mockResolvedValue([RUNNING])
+    m.getSearch.mockResolvedValue({
+      ...RUNNING,
+      user_id: 'TEST_USER',
+      request: REQUEST,
+      results: { summary: '', companies: [] },
+      messages: [],
+      error: null,
+    })
+  }
+
+  it('shows the stage reached and cancels after confirming', async () => {
+    followed()
+    let end: (cancelled: boolean) => void = () => {}
+    m.streamSearchEvents.mockImplementation(async (_id, onEvent) => {
+      onEvent({ type: 'started', search: RUNNING })
+      onEvent({ type: 'status', message: 'Planning: data analyst' })
+      onEvent({ type: 'status', message: 'Ranking companies from 12 jobs' })
+      const cancelled = await new Promise<boolean>((resolve) => (end = resolve))
+      if (cancelled) onEvent({ type: 'cancelled', search: { ...RUNNING, status: 'cancelled' } })
+    })
+    m.cancelSearch.mockImplementation(async () => {
+      end(true)
+      return { ...RUNNING, status: 'cancelled' }
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByText('Climate roles'))
+    expect(await screen.findByText('Ranking companies from 12 jobs')).toBeInTheDocument()
+    const stages = screen.getByRole('list', { name: 'Search stages' })
+    expect(within(stages).getByText('Find jobs').closest('li')).toHaveClass('done')
+    expect(within(stages).getByText('Rank companies').closest('li')).toHaveClass('act')
+
+    await user.click(screen.getByRole('button', { name: 'Cancel search' }))
+    await user.click(screen.getByRole('button', { name: 'Keep running' }))
+    expect(m.cancelSearch).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Cancel search' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, cancel' }))
+    expect(m.cancelSearch).toHaveBeenCalledWith('run')
+    expect(await screen.findByText('Search cancelled')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /retry search/i })).toBeInTheDocument()
+  })
+
+  it('retries an ended search with the same parameters', async () => {
+    followed()
+    m.streamSearchEvents.mockImplementation(async (_id, onEvent) => {
+      onEvent({ type: 'started', search: RUNNING })
+      onEvent({ type: 'error', message: 'Search failed: boom' })
+    })
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(await screen.findByText('Climate roles'))
+    await user.click(await screen.findByRole('button', { name: /retry search/i }))
+    expect(m.streamSearch).toHaveBeenCalledWith(REQUEST, expect.any(Function), expect.anything())
+  })
+})
+
+describe('App theme', () => {
+  it('is light by default and saves the toggle', async () => {
+    localStorage.removeItem('na-theme')
+    const user = userEvent.setup()
+    render(<App />)
+    const dark = screen.getByRole('button', { name: 'Dark theme' })
+    expect(screen.getByRole('button', { name: 'Light theme' })).toHaveAttribute('aria-pressed', 'true')
+    expect(document.documentElement.dataset.theme).toBe('light')
+    await user.click(dark)
+    expect(dark).toHaveAttribute('aria-pressed', 'true')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(localStorage.getItem('na-theme')).toBe('dark')
+    await user.click(screen.getByRole('button', { name: 'Light theme' }))
+    expect(localStorage.getItem('na-theme')).toBe('light')
   })
 })

@@ -1,22 +1,7 @@
 import { useState } from 'react'
-import {
-  RiAddLine,
-  RiArrowDownSLine,
-  RiBookmarkLine,
-  RiCheckLine,
-  RiCloseLine,
-  RiDeleteBinLine,
-  RiErrorWarningLine,
-  RiPencilLine,
-  RiSaveLine,
-} from '@remixicon/react'
 import type { SearchConfig } from '@/api'
-import { Button } from '@/components/base/buttons/button'
-import { Input } from '@/components/base/input/input'
-import { Spinner } from '@/components/base/spinner/spinner'
-import { ScrollFade, useScrollFade } from '@/components/foundations/scroll-fade/scroll-fade'
+import { Icon } from '@/components/icon'
 import { cx } from '@/utils/cx'
-import { formatRelativeDate, fullDateFormat } from '@/utils/format-date'
 
 /** Mirrors the server's limit on configuration names. */
 export const MAX_CONFIG_NAME = 80
@@ -36,11 +21,7 @@ interface SearchConfigsProps {
   onDelete: (id: string) => Promise<void>
 }
 
-/**
- * Right side panel of saved search configurations, in creation order. From `lg` it is a
- * sticky column mirroring the history panel; below that it stacks under the form and its
- * list collapses behind a toggle.
- */
+/** "Saved searches" card in the search page's right rail: saved configurations, in creation order. */
 export function SearchConfigs({
   configs,
   loading,
@@ -52,14 +33,12 @@ export function SearchConfigs({
   onOverwrite,
   onDelete,
 }: SearchConfigsProps) {
-  const fade = useScrollFade()
-  const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  /** Run a server action, surfacing a failure in the panel. Resolves undefined on failure. */
+  /** Run a server action, surfacing a failure in the card. Resolves undefined on failure. */
   const run = async <T,>(action: () => Promise<T>): Promise<T | undefined> => {
     setBusy(true)
     setActionError(null)
@@ -75,120 +54,74 @@ export function SearchConfigs({
 
   const save = async () => {
     const created = await run(onSave)
-    if (created) {
-      setOpen(true)
-      setEditingId(created.id) // "Name it on the side": start renaming right away.
-    }
+    if (created) setEditingId(created.id) // Name it right away.
   }
 
   return (
-    <aside
-      aria-label="Search configurations"
-      className="flex w-full shrink-0 flex-col border-t border-separator-border bg-background-primary-default lg:sticky lg:top-0 lg:h-svh lg:w-72 lg:border-s lg:border-t-0"
-    >
-      <div className="flex flex-col gap-3 px-4 pt-6 pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-1.5 text-caption-1-semibold text-text-tertiary uppercase">
-            <RiBookmarkLine aria-hidden className="size-4" />
-            Search configurations
-          </h2>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            className="lg:hidden"
-            aria-expanded={open}
-            aria-controls="search-config-list"
-            aria-label={open ? 'Hide configurations' : 'Show configurations'}
-            leadingIcon={RiArrowDownSLine}
-            onClick={() => setOpen((current) => !current)}
-          />
-        </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="small"
-          leadingIcon={RiAddLine}
-          onClick={save}
-          disabled={busy}
-        >
-          Save current configuration
-        </Button>
-        {actionError && (
-          <p
-            role="alert"
-            className="flex items-start gap-1.5 text-body-2-regular text-text-error-primary"
-          >
-            <RiErrorWarningLine aria-hidden className="mt-0.5 size-4 shrink-0" />
-            {actionError}
-          </p>
-        )}
-      </div>
+    <section className="card" aria-labelledby="cfgh">
+      <h2 id="cfgh">
+        <Icon name="save" className="co-c" />
+        Saved searches
+      </h2>
+      <button type="button" className="btn sm wide" onClick={save} disabled={busy}>
+        <Icon name="plus" size="sm" />
+        Save current setup
+      </button>
+      {actionError && (
+        <p role="alert" className="alert">
+          <Icon name="alert" size="sm" />
+          {actionError}
+        </p>
+      )}
 
-      <div
-        id="search-config-list"
-        className={cx('relative min-h-0 flex-1', open ? 'block' : 'hidden lg:block')}
-      >
-        <div
-          onScroll={fade.onScroll}
-          className="max-h-96 overflow-y-auto px-3 pb-4 lg:h-full lg:max-h-none"
-        >
-          {loading && configs.length === 0 ? (
-            <div className="flex items-center gap-2 px-1 py-2 text-body-2-regular text-text-tertiary">
-              <Spinner />
-              Loading…
-            </div>
-          ) : error ? (
-            <p
-              role="alert"
-              className="flex items-start gap-1.5 px-1 py-2 text-body-2-regular text-text-error-primary"
-            >
-              <RiErrorWarningLine aria-hidden className="mt-0.5 size-4 shrink-0" />
-              {error}
-            </p>
-          ) : configs.length === 0 ? (
-            <p className="px-1 py-2 text-body-2-regular text-text-tertiary">
-              Save the form as a configuration to reuse it later.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {configs.map((config) => (
-                <li key={config.id}>
-                  {editingId === config.id ? (
-                    <RenameRow
-                      config={config}
-                      onCancel={() => setEditingId(null)}
-                      onCommit={async (name) => {
-                        if (name === config.name) return setEditingId(null)
-                        const done = await run(() => onRename(config.id, name).then(() => true))
-                        if (done) setEditingId(null)
-                      }}
-                    />
-                  ) : (
-                    <ConfigRow
-                      config={config}
-                      active={config.id === activeId}
-                      confirming={confirmingId === config.id}
-                      busy={busy}
-                      onLoad={() => onLoad(config)}
-                      onRename={() => setEditingId(config.id)}
-                      onOverwrite={() => run(() => onOverwrite(config.id))}
-                      onAskDelete={() => setConfirmingId(config.id)}
-                      onCancelDelete={() => setConfirmingId(null)}
-                      onDelete={async () => {
-                        await run(() => onDelete(config.id))
-                        setConfirmingId(null)
-                      }}
-                    />
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <ScrollFade progress={fade.progress} surfaceClassName="from-background-primary-default" />
-      </div>
-    </aside>
+      {loading && configs.length === 0 ? (
+        <p className="loading">
+          <span className="spin" aria-hidden="true" />
+          Loading…
+        </p>
+      ) : error ? (
+        <p role="alert" className="alert">
+          <Icon name="alert" size="sm" />
+          {error}
+        </p>
+      ) : configs.length === 0 ? (
+        <p className="cfg-empty">Save the form as a configuration to reuse it later.</p>
+      ) : (
+        <ul className="cfg">
+          {configs.map((config) => (
+            <li key={config.id} className={cx(config.id === activeId && 'on')}>
+              {editingId === config.id ? (
+                <RenameRow
+                  config={config}
+                  onCancel={() => setEditingId(null)}
+                  onCommit={async (name) => {
+                    if (name === config.name) return setEditingId(null)
+                    const done = await run(() => onRename(config.id, name).then(() => true))
+                    if (done) setEditingId(null)
+                  }}
+                />
+              ) : (
+                <ConfigRow
+                  config={config}
+                  active={config.id === activeId}
+                  confirming={confirmingId === config.id}
+                  busy={busy}
+                  onLoad={() => onLoad(config)}
+                  onRename={() => setEditingId(config.id)}
+                  onOverwrite={() => run(() => onOverwrite(config.id))}
+                  onAskDelete={() => setConfirmingId(config.id)}
+                  onCancelDelete={() => setConfirmingId(null)}
+                  onDelete={async () => {
+                    await run(() => onDelete(config.id))
+                    setConfirmingId(null)
+                  }}
+                />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 
@@ -211,19 +144,18 @@ function RenameRow({
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-border-button-active bg-background-primary-default p-2">
-      <Input
+    <div className="rename">
+      <input
+        type="text"
         aria-label="Configuration name"
-        size="small"
+        aria-invalid={invalid || undefined}
         autoFocus
         maxLength={MAX_CONFIG_NAME}
         value={name}
-        onChange={(value) => {
-          setName(value)
+        onChange={(event) => {
+          setName(event.target.value)
           setInvalid(false)
         }}
-        isInvalid={invalid}
-        errorMessage="Give it a name."
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault()
@@ -233,19 +165,14 @@ function RenameRow({
           }
         }}
       />
-      <div className="flex justify-end gap-1">
-        <Button type="button" variant="ghost" size="xs" leadingIcon={RiCloseLine} onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          size="xs"
-          leadingIcon={RiCheckLine}
-          onClick={commit}
-        >
+      {invalid && <span className="err">Give it a name.</span>}
+      <div className="acts">
+        <button type="button" className="btn xs pri" onClick={commit}>
           Save name
-        </Button>
+        </button>
+        <button type="button" className="btn xs" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     </div>
   )
@@ -274,81 +201,71 @@ function ConfigRow({
   onCancelDelete: () => void
   onDelete: () => void
 }) {
-  const created = new Date(config.created_at)
+  const goal = config.params.looking_for.trim()
   return (
-    <div
-      className={cx(
-        'flex flex-col gap-1 rounded-2xl border p-1',
-        active
-          ? 'border-border-button-active bg-background-primary-active'
-          : 'border-border-button-default bg-background-primary-default',
-      )}
-    >
-      <button
-        type="button"
-        onClick={onLoad}
-        aria-current={active ? 'true' : undefined}
-        aria-label={`Load ${config.name}`}
-        className="flex w-full cursor-pointer flex-col gap-0.5 rounded-xl px-2 py-1.5 text-start transition-colors outline-none hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-      >
-        <span className="line-clamp-2 text-body-2-medium break-words text-text-primary">
-          {config.name}
-        </span>
-        <span className="flex items-center gap-1.5 text-caption-1-medium text-text-tertiary">
-          <time dateTime={config.created_at} title={fullDateFormat.format(created)}>
-            {formatRelativeDate(created)}
-          </time>
-          {active && <span className="text-text-secondary">· Loaded</span>}
-        </span>
-      </button>
+    <>
+      <div className="nm">
+        <span>{config.name}</span>
+        {active && <small>Loaded</small>}
+      </div>
+      <div className="d">{goal || 'No description saved. Load to fill the form.'}</div>
       {confirming ? (
-        <div className="flex items-center justify-between gap-1 px-2 pb-1">
-          <span className="text-caption-1-medium text-text-secondary">Delete this one?</span>
-          <div className="flex gap-1">
-            <Button type="button" variant="ghost" size="xs" onClick={onCancelDelete}>
-              Keep
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="xs"
-              aria-label={`Confirm delete ${config.name}`}
-              onClick={onDelete}
-              disabled={busy}
-            >
-              Delete
-            </Button>
-          </div>
+        <div className="confirm">
+          Delete this configuration?
+          <button type="button" className="btn xs" onClick={onCancelDelete}>
+            Keep
+          </button>
+          <button
+            type="button"
+            className="btn xs danger"
+            aria-label={`Confirm delete ${config.name}`}
+            onClick={onDelete}
+            disabled={busy}
+          >
+            Delete
+          </button>
         </div>
       ) : (
-        <div className="flex justify-end gap-0.5 px-1 pb-0.5">
-          <Button
+        <div className="acts">
+          <button
             type="button"
-            variant="ghost"
-            size="xs"
+            className="btn xs"
+            onClick={onLoad}
+            aria-current={active ? 'true' : undefined}
+            aria-label={`Load ${config.name}`}
+          >
+            Load
+          </button>
+          <button
+            type="button"
+            className="btn xs ghost"
             aria-label={`Rename ${config.name}`}
-            leadingIcon={RiPencilLine}
+            title="Rename"
             onClick={onRename}
-          />
-          <Button
+          >
+            <Icon name="edit" size="sm" />
+          </button>
+          <button
             type="button"
-            variant="ghost"
-            size="xs"
+            className="btn xs ghost"
             aria-label={`Overwrite ${config.name} with the current form`}
-            leadingIcon={RiSaveLine}
+            title="Overwrite with the current form"
             onClick={onOverwrite}
             disabled={busy}
-          />
-          <Button
+          >
+            <Icon name="save" size="sm" />
+          </button>
+          <button
             type="button"
-            variant="ghost"
-            size="xs"
+            className="btn xs ghost"
             aria-label={`Delete ${config.name}`}
-            leadingIcon={RiDeleteBinLine}
+            title="Delete"
             onClick={onAskDelete}
-          />
+          >
+            <Icon name="trash" size="sm" />
+          </button>
         </div>
       )}
-    </div>
+    </>
   )
 }

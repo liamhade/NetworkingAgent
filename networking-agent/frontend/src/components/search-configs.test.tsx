@@ -60,7 +60,7 @@ describe('search configurations panel', () => {
   it('lists the saved configurations in order', async () => {
     m.listSearchConfigs.mockResolvedValue([config('a', 'Fintech'), config('b', 'Climate')])
     render(<App />)
-    const panel = await screen.findByRole('complementary', { name: 'Search configurations' })
+    const panel = await screen.findByRole('region', { name: 'Saved searches' })
     const items = await within(panel).findAllByRole('listitem')
     expect(items).toHaveLength(2)
     expect(items[0]).toHaveTextContent('Fintech')
@@ -86,7 +86,7 @@ describe('search configurations panel', () => {
     await user.click(screen.getByRole('button', { name: /search boards/i }))
     await user.click(screen.getByRole('switch', { name: 'Built In NYC' }))
 
-    await user.click(screen.getByRole('button', { name: /save current configuration/i }))
+    await user.click(screen.getByRole('button', { name: /save current setup/i }))
     expect(m.createSearchConfig).toHaveBeenCalledTimes(1)
     const [saved, name] = m.createSearchConfig.mock.calls[0]
     expect(name).toBeUndefined()

@@ -2,13 +2,15 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { CompanyResult, SearchResults } from '@/api'
+import type { CompanyResult, PinMap, SearchResults, StatusMap } from '@/api'
+import { ToastProvider } from '@/components/toast'
 import { Results } from '@/pages/results'
 import { emptyPins, emptyStatuses } from '@/test/fixtures'
 
 /**
- * "Find People To Connect With" on the results page: each button calls the on-demand
- * people endpoint, keeps its own loading / error state, and inserts the people it finds.
+ * The results page: company panels (the top one open), jobs and people side by side,
+ * filters, grouping, the message drawer, and "Find people" buttons that each call the
+ * on-demand people endpoint with their own loading / error state.
  */
 
 const company = (name: string, extra: Partial<CompanyResult> = {}): CompanyResult => ({
@@ -23,6 +25,7 @@ const company = (name: string, extra: Partial<CompanyResult> = {}): CompanyResul
       location: 'NYC',
       salary: '',
       alignment: 'Matches your SQL.',
+      score: 72,
       key: `job:${name.toLowerCase()}`,
     },
   ],
@@ -32,11 +35,6 @@ const company = (name: string, extra: Partial<CompanyResult> = {}): CompanyResul
   ...extra,
 })
 
-const RESULTS: SearchResults = {
-  summary: 'Ranked companies.',
-  companies: [company('Acme', { score: 90 }), company('Globex', { score: 70 })],
-}
-
 const person = (name: string) => ({
   name,
   title: 'Recruiter',
@@ -45,6 +43,11 @@ const person = (name: string) => ({
   connect_message: `Hi ${name}, would love to connect.`,
   key: `person:${name.toLowerCase()}`,
 })
+
+const RESULTS: SearchResults = {
+  summary: 'Ranked companies.',
+  companies: [company('Acme', { score: 90 }), company('Globex', { score: 70 })],
+}
 
 interface Pending {
   url: string
@@ -70,61 +73,213 @@ function stubFetch() {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
-function Harness({ searchId = 's1' }: { searchId?: string | null }) {
-  const [results, setResults] = useState(RESULTS)
+interface HarnessProps {
+  searchId?: string | null
+  initial?: SearchResults
+  statuses?: StatusMap
+  pins?: PinMap
+  onToggleStatus?: () => void
+  onTogglePin?: () => void
+}
+
+function Harness({
+  searchId = 's1',
+  initial = RESULTS,
+  statuses = emptyStatuses(),
+  pins = emptyPins(),
+  onToggleStatus = vi.fn(),
+  onTogglePin = vi.fn(),
+}: HarnessProps) {
+  const [results, setResults] = useState(initial)
   return (
-    <Results
-      statuses={[]}
-      results={results}
-      error={null}
-      running={false}
-      entityStatuses={emptyStatuses()}
-      statusError={null}
-      onToggleStatus={vi.fn()}
-      pins={emptyPins()}
-      pinError={null}
-      onTogglePin={vi.fn()}
-      searchId={searchId}
-      onCompanyFound={(found) =>
-        setResults((current) => ({
-          ...current,
-          companies: current.companies.map((c) => (c.key === found.key ? found : c)),
-        }))
-      }
-      onBack={vi.fn()}
-    />
+    <ToastProvider>
+      <Results
+        results={results}
+        meta={{ title: 'Analyst roles', location: 'NYC', createdAt: null, boards: ['Built In NYC'] }}
+        entityStatuses={statuses}
+        statusError={null}
+        onToggleStatus={onToggleStatus}
+        pins={pins}
+        pinError={null}
+        onTogglePin={onTogglePin}
+        searchId={searchId}
+        onCompanyFound={(found) =>
+          setResults((current) => ({
+            ...current,
+            companies: current.companies.map((c) => (c.key === found.key ? found : c)),
+          }))
+        }
+        onEdit={vi.fn()}
+        onNewSearch={vi.fn()}
+      />
+    </ToastProvider>
   )
 }
 
 const card = (name: string) =>
   screen.getAllByRole('article').find((article) => within(article).queryByText(name))!
 
-const companyButton = (name: string) =>
-  screen.getByRole('button', { name: `Find People To Connect With: ${name}` })
+/** The collapsed/expanded header button of a company panel. */
+const panelToggle = (name: string) =>
+  within(card(name)).getByRole('button', { name: new RegExp(`^${name}`), expanded: undefined })
+
+async function expand(user: ReturnType<typeof userEvent.setup>, name: string) {
+  const toggle = panelToggle(name)
+  if (toggle.getAttribute('aria-expanded') !== 'true') await user.click(toggle)
+}
+
+const companyButton = (label: string, name: string) =>
+  screen.getByRole('button', { name: `${label}: ${name}` })
+
+const jobButton = (name: string) =>
+  screen.getByRole('button', { name: `Find people for this role: Data Analyst at ${name}` })
 
 afterEach(() => vi.unstubAllGlobals())
 
-describe('Find People To Connect With', () => {
-  it('shows companies in ranked order with a fit score and buttons under companies and jobs', () => {
+describe('results layout', () => {
+  it('ranks the companies with fit scores and opens only the top one', () => {
     stubFetch()
     render(<Harness />)
-    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
-    expect(headings).toEqual(['1. Acme', '2. Globex'])
-    expect(within(card('Acme')).getByText('Fit 90')).toBeInTheDocument()
-    expect(companyButton('Acme')).toBeEnabled()
-    expect(
-      screen.getByRole('button', { name: 'Find People To Connect With: Data Analyst at Acme' }),
-    ).toBeEnabled()
+    const names = screen.getAllByRole('article').map((a) => a.querySelector('.cn')?.textContent)
+    expect(names).toEqual(['Acme', 'Globex'])
+    expect(within(card('Acme')).getByText('#1')).toBeInTheDocument()
+    expect(within(card('Acme')).getByText('Strong fit')).toBeInTheDocument()
+    expect(within(card('Globex')).getByText('Good fit')).toBeInTheDocument()
+    expect(panelToggle('Acme')).toHaveAttribute('aria-expanded', 'true')
+    expect(panelToggle('Globex')).toHaveAttribute('aria-expanded', 'false')
+    expect(within(card('Acme')).getByRole('region', { name: 'Jobs at Acme' })).toBeInTheDocument()
+    expect(within(card('Globex')).queryByRole('region', { name: 'Jobs at Globex' })).toBeNull()
+  })
+
+  it('summarises the search and expands / collapses every panel', async () => {
+    stubFetch()
+    const user = userEvent.setup()
+    render(<Harness statuses={{ job: { 'job:acme': true }, person: {} }} />)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Analyst roles')
+    const totals = screen.getByRole('list', { name: 'Search totals' })
+    expect(within(totals).getByText('1 applied')).toBeInTheDocument()
+    expect(screen.getByText('Ranked companies.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Expand all' }))
+    expect(panelToggle('Globex')).toHaveAttribute('aria-expanded', 'true')
+    await user.click(screen.getByRole('button', { name: 'Collapse all' }))
+    expect(panelToggle('Acme')).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('filters companies, and offers to clear filters when none match', async () => {
+    stubFetch()
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Strong fit 75+' }))
+    expect(screen.getAllByRole('article')).toHaveLength(1)
+    expect(screen.getByText(/Showing 1 of 2 companies/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Has contact' }))
+    expect(screen.queryAllByRole('article')).toHaveLength(0)
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(screen.getAllByRole('article')).toHaveLength(2)
+  })
+
+  it('sorts by name and groups by type', async () => {
+    stubFetch()
+    const user = userEvent.setup()
+    render(
+      <Harness
+        initial={{
+          summary: '',
+          companies: [company('Zeta', { score: 90 }), company('Acme', { score: 60 })],
+        }}
+      />,
+    )
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'Name A-Z')
+    const names = screen.getAllByRole('article').map((a) => a.querySelector('.cn')?.textContent)
+    expect(names).toEqual(['Acme', 'Zeta'])
+
+    await user.click(screen.getByRole('button', { name: 'Type' }))
+    expect(screen.getByRole('heading', { name: /^Jobs/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^People/ })).toBeInTheDocument()
+    // Each job carries a tag back to its company.
+    await user.click(screen.getAllByRole('button', { name: 'Zeta' })[0])
+    expect(panelToggle('Zeta')).toHaveAttribute('aria-expanded', 'true')
+  })
+})
+
+describe('message drawer', () => {
+  it('opens with the example message, counts characters and marks connected', async () => {
+    stubFetch()
+    const onToggleStatus = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <Harness
+        onToggleStatus={onToggleStatus}
+        initial={{ summary: '', companies: [company('Acme', { people: [person('Ann')] })] }}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: /^Message Ann →?/ }))
+    const dialog = screen.getByRole('dialog', { name: 'Message Ann' })
+    expect(within(dialog).getByRole('textbox', { name: 'Example LinkedIn message' })).toHaveValue(
+      'Hi Ann, would love to connect.',
+    )
+    expect(within(dialog).getByText('30 / 300')).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: /open linkedin/i })).toHaveAttribute(
+      'href',
+      'https://linkedin.com/in/ann',
+    )
+    await user.click(within(dialog).getByRole('button', { name: 'Mark connected: Ann' }))
+    expect(onToggleStatus).toHaveBeenCalledWith('person', 'person:ann', true)
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Message Ann' })).toBeNull()
+  })
+
+  it('"Start here" drafts a message to the top contact', async () => {
+    stubFetch()
+    const user = userEvent.setup()
+    render(
+      <Harness
+        initial={{
+          summary: '',
+          companies: [company('Acme'), company('Globex', { people: [person('Gina')] })],
+        }}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Draft message' }))
+    expect(screen.getByRole('dialog', { name: 'Message Gina' })).toBeInTheDocument()
+  })
+})
+
+describe('pins on the results page', () => {
+  it('pins with an undo toast', async () => {
+    stubFetch()
+    const onTogglePin = vi.fn()
+    const user = userEvent.setup()
+    render(<Harness onTogglePin={onTogglePin} />)
+    await user.click(screen.getByRole('button', { name: 'Pin Globex' }))
+    expect(onTogglePin).toHaveBeenLastCalledWith('company', 'company:globex', true)
+    expect(screen.getByRole('status')).toHaveTextContent('Pinned Globex')
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(onTogglePin).toHaveBeenLastCalledWith('company', 'company:globex', false)
+  })
+})
+
+describe('Find people', () => {
+  it('offers buttons for the company and for each job', async () => {
+    stubFetch()
+    const user = userEvent.setup()
+    render(<Harness />)
+    expect(companyButton('Find people to connect with', 'Acme')).toBeEnabled()
+    expect(jobButton('Acme')).toBeEnabled()
+    await expand(user, 'Globex')
+    expect(jobButton('Globex')).toBeEnabled()
   })
 
   it('calls the API for the company, or for the job', async () => {
     const pending = stubFetch()
     const user = userEvent.setup()
     render(<Harness />)
-    await user.click(companyButton('Acme'))
-    await user.click(
-      screen.getByRole('button', { name: 'Find People To Connect With: Data Analyst at Globex' }),
-    )
+    await user.click(companyButton('Find people to connect with', 'Acme'))
+    await expand(user, 'Globex')
+    await user.click(jobButton('Globex'))
     expect(pending.map((p) => [p.url, p.body])).toEqual([
       ['/api/searches/s1/people', { company_key: 'company:acme', job_key: null }],
       ['/api/searches/s1/people', { company_key: 'company:globex', job_key: 'job:globex' }],
@@ -135,13 +290,16 @@ describe('Find People To Connect With', () => {
     const pending = stubFetch()
     const user = userEvent.setup()
     render(<Harness />)
+    await expand(user, 'Globex')
 
-    await user.click(companyButton('Acme'))
-    await user.click(companyButton('Globex'))
+    await user.click(companyButton('Find people to connect with', 'Acme'))
+    await user.click(companyButton('Find people to connect with', 'Globex'))
     expect(pending).toHaveLength(2)
-    expect(companyButton('Acme')).toHaveAttribute('aria-busy', 'true')
-    expect(companyButton('Globex')).toHaveAttribute('aria-busy', 'true')
-    expect(within(card('Acme')).getByText('Finding people…')).toBeInTheDocument()
+    expect(companyButton('Find people to connect with', 'Acme')).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
+    expect(within(card('Acme')).getByText('Searching LinkedIn…')).toBeInTheDocument()
 
     // Globex answers first; Acme is still loading.
     pending[1].resolve(
@@ -149,13 +307,15 @@ describe('Find People To Connect With', () => {
     )
     await within(card('Globex')).findByText('Gina')
     expect(within(card('Globex')).getByText('Gina hires analysts.')).toBeInTheDocument()
-    expect(within(card('Globex')).getByText('Hi Gina, would love to connect.')).toBeInTheDocument()
-    expect(within(card('Globex')).getByRole('button', { name: 'NOT CONNECTED' })).toBeInTheDocument()
-    expect(within(card('Globex')).getByRole('button', { name: 'Pin Gina' })).toBeInTheDocument()
-    expect(companyButton('Acme')).toHaveAttribute('aria-busy', 'true')
     expect(
-      screen.getByRole('button', { name: 'Find more people: Globex' }),
-    ).toBeEnabled()
+      within(card('Globex')).getByRole('button', { name: 'Mark connected: Gina' }),
+    ).toHaveAttribute('aria-pressed', 'false')
+    expect(within(card('Globex')).getByRole('button', { name: 'Pin Gina' })).toBeInTheDocument()
+    expect(companyButton('Find people to connect with', 'Acme')).toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
+    expect(companyButton('Find more people', 'Globex')).toBeEnabled()
 
     pending[0].resolve(
       json(company('Acme', { score: 90, people: [person('Ann')], people_searched: true })),
@@ -168,7 +328,7 @@ describe('Find People To Connect With', () => {
     const pending = stubFetch()
     const user = userEvent.setup()
     render(<Harness />)
-    await user.click(companyButton('Acme'))
+    await user.click(companyButton('Find people to connect with', 'Acme'))
     pending[0].resolve(json(company('Acme', { score: 90, people_searched: true })))
     await within(card('Acme')).findByText('No current employees found yet.')
   })
@@ -177,7 +337,8 @@ describe('Find People To Connect With', () => {
     const pending = stubFetch()
     const user = userEvent.setup()
     render(<Harness />)
-    await user.click(companyButton('Acme'))
+    await expand(user, 'Globex')
+    await user.click(companyButton('Find people to connect with', 'Acme'))
     pending[0].resolve(json({ detail: 'Google is unavailable.' }, 500))
 
     const alert = await within(card('Acme')).findByRole('alert')
@@ -194,6 +355,6 @@ describe('Find People To Connect With', () => {
   it('is disabled until the search is saved', () => {
     stubFetch()
     render(<Harness searchId={null} />)
-    expect(companyButton('Acme')).toBeDisabled()
+    expect(companyButton('Find people to connect with', 'Acme')).toBeDisabled()
   })
 })
