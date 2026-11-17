@@ -207,8 +207,8 @@ select{appearance:none;background-image:var(--sel-arrow);background-repeat:no-re
 .cname .cn{font:600 20px/1.25 var(--head);letter-spacing:-.01em;color:var(--text)}
 .chead h3{flex:1;min-width:0;font-size:inherit;font-weight:inherit}
 .rank{font:700 13px var(--head);color:var(--text2)}
-.cdesc{display:block;font-size:13.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
-.co-panel[data-open=true] .cdesc{display:none}
+.cdesc{display:block;font-family:var(--body);font-weight:400;letter-spacing:0;font-size:13.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.co-panel[data-open=true] .cdesc{white-space:normal;overflow:visible;text-overflow:clip;margin-top:4px;line-height:1.45;max-width:62ch}
 .cbest{font-size:13.5px;margin-top:3px;display:flex;gap:6px;align-items:center;color:var(--text);flex-wrap:wrap}
 .cbest .i{color:var(--job)}
 .cbest .bt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
