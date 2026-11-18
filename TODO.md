@@ -1,6 +1,33 @@
-# TODO
+# TODO 
+
+## Rough Ideas
+
+- [ ] (**redirects to related entities from entity cards**) If a person is connected to a job, those jobs should be listed beneath their card. If a job also has a list of people to connect with, then those should be selectable beneath the job card. And if a company has jobs or people connected to, those should be selectable beneath the company card.
+
+- [ ] (**add application stories**) When user applies for a job, if there are questions on the application, the agent should be able to help the user answer the questions.
+
+- [ ] (**match users writing style**) Tweak the LinkedIn messages to match the users writing style. Optionally provide 5-10 writing samples to train the model.
+
+- [ ] (**refine UI**) It's a little confusiong at the moment, especially with the headers.
 
 ## In-Queue
+
+## Postponed
+
+- [ ] (**Job queue for background searches**) Move background searches off in-memory threads onto a persistent job queue so they survive restarts and work with more than one server process (plan alongside the Supabase migration).
+
+- [ ] (**Add sign-in so users can use accounts**) 
+    - [ ] Store account information on Supabase
+    - [ ] Support Google OAuth (I'll need to create the GCP project for this)
+    - [ ] Support username and password sign-in
+
+## Done
+
+- [x] (**can exit and come back to ongoing search**) If a user clicks on "Find Opportunities", then looks around at some of the other pages, they should still be able to find that ongoing search in the "Previous Searches" panel, even if it hasn't finished yet. User's shouldn't have to wait on a "searching" page for the results to finish.
+
+- [x] (**Cancel a running search**) Add a Cancel button for a running search in the Previous Searches panel, and cap how many searches can run at the same time (extra ones wait or are refused with a clear message).
+
+- [x] (**Delete failed searches**) Failed searches now stay in the Previous Searches panel marked "Failed". Add a way to delete a search (failed or otherwise) from the panel.
 
 - [x] (**ATS job boards: Greenhouse**) Find employer-direct postings by running Google `site:` searches for Greenhouse boards (e.g. `site:job-boards.greenhouse.io "data analyst" New York`), then pull the company's job list from Greenhouse's public JSON board API. Build this as a shared `ats` layer that Lever, Ashby and Workable plug into, and wire it into the search pipeline.
 
@@ -17,16 +44,6 @@
 - [x] (**remember user resume and search credentials**) When a user comes back to the search page, they shouldn't have to keep resubmiting their resume or reinputing their search credentials. Compress and save their PDF, and store their search parameters.
 
 - [x] (**save different search configurations**) On a right panel in the search page, users should see a list of their search configurations. They can save their current configuration, name it on the side (default to "Search Configuration #n"), and load previous configurations
-
-# Postponed
-
-- [ ] (**Add sign-in so users can use accounts**) 
-    - [ ] Store account information on Supabase
-    - [ ] Support Google OAuth (I'll need to create the GCP project for this)
-    - [ ] Support username and password sign-in
-
-# Done
-
 
 - [x] (**add ability to sort companies, jobs, or people in their pages**) In their individual pages, we should be able to sort by "CONNECTED" / "NOT CONNECTED" (or other field values) to organize the listing.
 
