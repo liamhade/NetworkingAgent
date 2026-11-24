@@ -1,6 +1,6 @@
-## Structure
+## Folder Structure
 
-Group `.py` files into sub-folders if a folder becomes too cramped, so that we keep the project organized. 
+Use a `Service Oriented` folder structure to group files in the `backend`.
 
 ## Version Control
 
