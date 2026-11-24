@@ -31,7 +31,8 @@ docker run -p 8000:8000 --env-file .env -v networking-agent-data:/data networkin
 1. Someone clicks **Request access** and picks a password. The page then offers a **Send the
    request email** button, which emails `ACCESS_REQUEST_EMAIL` (set it to your inbox) from
    their address.
-2. Check that the email really came from the address it asks you to approve, then:
+2. Check that the email really came from the address it asks you to approve, then approve it
+   on the **Admin** tab (signed in as `OWNER_EMAIL`), or from a shell:
 
 ```powershell
 railway ssh -- python -m auth.access list               # pending requests first
@@ -39,7 +40,9 @@ railway ssh -- python -m auth.access approve a@x.com    # they can sign in now
 railway ssh -- python -m auth.access deny a@x.com       # refuse, or cut off an approved user
 ```
 
-`approve` also works before someone asks: their request is then approved straight away.
+`approve` (Admin tab: **Add to whitelist**) also works before someone asks: their request is
+then approved straight away. The Admin tab's **Remove** is `deny`. `OWNER_EMAIL` is always let
+in and can't be removed, so sign up with it first.
 Other hosts: run the same `python -m auth.access ...` in their shell (`docker exec <container>`,
 Render's Shell tab, `fly ssh console`). Requests are stored in `/data/database/access.json`.
 Accounts made with the old invite codes stay approved.
@@ -77,6 +80,7 @@ Locally without Docker: `cd backend\src` then `..\.venv\Scripts\python.exe -m au
 | `SERPER_API_KEY` | yes | The Chrome fallback needs desktop Chrome, which the image doesn't have |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | yes | Accounts. Without all three, everyone is `TEST_USER` and no sign-in is asked for: never deploy like that |
 | `ACCESS_REQUEST_EMAIL` | yes | Your inbox: people email it from their own address to ask for access. Shown on the sign-in page (public). Unset: the page just says to ask you |
+| `OWNER_EMAIL` | yes | Your account email: always approved, and the only account that sees the **Admin** tab (whitelist, every user's LLM usage) |
 | `USAJOBS_API_KEY`, `USAJOBS_EMAIL` | optional | Federal jobs board |
 | `MAX_CONCURRENT_SEARCHES` | recommended | Default 2: a 3rd simultaneous search gets "too many searches". Measured 2026-11-24: 5 at once took 70-90 s each (vs ~66 s alone), peaking at 229 MB RAM and 0.8 CPU core, so `5` fits a 512 MB instance |
 | `LLM_MODEL` | optional | Default `anthropic:claude-haiku-5-5` |

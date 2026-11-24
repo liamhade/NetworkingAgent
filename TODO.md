@@ -28,6 +28,8 @@
 
 ## Done
 
+- [x] (**admin tab and whitelist**) An Admin tab, only for `OWNER_EMAIL`, showing every user's email and LLM usage, where the owner adds emails to or removes them from the whitelist. Emails not on the whitelist can't use the app.
+
 - [x] (**can exit and come back to ongoing search**) If a user clicks on "Find Opportunities", then looks around at some of the other pages, they should still be able to find that ongoing search in the "Previous Searches" panel, even if it hasn't finished yet. User's shouldn't have to wait on a "searching" page for the results to finish.
 
 - [x] (**Cancel a running search**) Add a Cancel button for a running search in the Previous Searches panel, and cap how many searches can run at the same time (extra ones wait or are refused with a clear message).

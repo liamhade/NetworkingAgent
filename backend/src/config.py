@@ -128,6 +128,10 @@ ACCESS_REQUEST_EMAIL = os.environ.get("ACCESS_REQUEST_EMAIL", "").strip()
 """The owner's inbox. People asking for access email it from their own address, and the
 sign-in page shows it (so it is public). See `auth.access`."""
 
+OWNER_EMAIL = os.environ.get("OWNER_EMAIL", "").strip().lower()
+"""The owner's account email: always allowed in, and the only one that sees the Admin tab
+(the whitelist and every user's LLM usage). See `admin`."""
+
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").strip().lower()
 """Session cookies' `Secure` flag: `auto` (when the request came over HTTPS, including
 behind a proxy that sets `X-Forwarded-Proto`), `true` or `false`."""

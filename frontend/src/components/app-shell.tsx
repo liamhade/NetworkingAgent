@@ -13,6 +13,9 @@ const NAV_ITEMS: { view: View; label: string; icon: IconName }[] = [
   { view: 'people', label: 'People', icon: 'users' },
 ]
 
+/** Only for the owner (`user.is_admin`). */
+const ADMIN_ITEM: (typeof NAV_ITEMS)[number] = { view: 'admin', label: 'Admin', icon: 'shield' }
+
 interface AppShellProps {
   view: View
   user: User | null
@@ -26,7 +29,10 @@ interface AppShellProps {
   children: React.ReactNode
 }
 
-/** Top bar (brand, Search / Companies / Jobs / People, theme toggle, user) and the page grid. */
+/**
+ * Top bar (brand, Search / Companies / Jobs / People [/ Admin for the owner], theme toggle,
+ * user) and the page grid.
+ */
 export function AppShell({
   view,
   user,
@@ -46,6 +52,7 @@ export function AppShell({
 
   const name = user?.display_name || user?.id || ''
   const auth = useAuth()
+  const navItems = user?.is_admin ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS
   return (
     <>
       <header className="topbar">
@@ -69,7 +76,7 @@ export function AppShell({
           <span className="tx">Networking Agent</span>
         </a>
         <nav className="nav" aria-label="Primary">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <a
               key={item.view}
               href={viewHash(item.view)}

@@ -7,6 +7,7 @@ address; the owner checks the sender and approves. Plan: `docs/access-requests/p
     python -m auth.access approve a@x.com    # also pre-approves an email that hasn't asked
     python -m auth.access deny a@x.com       # blocks it (pending or approved)
 
+The same actions are on the owner's Admin tab (`admin`). `OWNER_EMAIL` is always approved.
 Run from `backend/src`. In the container (`PYTHONPATH` already points at `src`):
 `railway ssh -- python -m auth.access approve a@x.com`.
 """
@@ -65,6 +66,11 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def is_owner(email: str) -> bool:
+    """True for `OWNER_EMAIL`, who is always let in and can't be denied."""
+    return bool(config.OWNER_EMAIL) and normalize(email) == config.OWNER_EMAIL
+
+
 def get(email: str) -> Entry | None:
     with _lock:
         return _load().get(normalize(email))
@@ -77,8 +83,10 @@ def request(email: str, user_id: str) -> Entry:
         entries = _load()
         entry = entries.get(key)
         if entry is None:
-            entry = Entry(email=key, status="pending")
+            entry = Entry(email=key, status="approved" if is_owner(key) else "pending")
             entries[key] = entry
+        if is_owner(key):
+            entry.status = "approved"
         entry.user_id = user_id
         entry.requested_at = _now()
         _save(entries)
@@ -101,6 +109,9 @@ def approve(email: str) -> Entry:
 
 
 def deny(email: str) -> Entry:
+    """Block an email. Raises `ValueError` for the owner, who can't be locked out."""
+    if is_owner(email):
+        raise ValueError("The owner's email can't be removed from the whitelist.")
     return _decide(email, "denied")
 
 
@@ -127,6 +138,8 @@ def _legacy_invite_user_ids() -> set[str]:
 def status_of(user_id: str, email: str) -> Status | None:
     """The access status of a signed-in Supabase user (None: never requested access)."""
     key = normalize(email)
+    if is_owner(key):
+        return "approved"
     with _lock:
         entries = _load()
         entry = entries.get(key)
@@ -158,7 +171,11 @@ def main(argv: list[str] | None = None) -> int:
     if "@" not in args.email:
         print(f"Not an email address: {args.email}", file=sys.stderr)
         return 1
-    entry = approve(args.email) if args.command == "approve" else deny(args.email)
+    try:
+        entry = approve(args.email) if args.command == "approve" else deny(args.email)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 1
     signed_up = "" if entry.user_id else " (no account yet: their request will be approved at once)"
     print(f"{entry.email}: {entry.status}{signed_up}")
     return 0

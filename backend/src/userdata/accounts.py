@@ -47,6 +47,20 @@ def get_user(user_id: str) -> User | None:
     return User.model_validate_json(path.read_text(encoding="utf-8"))
 
 
+def list_users() -> list[User]:
+    """Every account with a `user.json`, oldest first."""
+    folder = users_dir()
+    if not folder.is_dir():
+        return []
+    users = []
+    for path in folder.glob("*/user.json"):
+        try:
+            users.append(User.model_validate_json(path.read_text(encoding="utf-8")))
+        except ValueError:
+            continue
+    return sorted(users, key=lambda u: u.created_at)
+
+
 def ensure_user(user_id: str, display_name: str) -> User:
     """Return the user, creating their record on first use."""
     with _create_lock:

@@ -170,3 +170,20 @@ def current_user(request: Request) -> accounts.User:
     if user is None:
         raise HTTPException(status_code=401, detail="Please sign in.")
     return accounts.ensure_user(user.id, user.email or user.id)
+
+
+def is_admin(request: Request) -> bool:
+    """True for the owner (`OWNER_EMAIL`). Without accounts (local development, where everyone
+    is TEST_USER and the server is open anyway) everyone is: the Admin tab can be tried."""
+    if not config.auth_enabled():
+        return True
+    user: SupabaseUser | None = request.scope.get("state", {}).get(_STATE_KEY)
+    return user is not None and access.is_owner(user.email)
+
+
+def require_admin(request: Request) -> None:
+    """FastAPI dependency for the owner-only `/api/admin` endpoints (401 signed out, else 403)."""
+    if config.auth_enabled() and request.scope.get("state", {}).get(_STATE_KEY) is None:
+        raise HTTPException(status_code=401, detail="Please sign in.")
+    if not is_admin(request):
+        raise HTTPException(status_code=403, detail="Only the owner can open the admin page.")

@@ -274,6 +274,8 @@ export interface User {
   id: string
   display_name: string
   created_at: string
+  /** The owner (`OWNER_EMAIL`): sees the Admin tab. */
+  is_admin?: boolean
 }
 
 /** `running`: still searching in the background; `error`: failed or interrupted. */
@@ -494,4 +496,48 @@ export async function signUp(email: string, password: string): Promise<User | 'p
 
 export async function signOut(): Promise<void> {
   await apiFetch('/api/auth/logout', { method: 'POST' })
+}
+
+export type WhitelistStatus = 'pending' | 'approved' | 'denied'
+
+export interface AdminUsage {
+  calls: number
+  total_tokens: number
+  cost_usd: number
+  /** ISO time of the latest LLM call; empty if none. */
+  last_used_at: string
+}
+
+export interface AdminUser {
+  /** The account email, or the user id when no email is known (e.g. TEST_USER). */
+  email: string
+  /** null: an account that never asked for access. */
+  status: WhitelistStatus | null
+  is_owner: boolean
+  user_id: string
+  requested_at: string | null
+  decided_at: string | null
+  joined_at: string | null
+  usage: AdminUsage
+}
+
+export interface AdminOverview {
+  owner_email: string
+  users: AdminUser[]
+  totals: AdminUsage
+}
+
+export const getAdminOverview = (signal?: AbortSignal) =>
+  getJson<AdminOverview>('/api/admin/users', signal)
+
+/** Put an email on the whitelist (approve a request, or pre-approve). */
+export const addToWhitelist = (email: string) =>
+  sendJson<{ email: string; status: WhitelistStatus }>('/api/admin/whitelist', 'PUT', { email })
+
+/** Take an email off the whitelist (or turn down its request). Blocked at once. */
+export async function removeFromWhitelist(email: string): Promise<void> {
+  const response = await apiFetch(`/api/admin/whitelist/${encodeURIComponent(email)}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
 }

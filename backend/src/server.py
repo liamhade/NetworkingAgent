@@ -16,7 +16,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 import boards
 import config
@@ -24,6 +24,7 @@ import pipeline
 import resume
 import search_runs
 import tools
+from admin import overview as admin_overview
 from auth import access, session, supabase
 from entities import catalog, keys
 from llm_usage import usage_context
@@ -89,10 +90,54 @@ CurrentUser = Annotated[accounts.User, Depends(session.current_user)]
 """Who is calling. Every per-user endpoint takes this, so auth plugs in at one place."""
 
 
+class Me(accounts.User):
+    is_admin: bool = False
+    """The owner (`OWNER_EMAIL`): the page shows the Admin tab."""
+
+
 @app.get("/api/me")
-def me(user: CurrentUser) -> accounts.User:
-    """The account the app is running as (always TEST_USER until auth exists)."""
-    return user
+def me(user: CurrentUser, request: Request) -> Me:
+    """The signed-in account (TEST_USER without accounts), and whether it is the owner."""
+    return Me(**user.model_dump(), is_admin=session.is_admin(request))
+
+
+AdminOnly = [Depends(session.require_admin)]
+
+
+class WhitelistRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _strip(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
+@app.get("/api/admin/users", dependencies=AdminOnly)
+def admin_users() -> admin_overview.AdminOverview:
+    """Every known email with its access status and LLM usage (owner only)."""
+    return admin_overview.build()
+
+
+@app.put("/api/admin/whitelist", dependencies=AdminOnly)
+def admin_whitelist_add(body: WhitelistRequest) -> access.Entry:
+    """Let an email in: approves a request, or pre-approves an email that hasn't asked."""
+    entry = access.approve(body.email)
+    log.info("Owner approved %s", entry.email)
+    return entry
+
+
+@app.delete("/api/admin/whitelist/{email}", dependencies=AdminOnly)
+def admin_whitelist_remove(email: str) -> access.Entry:
+    """Take an email off the whitelist (or turn down its request); blocked at once."""
+    if "@" not in email:
+        raise HTTPException(status_code=422, detail="Not an email address.")
+    try:
+        entry = access.deny(email)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    log.info("Owner removed %s from the whitelist", entry.email)
+    return entry
 
 
 class LoginRequest(BaseModel):

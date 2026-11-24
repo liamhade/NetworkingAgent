@@ -585,3 +585,22 @@ select.auto{width:auto}
   .page-head-actions{width:100%}
   .nav a[aria-current=page]:after{left:8px;right:8px}
 }
+
+/* Admin (owner only): whitelist form and users table */
+.pill.bad{background:var(--danger-t);color:var(--danger)}
+.muted{color:var(--text2)}
+.admin-add{padding:16px 18px;margin-bottom:18px}
+.admin-add-row{display:flex;gap:10px;flex-wrap:wrap}
+.admin-add-row input{flex:1 1 260px;width:auto}
+.admin-add .hint{font-size:13px;color:var(--text2);margin-top:8px}
+.admin-table-wrap{overflow-x:auto}
+.admin-table{width:100%;border-collapse:collapse;font-size:14px}
+.admin-table th,.admin-table td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+.admin-table thead th{font-size:12.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;background:var(--alt)}
+.admin-table tbody th{font-weight:600}
+.admin-table tbody tr:hover{background:var(--panel-grad)}
+.admin-table tbody tr[aria-busy=true]{opacity:.6}
+.admin-table tfoot th,.admin-table tfoot td{font-weight:700;border-bottom:0}
+.admin-table .r{text-align:right}
+.admin-email{display:inline-flex;align-items:center;gap:8px}
+.admin-acts{display:flex;gap:6px;justify-content:flex-end}

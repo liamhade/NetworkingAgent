@@ -77,6 +77,7 @@ npm run build
 | `READ_POSTINGS` | `2` | Job postings read in full for the results (0 = off) |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | | Accounts (email + password, for emails you approve). Unset: everyone is `TEST_USER` |
 | `ACCESS_REQUEST_EMAIL` | | Your inbox: people email it from their address to request access (`python -m auth.access approve <email>`) |
+| `OWNER_EMAIL` | | Your account email: always allowed in, and the only account that sees the **Admin** tab (whitelist, every user's LLM usage) |
 | `SERPER_API_KEY` / `SERPAPI_API_KEY` | | Google results from serper.dev / serpapi.com instead of Chrome (no CAPTCHAs, ~1-2 s) |
 | `GOOGLE_RESOLVE_URLS` | `true` | Follow Google redirects to real URLs (slower) |
 | `CORS_ORIGINS` | `http://localhost:5173,...` | Allowed browser origins |
