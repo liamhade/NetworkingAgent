@@ -57,6 +57,7 @@ Locally without Docker: `cd backend\src` then `..\.venv\Scripts\python.exe -m au
 | `SERPER_API_KEY` | yes | The Chrome fallback needs desktop Chrome, which the image doesn't have |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | yes | Accounts. Without all three, everyone is `TEST_USER` and no sign-in is asked for: never deploy like that |
 | `USAJOBS_API_KEY`, `USAJOBS_EMAIL` | optional | Federal jobs board |
+| `MAX_CONCURRENT_SEARCHES` | recommended | Default 2: a 3rd simultaneous search gets "too many searches". Measured 2026-11-24: 5 at once took 70-90 s each (vs ~66 s alone), peaking at 229 MB RAM and 0.8 CPU core, so `5` fits a 512 MB instance |
 | `LLM_MODEL` | optional | Default `anthropic:claude-haiku-5-5` |
 | `COOKIE_SECURE` | optional | `auto` (default), `true` or `false` |
 
