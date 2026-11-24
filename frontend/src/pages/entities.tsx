@@ -23,6 +23,14 @@ import { formatRelativeDate, fullDateFormat } from '@/utils/format-date'
 import { initials } from '@/utils/initials'
 import { withRetry } from '@/utils/retry'
 import { DEFAULT_SORT, SORT_OPTIONS, sortEntities } from '@/utils/sort-entities'
+import {
+  entityDomId,
+  groupByCompany,
+  jobRelation,
+  personRelation,
+  type Focus,
+  type RelatedEntity,
+} from '@/utils/related'
 import { viewHash } from '@/utils/view'
 
 type ToggleStatus = (kind: StatusKind, key: string, active: boolean) => void
@@ -115,6 +123,11 @@ interface PageProps {
   pins: PinMap
   pinError: string | null
   onTogglePin: TogglePin
+  /** Card to scroll to and highlight once this page has loaded (set by a related-entity link). */
+  focus: Focus | null
+  onFocusHandled: () => void
+  /** Jump to another entity's card on its own page. */
+  onGoTo: (target: Focus) => void
 }
 
 interface ToggleProps {
@@ -138,18 +151,34 @@ export function CompaniesPage({
   pins,
   pinError,
   onTogglePin,
+  focus,
+  onFocusHandled,
+  onGoTo,
 }: PageProps) {
   const { items, error } = useEntities('companies', refreshKey)
+  const jobsByCompany = groupByCompany(useEntities('jobs', refreshKey).items)
+  const peopleByCompany = groupByCompany(useEntities('people', refreshKey).items)
   const { sorted, sort } = useSorted('companies', items, NO_STATUSES, pins)
   const pin = usePin(onTogglePin)
   return (
-    <EntityPage kind="companies" items={sorted} error={error} sort={sort} pinError={pinError}>
+    <EntityPage
+      kind="companies"
+      items={sorted}
+      error={error}
+      sort={sort}
+      pinError={pinError}
+      focus={focus}
+      onFocusHandled={onFocusHandled}
+    >
       {(company) => (
         <CompanyRow
           company={company}
           pinned={pins.company[company.key] ?? false}
           onTogglePin={(pinned) => pin('company', company.key, company.name, pinned)}
           onOpenSearch={onOpenSearch}
+          jobs={(jobsByCompany.get(company.key) ?? []).map(jobRelation)}
+          people={(peopleByCompany.get(company.key) ?? []).map(personRelation)}
+          onGoTo={onGoTo}
         />
       )}
     </EntityPage>
@@ -165,8 +194,12 @@ export function JobsPage({
   pins,
   pinError,
   onTogglePin,
+  focus,
+  onFocusHandled,
+  onGoTo,
 }: PageProps & ToggleProps) {
   const { items, error } = useEntities('jobs', refreshKey)
+  const peopleByCompany = groupByCompany(useEntities('people', refreshKey).items)
   const { sorted, sort } = useSorted('jobs', items, entityStatuses, pins)
   const statusCount = useStatusCount(items, entityStatuses.job)
   const pin = usePin(onTogglePin)
@@ -179,6 +212,8 @@ export function JobsPage({
       statusCount={statusCount}
       statusError={statusError}
       pinError={pinError}
+      focus={focus}
+      onFocusHandled={onFocusHandled}
     >
       {(job) => (
         <JobRow
@@ -188,6 +223,8 @@ export function JobsPage({
           pinned={pins.job[job.key] ?? false}
           onTogglePin={(pinned) => pin('job', job.key, job.title, pinned)}
           onOpenSearch={onOpenSearch}
+          people={(peopleByCompany.get(job.company_key) ?? []).map(personRelation)}
+          onGoTo={onGoTo}
         />
       )}
     </EntityPage>
@@ -203,8 +240,12 @@ export function PeoplePage({
   pins,
   pinError,
   onTogglePin,
+  focus,
+  onFocusHandled,
+  onGoTo,
 }: PageProps & ToggleProps) {
   const { items, error } = useEntities('people', refreshKey)
+  const jobsByCompany = groupByCompany(useEntities('jobs', refreshKey).items)
   const { sorted, sort } = useSorted('people', items, entityStatuses, pins)
   const statusCount = useStatusCount(items, entityStatuses.person)
   const pin = usePin(onTogglePin)
@@ -217,6 +258,8 @@ export function PeoplePage({
       statusCount={statusCount}
       statusError={statusError}
       pinError={pinError}
+      focus={focus}
+      onFocusHandled={onFocusHandled}
     >
       {(person) => (
         <PersonRow
@@ -226,10 +269,38 @@ export function PeoplePage({
           pinned={pins.person[person.key] ?? false}
           onTogglePin={(pinned) => pin('person', person.key, person.name, pinned)}
           onOpenSearch={onOpenSearch}
+          jobs={(jobsByCompany.get(person.company_key) ?? []).map(jobRelation)}
+          onGoTo={onGoTo}
         />
       )}
     </EntityPage>
   )
+}
+
+/** How long a card stays highlighted after a related-entity link lands on it. */
+const FOCUS_MS = 2500
+
+/**
+ * Scrolls to the card a related-entity link points at and returns its key while it is
+ * highlighted (the app clears the focus after FOCUS_MS). Cards are never filtered out (only
+ * re-sorted), so the target is in the list whatever the sort; if it is gone (e.g. its search
+ * was deleted) nothing is highlighted.
+ */
+function useFocusCard(
+  kind: EntityKind,
+  items: readonly Sighting[] | null,
+  focus: Focus | null,
+  onHandled: () => void,
+) {
+  const active = focus?.kind === kind && items !== null
+  const key = active ? focus.key : null
+  useEffect(() => {
+    if (!key) return
+    document.getElementById(entityDomId(key))?.scrollIntoView?.({ block: 'center' })
+    const timer = window.setTimeout(onHandled, FOCUS_MS)
+    return () => window.clearTimeout(timer)
+  }, [key, onHandled])
+  return key !== null && items?.some((item) => item.key === key) ? key : null
 }
 
 interface EntityPageProps<K extends EntityKind> {
@@ -241,6 +312,8 @@ interface EntityPageProps<K extends EntityKind> {
   statusCount?: StatusCount | null
   statusError?: string | null
   pinError: string | null
+  focus: Focus | null
+  onFocusHandled: () => void
   children: (item: EntityMap[K]) => React.ReactNode
 }
 
@@ -252,9 +325,12 @@ function EntityPage<K extends EntityKind>({
   statusCount,
   statusError,
   pinError,
+  focus,
+  onFocusHandled,
   children,
 }: EntityPageProps<K>) {
   const page = PAGES[kind]
+  const highlighted = useFocusCard(kind, items, focus, onFocusHandled)
   return (
     <div className="wrap narrow">
       <div className="lib-head">
@@ -324,7 +400,11 @@ function EntityPage<K extends EntityKind>({
         ) : (
           <ul className="rows" aria-label={page.title}>
             {items.map((item) => (
-              <li key={item.key} className="row">
+              <li
+                key={item.key}
+                id={entityDomId(item.key)}
+                className={cx('row', item.key === highlighted && 'focused')}
+              >
                 {children(item)}
               </li>
             ))}
@@ -438,6 +518,39 @@ function SeenIn({
   )
 }
 
+/** Selectable chips for the entities connected to a card; renders nothing when there are none. */
+function Related({
+  label,
+  items,
+  onGoTo,
+}: {
+  label: string
+  items: RelatedEntity[]
+  onGoTo: (target: Focus) => void
+}) {
+  if (items.length === 0) return null
+  const pill = items[0].kind === 'jobs' ? 'job' : 'per'
+  return (
+    <div className="related">
+      <span className="rel-lab">{label}</span>
+      <ul className="rel-list" aria-label={label}>
+        {items.map((item) => (
+          <li key={item.key}>
+            <button
+              type="button"
+              className={cx('pill', pill, 'rel-btn')}
+              onClick={() => onGoTo({ kind: item.kind, key: item.key })}
+              title={item.detail ? `${item.label} · ${item.detail}` : item.label}
+            >
+              {item.label}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 interface RowPinProps {
   pinned: boolean
   onTogglePin: (pinned: boolean) => void
@@ -449,7 +562,15 @@ function CompanyRow({
   pinned,
   onTogglePin,
   onOpenSearch,
-}: { company: CompanyEntity } & RowPinProps) {
+  jobs,
+  people,
+  onGoTo,
+}: {
+  company: CompanyEntity
+  jobs: RelatedEntity[]
+  people: RelatedEntity[]
+  onGoTo: (target: Focus) => void
+} & RowPinProps) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -481,6 +602,8 @@ function CompanyRow({
           <Note label="How you align" text={company.alignment} open={open} />
         </>
       )}
+      <Related label="Jobs" items={jobs} onGoTo={onGoTo} />
+      <Related label="People to connect with" items={people} onGoTo={onGoTo} />
       <SeenIn sighting={company} onOpenSearch={onOpenSearch} />
     </>
   )
@@ -493,7 +616,15 @@ function JobRow({
   pinned,
   onTogglePin,
   onOpenSearch,
-}: { job: JobEntity; applied: boolean; onToggle: (active: boolean) => void } & RowPinProps) {
+  people,
+  onGoTo,
+}: {
+  job: JobEntity
+  applied: boolean
+  onToggle: (active: boolean) => void
+  people: RelatedEntity[]
+  onGoTo: (target: Focus) => void
+} & RowPinProps) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -522,6 +653,7 @@ function JobRow({
         )}
       </div>
       {job.alignment && <Note label="How you align" text={job.alignment} open={open} />}
+      <Related label="People to connect with" items={people} onGoTo={onGoTo} />
       <SeenIn sighting={job} onOpenSearch={onOpenSearch} />
     </>
   )
@@ -534,10 +666,14 @@ function PersonRow({
   pinned,
   onTogglePin,
   onOpenSearch,
+  jobs,
+  onGoTo,
 }: {
   person: PersonEntity
   connected: boolean
   onToggle: (active: boolean) => void
+  jobs: RelatedEntity[]
+  onGoTo: (target: Focus) => void
 } & RowPinProps) {
   const toast = useToast()
   const [why, setWhy] = useState(false)
@@ -596,6 +732,7 @@ function PersonRow({
           </div>
         </Note>
       )}
+      <Related label="Jobs at this company" items={jobs} onGoTo={onGoTo} />
       <SeenIn sighting={person} onOpenSearch={onOpenSearch} />
     </>
   )

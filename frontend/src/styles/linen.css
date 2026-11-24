@@ -538,3 +538,9 @@ select.auto{width:auto}
 .auth-switch{margin:0;font-size:14px;color:var(--text2);text-align:center}
 .link-btn{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--accent-h);text-decoration:underline;cursor:pointer}
 .signout{margin-left:6px}
+.related{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
+.rel-lab{font-weight:700;font-size:12.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em}
+.rel-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.rel-btn{border:0;cursor:pointer;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:inherit}
+.rel-btn:hover{filter:brightness(.95)}
+.row.focused{background:var(--alt);box-shadow:inset 0 0 0 2px var(--accent)}

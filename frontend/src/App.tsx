@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   cancelSearch,
   deleteSearch,
@@ -43,6 +43,7 @@ import { Running } from '@/pages/running'
 import { withRetry } from '@/utils/retry'
 import { useTheme } from '@/utils/theme'
 import { useKeyedToggles } from '@/utils/use-keyed-toggles'
+import { type Focus } from '@/utils/related'
 import { type View, viewFromHash, viewHash } from '@/utils/view'
 
 const CANCELLED_MESSAGE = 'This search was cancelled.'
@@ -58,6 +59,16 @@ export default function App() {
   const [view, setView] = useState<View>(() => viewFromHash(window.location.hash))
   /** Bumped whenever a search is saved, so the Companies/Jobs/People lists re-fetch. */
   const [entitiesVersion, setEntitiesVersion] = useState(0)
+  /** Card a related-entity link is taking the user to; the target page consumes it on load. */
+  const [focus, setFocus] = useState<Focus | null>(null)
+  const entityNav = {
+    focus,
+    onFocusHandled: useCallback(() => setFocus(null), []),
+    onGoTo: useCallback((target: Focus) => {
+      setFocus(target)
+      window.location.hash = viewHash(target.kind)
+    }, []),
+  }
   const [page, setPage] = useState<'hero' | 'results'>('hero')
   const [form, setForm] = useState<SearchRequest>(EMPTY_FORM)
   /** The resume saved on the server (null: none); shown on the search page as a file chip. */
@@ -537,7 +548,12 @@ export default function App() {
         }
       >
         {view === 'companies' ? (
-          <CompaniesPage refreshKey={entitiesVersion} onOpenSearch={openSaved} {...pinProps} />
+          <CompaniesPage
+            refreshKey={entitiesVersion}
+            onOpenSearch={openSaved}
+            {...entityNav}
+            {...pinProps}
+          />
         ) : view === 'jobs' ? (
           <JobsPage
             refreshKey={entitiesVersion}
@@ -545,6 +561,7 @@ export default function App() {
             entityStatuses={entityStatuses}
             statusError={statusError}
             onToggleStatus={toggleStatus}
+            {...entityNav}
             {...pinProps}
           />
         ) : view === 'people' ? (
@@ -554,6 +571,7 @@ export default function App() {
             entityStatuses={entityStatuses}
             statusError={statusError}
             onToggleStatus={toggleStatus}
+            {...entityNav}
             {...pinProps}
           />
         ) : (

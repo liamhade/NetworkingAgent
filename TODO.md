@@ -2,15 +2,20 @@
 
 ## Rough Ideas
 
-- [ ] (**redirects to related entities from entity cards**) If a person is connected to a job, those jobs should be listed beneath their card. If a job also has a list of people to connect with, then those should be selectable beneath the job card. And if a company has jobs or people connected to, those should be selectable beneath the company card.
-
 - [ ] (**add application stories**) When user applies for a job, if there are questions on the application, the agent should be able to help the user answer the questions.
 
 - [ ] (**match users writing style**) Tweak the LinkedIn messages to match the users writing style. Optionally provide 5-10 writing samples to train the model.
 
-- [ ] (**refine UI**) It's a little confusiong at the moment, especially with the headers.
-
 ## In-Queue
+
+- [x] (**redirects to related entities from entity cards**) If a person is connected to a job, those jobs should be listed beneath their card. If a job also has a list of people to connect with, then those should be selectable beneath the job card. And if a company has jobs or people connected to, those should be selectable beneath the company card.
+
+- [ ] Search for people that have similar background as the user (e.g. just education for now), as well as the current company search. If there aren't enough people, relax the search criteria and try again.
+
+- [ ] (**people with a similar background**) Search for people that have similar background as the user (e.g. just education for now), as well as the current company search. If there aren't enough people, relax the search criteria and try again.
+
+- [ ] (**refine UI**) It's a little confusiong at the moment, especially with the headers. The UI should be clear, modern, and easy to navigate.
+
 
 ## Postponed
 
