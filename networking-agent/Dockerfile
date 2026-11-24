@@ -37,7 +37,8 @@ RUN pip install --no-cache-dir --root-user-action=ignore -r requirements.txt \
 COPY backend/src ./src
 COPY --from=frontend /app/frontend/dist /app/frontend/dist
 
-VOLUME ["/data"]
+# State lives in /data: mount a persistent volume there (`docker run -v ...:/data`, or a
+# Railway / Fly volume). No `VOLUME` instruction: Railway's builder rejects it.
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
     CMD python -c "import os, urllib.request as u; u.urlopen('http://127.0.0.1:' + os.environ['PORT'] + '/api/health', timeout=4)"

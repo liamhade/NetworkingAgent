@@ -39,6 +39,19 @@ On a cloud host use its shell / console (Render: Shell tab; Railway: `railway ss
 
 Locally without Docker: `cd backend\src` then `..\.venv\Scripts\python.exe -m auth.invites ...`.
 
+## Railway, step by step
+
+1. New Project -> Deploy from GitHub repo -> pick this repo.
+2. Service -> Settings -> **Root Directory: `networking-agent`**. The Dockerfile is there,
+   not at the repo root; with this set Railway builds it automatically.
+3. Service -> Variables: add the variables in the table below (paste from `.env`), plus
+   `MAX_CONCURRENT_SEARCHES=5`. Railway sets `PORT` itself.
+4. Right-click the service (or Command Palette) -> **Add Volume**, mount path **`/data`**.
+5. Settings -> Networking -> **Generate Domain** (HTTPS). Optional: Settings -> Deploy ->
+   Healthcheck Path `/api/health`.
+6. Deploys run on every push to `main`. Create invite codes from the service's shell
+   (`railway ssh`, or the dashboard's shell): `python -m auth.invites create --note alice`.
+
 ## Cloud host (Render, Railway, Fly.io...)
 
 - Build from `networking-agent/Dockerfile`. The app listens on `$PORT` (default 8000).
