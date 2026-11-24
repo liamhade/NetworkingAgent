@@ -10,9 +10,10 @@ NPS, USFWS, USFS and EPA. Design: `networking-agent/docs/usajobs/plan.md`.
   `find_jobs` records a "skipped" trace step instead of an error.
 - Credentials go only into request headers (`api.request_headers`). Never put them in URLs,
   logs, traces or exception messages; `UsajobsError` messages are fixed strings.
-- `models.Agency` maps agencies to the `Organization` subelement codes. The codes are NOT
-  verified against the live code list (`/api/codelist/agencysubelements`, which refused a
-  plain script request); check them with a key before relying on them.
+- `models.Agency` maps agencies to the `Organization` subelement codes. Verified 2026-11-24
+  against the live code list (`/api/codelist/agencysubelements`, with the key headers): AG11
+  Forest Service, IN10 National Park Service, IN15 U.S. Fish and Wildlife Service, EP00 EPA,
+  all active.
 - Always sends `WhoMayApply=public` (other values need special authorization).
 - One request per query (up to 500 results per page; the pipeline asks for
   `config.USAJOBS_RESULTS`). Multiple values of a parameter are `;`-delimited.
