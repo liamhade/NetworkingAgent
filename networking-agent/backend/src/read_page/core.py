@@ -73,6 +73,10 @@ def _generic(url: str) -> PageResult:
             return methods.jsonld_from_html(url, f.final_url, f.content)
         except MethodUnavailable:
             pass
+        if not browser.enabled():
+            if result.markdown.strip():
+                return result
+            raise ReadPageError(f"No readable content at {url} without a browser")
         log.info("Static extraction of %s looks empty; rendering in a browser", url)
         final_url, rendered = browser.render(url)
         result = methods.static_from_html(url, final_url, rendered)

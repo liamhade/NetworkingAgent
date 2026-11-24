@@ -9,11 +9,13 @@ import logging
 import uuid
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import boards
@@ -377,3 +379,20 @@ def list_jobs(user: CurrentUser) -> list[JobEntity]:
 def list_people(user: CurrentUser) -> list[PersonEntity]:
     """Every person in the current user's searches, de-duplicated, most recently seen first."""
     return catalog.people(history.load_searches(user.id, only_done=True))
+
+
+def mount_frontend(target: FastAPI, dist: Path) -> bool:
+    """Serve the built frontend (`npm run build`) at `/`, after every `/api` route.
+
+    One origin then serves both, so the frontend's relative `/api` calls need no proxy.
+    Does nothing (returns False) when `dist` has no `index.html`, e.g. in development,
+    where Vite serves the frontend.
+    """
+    if not (dist / "index.html").is_file():
+        return False
+    target.mount("/", StaticFiles(directory=dist, html=True), name="frontend")
+    return True
+
+
+if mount_frontend(app, config.FRONTEND_DIST):
+    log.info("Serving the frontend from %s", config.FRONTEND_DIST)

@@ -10,6 +10,21 @@ PROJECT_DIR = BACKEND_DIR.parent
 
 load_dotenv(PROJECT_DIR / ".env")
 
+
+def _unquote_environment() -> None:
+    """Strip one pair of matching quotes around any environment value.
+
+    python-dotenv unquotes `KEY="value"`, but `docker run --env-file` and hosting dashboards
+    keep the quotes, which turns a valid API key into an invalid one.
+    """
+    for name, value in list(os.environ.items()):
+        stripped = value.strip()
+        if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in "\"'":
+            os.environ[name] = stripped[1:-1]
+
+
+_unquote_environment()
+
 LLM_MODEL = os.environ.get("LLM_MODEL", "anthropic:claude-haiku-5-5")
 """`<provider>:<model>` string understood by LangChain's `init_chat_model`."""
 
@@ -79,6 +94,9 @@ GOOGLE_RESOLVE_URLS = os.environ.get("GOOGLE_RESOLVE_URLS", "true").lower() != "
 GOOGLE_CACHE_TTL_S = float(os.environ.get("GOOGLE_CACHE_TTL_S", "900"))
 """Seconds a Google results page is reused for a repeated query (0 turns the cache off)."""
 
+
+FRONTEND_DIST = Path(os.environ.get("FRONTEND_DIST", PROJECT_DIR / "frontend" / "dist"))
+"""Built frontend (`npm run build`) that `server.py` serves at `/` when it exists."""
 
 LLM_USAGE_LOG = Path(os.environ.get("LLM_USAGE_LOG", BACKEND_DIR / "logs" / "llm_usage.csv"))
 """CSV with one row per LLM call (tokens, cost, user); see `llm_usage`."""

@@ -5,7 +5,9 @@ every render runs on one dedicated thread that owns one reusable browser.
 """
 
 import atexit
+import importlib.util
 import logging
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -16,6 +18,16 @@ log = logging.getLogger(__name__)
 
 NAV_TIMEOUT_MS = 20_000
 IDLE_TIMEOUT_MS = 8_000
+
+
+def enabled() -> bool:
+    """True unless `READ_PAGE_BROWSER=false` or Playwright isn't installed.
+
+    Without it, pages that need JavaScript are read from their static HTML only.
+    """
+    if os.environ.get("READ_PAGE_BROWSER", "true").strip().lower() == "false":
+        return False
+    return importlib.util.find_spec("playwright") is not None
 
 
 class BrowserWorker:
@@ -68,7 +80,13 @@ class BrowserWorker:
             if self._closed:
                 return
             self._closed = True
-        self._executor.submit(self._reset).result()
+        if self._browser is not None or self._pw is not None:
+            try:
+                self._executor.submit(self._reset).result()
+            except RuntimeError:
+                # At interpreter exit, concurrent.futures shuts executors down before
+                # atexit callbacks run; the browser exits with the process anyway.
+                log.debug("Browser thread already stopped; skipping browser close")
         self._executor.shutdown(wait=False)
 
 

@@ -116,6 +116,19 @@ def test_js_shell_without_jsonld_renders_in_browser(web: FakeWeb) -> None:
     assert web.calls == [("fetch", url), ("browser", url)]
 
 
+def test_browser_switched_off_never_renders(web: FakeWeb, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("READ_PAGE_BROWSER", "false")
+    url = "https://spa.example.com/job"
+    web.page(url, fixture_bytes("js_shell.html"))
+    web.rendered[url] = fixture_bytes("rendered.html").decode()
+    try:
+        result = read_page.read_page(url)
+    except ReadPageError:
+        result = None  # a JS shell with no text is unreadable without a browser
+    assert result is None or result.method != "browser"
+    assert not any(kind == "browser" for kind, _ in web.calls)
+
+
 def test_empty_everywhere_raises(web: FakeWeb) -> None:
     url = "https://spa.example.com/empty"
     web.page(url, fixture_bytes("js_shell.html"))
