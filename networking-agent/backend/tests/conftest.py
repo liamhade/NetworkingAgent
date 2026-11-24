@@ -82,3 +82,10 @@ def usage_log(tmp_path, monkeypatch: pytest.MonkeyPatch):
     path = tmp_path / "logs" / "llm_usage.csv"
     monkeypatch.setattr(config, "LLM_USAGE_LOG", path)
     return path
+
+
+@pytest.fixture(autouse=True)
+def no_serp_api_keys(monkeypatch: pytest.MonkeyPatch):
+    """Never let tests call a paid SERP API: `client_from_env()` sees no key."""
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
+    monkeypatch.delenv("SERPAPI_API_KEY", raising=False)

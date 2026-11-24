@@ -18,6 +18,10 @@ class SearchResult:
     """Site label shown above the title, e.g. ``Stack Overflow``."""
     google_url: str = ""
     """Google's redirect link for this result, if it had one."""
+    position: int = 0
+    """1-based rank on the page (0 = unknown)."""
+    date: str = ""
+    """Date Google shows for the result, e.g. ``"Mar 3, 2025"`` or ``"2 days ago"``."""
 
 
 @dataclass

@@ -154,13 +154,25 @@ class _GoogleWorker:
     them), so only the results a tool will return are resolved. Results pages are
     cached for `config.GOOGLE_CACHE_TTL_S`, so a repeated query sends no new
     requests to Google.
+
+    When a SERP API key is set (`google_serp.client_from_env`), pages come from that API
+    instead: direct URLs, no CAPTCHAs, ~1-2 s, and Chrome is never started.
     """
 
     MAX_CACHED = 64
 
-    def __init__(self, cache_ttl: float | None = None) -> None:
+    def __init__(
+        self,
+        cache_ttl: float | None = None,
+        client: google_serp.SerpClient | None | bool = True,
+    ) -> None:
+        # `client=True` means "from the environment"; None forces the Chrome session.
+        self._client = google_serp.client_from_env() if client is True else client or None
+        if self._client is not None:
+            log.info("Google searches go through the %s API", self._client.name)
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="google-serp")
         self._session: google_serp.GoogleSerpSession | None = None
+        self._closed = False
         self._lock = threading.Lock()
         self._cache_ttl = config.GOOGLE_CACHE_TTL_S if cache_ttl is None else cache_ttl
         self._cache: dict[str, tuple[float, google_serp.SearchResponse]] = {}
@@ -189,21 +201,27 @@ class _GoogleWorker:
         if cached is not None and now - cached[0] < self._cache_ttl:
             log.info("Google results for %r served from cache", query)
             return cached[1]
-        try:
-            response = self._ensure_session().search(query)
-        except google_serp.CaptchaTimeoutError:
-            raise
-        except Exception:  # noqa: BLE001
-            # The browser may have been closed or crashed: start a fresh one once.
-            log.warning("Google search failed; restarting browser", exc_info=True)
-            self._reset()
-            response = self._ensure_session().search(query)
+        if self._client is not None:
+            response = self._client.search(query)
+        else:
+            response = self._search_in_browser(query)
         if response.results and self._cache_ttl > 0 and (cacheable is None or cacheable(response)):
             self._cache = {q: e for q, e in self._cache.items() if now - e[0] < self._cache_ttl}
             if len(self._cache) >= self.MAX_CACHED:
                 self._cache.pop(min(self._cache, key=lambda q: self._cache[q][0]))
             self._cache[query] = (now, response)
         return response
+
+    def _search_in_browser(self, query: str) -> google_serp.SearchResponse:
+        try:
+            return self._ensure_session().search(query)
+        except google_serp.CaptchaTimeoutError:
+            raise
+        except Exception:  # noqa: BLE001
+            # The browser may have been closed or crashed: start a fresh one once.
+            log.warning("Google search failed; restarting browser", exc_info=True)
+            self._reset()
+            return self._ensure_session().search(query)
 
     def _search(
         self,
@@ -214,7 +232,7 @@ class _GoogleWorker:
     ) -> google_serp.SearchResponse:
         response = self._fetch(query, cacheable)
         results = pick(list(response.results)) if pick else list(response.results)
-        if resolve_urls:
+        if resolve_urls and any(r.google_url and r.url == r.google_url for r in results):
             # Resolved in place, so a cached page keeps its resolved links.
             self._ensure_session().resolve_results(results)
         return google_serp.SearchResponse(results=results, query=response.query)
@@ -233,6 +251,10 @@ class _GoogleWorker:
             ).result()
 
     def close(self) -> None:
+        """Close the browser and stop the thread. Safe to call more than once."""
+        if self._closed:
+            return
+        self._closed = True
         self._executor.submit(self._reset).result()
         self._executor.shutdown(wait=False)
 

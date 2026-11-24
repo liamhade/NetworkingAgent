@@ -10,8 +10,23 @@ Developer docs: `networking-agent/docs/google_serp/README.md`. Research write-up
 Moved here from the standalone `find-google-serp-url` repo. Its history is in the parent repo
 tag `archive/find-google-serp-url`.
 
+## SERP API (preferred)
+
+Set `SERPER_API_KEY` (serper.dev) or `SERPAPI_API_KEY` (serpapi.com) in `networking-agent/.env`
+and `tools._GoogleWorker` gets pages from that API instead of Chrome: direct URLs (nothing to
+resolve), titles, snippets, `position`, `date`; no CAPTCHAs; ~1-2 s a page. Without a key it
+falls back to Chrome. Why: [docs/serp-api/plan.md](../../../docs/serp-api/plan.md) (Chrome from
+one IP gets CAPTCHA'd after a pipeline run or two).
+
+```powershell
+cd networking-agentackend\src
+..\.venv\Scripts\python.exe -m google_serp "playwright python"           # API, prints timing
+..\.venv\Scripts\python.exe -m google_serp --chrome "playwright python"  # Chrome
+```
+
 ## Layout
 
+- `api.py`: `SerperClient`, `SerpApiClient`, `client_from_env()`, `SerpApiError`
 - `session.py`: `GoogleSerpSession` (Chrome, search, `/goto` resolution), `CaptchaTimeoutError`
 - `parser.py`: pure HTML parsing (`parse_results`, `is_google_redirect`)
 - `models.py`: `SearchResult`, `SearchResponse`
