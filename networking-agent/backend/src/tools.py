@@ -255,7 +255,13 @@ class _GoogleWorker:
         if self._closed:
             return
         self._closed = True
-        self._executor.submit(self._reset).result()
+        if self._session is not None:
+            try:
+                self._executor.submit(self._reset).result()
+            except RuntimeError:
+                # At interpreter exit, concurrent.futures shuts executors down before
+                # atexit callbacks run; Chrome exits with the process anyway.
+                log.debug("Google worker thread already stopped; skipping browser close")
         self._executor.shutdown(wait=False)
 
 
