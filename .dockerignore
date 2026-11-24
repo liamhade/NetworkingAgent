@@ -1,0 +1,20 @@
+# Secrets come from the host's environment, never the image.
+.env
+**/.env
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+frontend/dist
+backend/logs
+backend/tests
+research
+docs
+# Repo-root files the image doesn't need (and local personal data)
+.git
+.claude
+.vscode
+database
+progress_dashboard.html
+*.md

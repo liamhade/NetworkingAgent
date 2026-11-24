@@ -7,9 +7,9 @@
       "request": "launch",
       "module": "uvicorn",
       "args": ["server:app", "--app-dir", "src", "--port", "8000", "--reload"],
-      "cwd": "${workspaceFolder}/networking-agent/backend",
-      "python": "${workspaceFolder}/networking-agent/backend/.venv/Scripts/python.exe",
-      "envFile": "${workspaceFolder}/networking-agent/.env",
+      "cwd": "${workspaceFolder}/backend",
+      "python": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+      "envFile": "${workspaceFolder}/.env",
       "jinja": true,
       "justMyCode": true,
       "console": "integratedTerminal"
@@ -19,7 +19,7 @@
       "type": "node-terminal",
       "request": "launch",
       "command": "npm run dev",
-      "cwd": "${workspaceFolder}/networking-agent/frontend",
+      "cwd": "${workspaceFolder}/frontend",
       "env": { "NO_COLOR": "1" },
       "serverReadyAction": {
         "pattern": "Local:\\s+(https?://\\S+)",

@@ -1,5 +1,26 @@
-# Per-user generated data (search history etc.) — local POC database
-database/users/*/searches/
-database/users/*/statuses.json
-# Uploaded resume PDFs are personal data
-database/users/*/resume/
+# Secrets: copy .env.example to .env
+.env
+
+# Python / Node
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+dist/
+
+# Local POC database: per-user data (resumes, search history), never committed
+database/
+
+# Local logs (LLM token usage CSV etc.)
+backend/logs/
+
+# Research output (HAR captures contain session cookies)
+research/google_serp/captures/
+research/builtin_nyc/out/
+research/conservation_jobboard/out/
+
+# Local project-manager state
+progress_dashboard.html
+.claude/pm-decisions.json
+.claude/settings.local.json

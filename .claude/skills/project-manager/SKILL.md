@@ -16,7 +16,7 @@ Maintain a simple HTML dashboard with a progress meter that the user can use to 
 1. **Read the queue.** Read `TODO.md`, the root `AGENTS.md`, and any nested `AGENTS.md` files. List the unchecked `In-Queue` items in order. Note anything uncommitted in `git status` that you didn't make — that's the user's work; never stage or commit it unless asked.
 2. **Update the dashboard.** Mark the first item `current`, the rest `next`, completed ones `done` (with their commit hash).
 3. **Delegate one task at a time.** Spawn a single `general-purpose` sub-agent per task (or per sub-step, e.g. *experiment* → *plan + implement*). Its prompt should be self-contained:
-   - project path, which `AGENTS.md` files to read, and the relevant conventions (local `database/` folder as the DB, TEST_USER account via `get_current_user()`, sub-packages for new `.py` modules, plan docs under `networking-agent/docs/<feature>/`);
+   - project path, which `AGENTS.md` files to read, and the relevant conventions (local `database/` folder as the DB, TEST_USER account via `get_current_user()`, sub-packages for new `.py` modules, plan docs under `docs/<feature>/`);
    - context from previously completed tasks it builds on (files, modules, endpoints, plan docs);
    - the exact TODO text, scoped to *only* that task;
    - verification it must run (full pytest, `ruff check`, `ruff format --check`, `npm run build` / `npm run lint` if frontend changed), mocks only, and strict limits on any live/external requests (spaced out; stop on CAPTCHA/rate limiting);
