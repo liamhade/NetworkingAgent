@@ -12,11 +12,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import boards
 import config
@@ -24,6 +24,7 @@ import pipeline
 import resume
 import search_runs
 import tools
+from auth import invites, session, supabase
 from entities import catalog, keys
 from llm_usage import usage_context
 from schemas import (
@@ -76,9 +77,15 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
+app.add_middleware(session.SessionMiddleware)
 
 
-CurrentUser = Annotated[accounts.User, Depends(accounts.get_current_user)]
+@app.exception_handler(supabase.AuthError)
+def _auth_error(_: Request, exc: supabase.AuthError) -> JSONResponse:
+    return JSONResponse({"detail": exc.message}, status_code=exc.status)
+
+
+CurrentUser = Annotated[accounts.User, Depends(session.current_user)]
 """Who is calling. Every per-user endpoint takes this, so auth plugs in at one place."""
 
 
@@ -86,6 +93,78 @@ CurrentUser = Annotated[accounts.User, Depends(accounts.get_current_user)]
 def me(user: CurrentUser) -> accounts.User:
     """The account the app is running as (always TEST_USER until auth exists)."""
     return user
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    password: str = Field(min_length=1, max_length=128)
+
+
+class SignupRequest(LoginRequest):
+    password: str = Field(min_length=8, max_length=128)
+    invite_code: str = Field(min_length=1, max_length=32)
+
+
+class AuthConfig(BaseModel):
+    enabled: bool
+    """False in development: everyone is TEST_USER and there is nothing to sign in to."""
+
+
+@app.get("/api/auth/config")
+def auth_config() -> AuthConfig:
+    return AuthConfig(enabled=config.auth_enabled())
+
+
+def _require_auth() -> None:
+    if not config.auth_enabled():
+        raise HTTPException(status_code=404, detail="Accounts are not enabled on this server.")
+
+
+def _signed_in(request: Request, new_session: supabase.Session) -> JSONResponse:
+    user = accounts.ensure_user(new_session.user.id, new_session.user.email or new_session.user.id)
+    response = JSONResponse(user.model_dump(mode="json"))
+    session.set_session_cookies(response, new_session, session.is_secure(request))
+    return response
+
+
+@app.post("/api/auth/login")
+def login(body: LoginRequest, request: Request) -> JSONResponse:
+    """Sign in with email + password; sets the session cookies."""
+    _require_auth()
+    return _signed_in(request, supabase.password_login(body.email.strip(), body.password))
+
+
+@app.post("/api/auth/signup")
+def signup(body: SignupRequest, request: Request) -> JSONResponse:
+    """Create an account with a valid invite code, then sign in."""
+    _require_auth()
+    email = body.email.strip()
+    try:
+        code = invites.reserve(body.invite_code)
+    except invites.InvalidInvite as exc:
+        raise HTTPException(
+            status_code=400, detail="That invite code isn't valid or has already been used."
+        ) from exc
+    try:
+        created = supabase.admin_create_user(email, body.password)
+    except Exception:
+        invites.release(code)
+        raise
+    invites.record_use(code, created.id)
+    log.info("New account %s signed up with invite %s", created.id, code)
+    return _signed_in(request, supabase.password_login(email, body.password))
+
+
+@app.post("/api/auth/logout", status_code=204)
+def logout(request: Request) -> Response:
+    """Sign out: revoke the session at Supabase and drop the cookies."""
+    access = request.cookies.get(session.ACCESS_COOKIE)
+    if access and config.auth_enabled():
+        session.forget_token(access)
+        supabase.logout(access)
+    response = Response(status_code=204)
+    session.clear_session_cookies(response, session.is_secure(request))
+    return response
 
 
 @app.get("/api/health")

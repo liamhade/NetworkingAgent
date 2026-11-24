@@ -89,3 +89,16 @@ def no_serp_api_keys(monkeypatch: pytest.MonkeyPatch):
     """Never let tests call a paid SERP API: `client_from_env()` sees no key."""
     monkeypatch.delenv("SERPER_API_KEY", raising=False)
     monkeypatch.delenv("SERPAPI_API_KEY", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def accounts_off(monkeypatch: pytest.MonkeyPatch):
+    """Tests run as TEST_USER and never call Supabase, whatever `.env` holds.
+
+    Auth tests turn accounts back on with their own fake Supabase.
+    """
+    import config
+
+    monkeypatch.setattr(config, "SUPABASE_URL", "")
+    monkeypatch.setattr(config, "SUPABASE_ANON_KEY", "")
+    monkeypatch.setattr(config, "SUPABASE_SERVICE_ROLE_KEY", "")

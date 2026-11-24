@@ -107,6 +107,18 @@ export type AgentEvent =
   /** First event of a search stream: the saved (still running) search, so its id is known. */
   | { type: 'started'; search: SearchSummary }
 
+/** Fired on `window` when the API says the session is gone (401), so the app can sign in again. */
+export const UNAUTHORIZED_EVENT = 'na:unauthorized'
+
+/** `fetch` for `/api` calls: a 401 (outside `/api/auth`) means "signed out". */
+async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(input, init)
+  if (response.status === 401 && !input.startsWith('/api/auth/')) {
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+  }
+  return response
+}
+
 async function errorMessage(response: Response): Promise<string> {
   try {
     const body = await response.json()
@@ -120,7 +132,7 @@ async function errorMessage(response: Response): Promise<string> {
 export async function parseResume(file: File): Promise<ResumeProfile> {
   const form = new FormData()
   form.append('file', file)
-  const response = await fetch('/api/resume', { method: 'POST', body: form })
+  const response = await apiFetch('/api/resume', { method: 'POST', body: form })
   if (!response.ok) throw new Error(await errorMessage(response))
   return response.json()
 }
@@ -133,7 +145,7 @@ export const getSavedResume = (signal?: AbortSignal) =>
   getJson<SavedResume | null>('/api/resume/saved', signal)
 
 export async function deleteSavedResume(): Promise<void> {
-  const response = await fetch('/api/resume/saved', { method: 'DELETE' })
+  const response = await apiFetch('/api/resume/saved', { method: 'DELETE' })
   if (!response.ok) throw new Error(await errorMessage(response))
 }
 
@@ -142,7 +154,7 @@ export const getSearchParams = (signal?: AbortSignal) =>
   getJson<SearchParams | null>('/api/search/params', signal)
 
 export async function saveSearchParams(params: SearchParams): Promise<SearchParams> {
-  const response = await fetch('/api/search/params', {
+  const response = await apiFetch('/api/search/params', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
@@ -165,7 +177,7 @@ export const listSearchConfigs = (signal?: AbortSignal) =>
   getJson<SearchConfig[]>('/api/search/configs', signal)
 
 async function sendJson<T>(url: string, method: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -187,7 +199,7 @@ export const updateSearchConfig = (id: string, changes: { name?: string; params?
   sendJson<SearchConfig>(`/api/search/configs/${encodeURIComponent(id)}`, 'PATCH', changes)
 
 export async function deleteSearchConfig(id: string): Promise<void> {
-  const response = await fetch(`/api/search/configs/${encodeURIComponent(id)}`, {
+  const response = await apiFetch(`/api/search/configs/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   })
   if (!response.ok) throw new Error(await errorMessage(response))
@@ -229,7 +241,7 @@ export async function streamSearch(
   onEvent: (event: AgentEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const response = await fetch('/api/search', {
+  const response = await apiFetch('/api/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
@@ -247,7 +259,7 @@ export async function streamSearchEvents(
   onEvent: (event: AgentEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const response = await fetch(`/api/searches/${encodeURIComponent(id)}/events`, { signal })
+  const response = await apiFetch(`/api/searches/${encodeURIComponent(id)}/events`, { signal })
   await readEvents(response, onEvent)
 }
 
@@ -282,7 +294,7 @@ export interface SavedSearch extends SearchSummary {
 
 /** Cancel a running search (the server refuses with 409 if it already ended). */
 export async function cancelSearch(id: string): Promise<SearchSummary> {
-  const response = await fetch(`/api/searches/${encodeURIComponent(id)}/cancel`, {
+  const response = await apiFetch(`/api/searches/${encodeURIComponent(id)}/cancel`, {
     method: 'POST',
   })
   if (!response.ok) throw new Error(await errorMessage(response))
@@ -294,12 +306,12 @@ export async function cancelSearch(id: string): Promise<SearchSummary> {
  * Its companies, jobs and people leave the entity pages; applied/connected marks and pins stay.
  */
 export async function deleteSearch(id: string): Promise<void> {
-  const response = await fetch(`/api/searches/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  const response = await apiFetch(`/api/searches/${encodeURIComponent(id)}`, { method: 'DELETE' })
   if (!response.ok) throw new Error(await errorMessage(response))
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal })
+  const response = await apiFetch(url, { signal })
   if (!response.ok) throw new Error(await errorMessage(response))
   return response.json()
 }
@@ -322,7 +334,7 @@ export async function findPeople(
   companyKey: string,
   jobKey?: string,
 ): Promise<CompanyResult> {
-  const response = await fetch(`/api/searches/${encodeURIComponent(searchId)}/people`, {
+  const response = await apiFetch(`/api/searches/${encodeURIComponent(searchId)}/people`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ company_key: companyKey, job_key: jobKey ?? null }),
@@ -343,7 +355,7 @@ export type StatusMap = Record<StatusKind, Record<string, boolean>>
 export const getStatuses = (signal?: AbortSignal) => getJson<StatusMap>('/api/statuses', signal)
 
 export async function setStatus(kind: StatusKind, key: string, active: boolean): Promise<void> {
-  const response = await fetch('/api/statuses', {
+  const response = await apiFetch('/api/statuses', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kind, key, active }),
@@ -360,7 +372,7 @@ export type PinMap = Record<PinKind, Record<string, boolean>>
 export const getPins = (signal?: AbortSignal) => getJson<PinMap>('/api/pins', signal)
 
 export async function setPin(kind: PinKind, key: string, pinned: boolean): Promise<void> {
-  const response = await fetch('/api/pins', {
+  const response = await apiFetch('/api/pins', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kind, key, pinned }),
@@ -420,3 +432,30 @@ export type EntityKind = keyof EntityMap
 /** Everything of one kind seen across the user's searches, most recently seen first. */
 export const listEntities = <K extends EntityKind>(kind: K, signal?: AbortSignal) =>
   getJson<EntityMap[K][]>(`/api/entities/${kind}`, signal)
+
+export interface AuthConfig {
+  /** False in development: everyone is TEST_USER and there is nothing to sign in to. */
+  enabled: boolean
+}
+
+export const getAuthConfig = (signal?: AbortSignal) => getJson<AuthConfig>('/api/auth/config', signal)
+
+async function postAuth(url: string, body: unknown): Promise<User> {
+  const response = await apiFetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
+  return response.json()
+}
+
+export const signIn = (email: string, password: string) =>
+  postAuth('/api/auth/login', { email, password })
+
+export const signUp = (email: string, password: string, inviteCode: string) =>
+  postAuth('/api/auth/signup', { email, password, invite_code: inviteCode })
+
+export async function signOut(): Promise<void> {
+  await apiFetch('/api/auth/logout', { method: 'POST' })
+}

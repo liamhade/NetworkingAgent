@@ -51,19 +51,40 @@ a restart.
 Until Phase 2 ships, the container must not be shared beyond the owner: it has the
 `TEST_USER` problem above.
 
-## Phase 2: Supabase accounts + invite codes (needs the owner's Supabase project)
+## Phase 2: Supabase accounts + invite codes
 
-- **Login:** the frontend signs in with `@supabase/supabase-js` (email magic link or
-  password) and sends `Authorization: Bearer <access token>` on every `/api` call.
-- **Backend:** `accounts.get_current_user` verifies the JWT (Supabase JWKS, or the project's
-  JWT secret), and the Supabase user id (`sub`) becomes the user id. All per-user data keeps
-  its current layout under `database/users/<id>/`, so nothing else changes; moving the data
-  itself to Supabase tables is a later step.
-- **Invite codes:** a Supabase table `invite_codes(code, max_uses, uses, note, created_at)`.
-  Sign-up goes through `POST /api/signup {email, invite_code}`: the backend checks and
-  consumes the code with the service-role key and creates the user through the Supabase
-  Admin API, so nobody can register without a code. Codes are made with a small CLI
-  (`python -m userdata.invites create --uses 1 --note "alice"`).
-- Unauthenticated requests get 401 except `/api/health`; that also closes the credit leak.
-- Needs from the owner: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (frontend),
-  `SUPABASE_SERVICE_ROLE_KEY` (backend only), and the email sign-in settings.
+Decisions (owner, 2026-11-24): **email + password** sign-in; ship the **slim** image
+(`INSTALL_BROWSER=false` is now the default). Supabase project keys are in `.env`.
+
+Design (changed from the first sketch: cookies instead of a Bearer header, invite codes
+local instead of a Supabase table):
+
+- **Session in HttpOnly cookies, set by the backend.** Several requests can't carry an
+  `Authorization` header (the resume PDF is a plain `<a href>` link), and all calls are
+  same-origin, so cookies cover everything with no frontend token handling and no Supabase
+  keys in the frontend. Cookies: `na_access` (Supabase access token, its own lifetime) and
+  `na_refresh` (30 days), `HttpOnly`, `SameSite=Lax`, `Secure` on HTTPS.
+- **Backend service `src/auth/`:**
+  - `supabase.py`: the Supabase Auth REST calls (password login, refresh, get user, admin
+    create/delete user) with `requests`; no new dependency.
+  - `invites.py`: invite codes in `<DATABASE_DIR>/invite_codes.json`
+    (`code -> max_uses, uses, note, created_at, used_by`), reserved under a lock before the
+    Supabase user is created and released if that fails. CLI:
+    `python -m auth.invites create --uses 1 --note alice` / `list` / `revoke CODE`.
+  - `session.py`: cookie helpers and a middleware that refreshes an expired access token
+    with the refresh cookie and re-sets both cookies on the response (a dependency can't add
+    cookies to a `StreamingResponse`). Verified tokens are cached for 60 s so each request
+    doesn't wait on Supabase.
+- **Endpoints:** `POST /api/auth/signup {email, password, invite_code}` (creates the user
+  with `email_confirm: true`: the code already vouches for them, so no confirmation email
+  is needed), `POST /api/auth/login`, `POST /api/auth/logout`. `accounts.get_current_user`
+  returns the Supabase user (id = Supabase user id, display name = email) or 401.
+- **Auth is on when `SUPABASE_URL` is set**; without it (dev, tests) everything is
+  `TEST_USER` as before.
+- **Frontend:** an auth gate asks `/api/me`; on 401 it shows a sign-in / sign-up page (the
+  sign-up form takes the invite code). Any later 401 returns to it. A sign-out button sits
+  in the top bar.
+- **Owner action:** turn off public sign-ups in Supabase (Authentication -> Sign In /
+  Providers -> "Allow new users to sign up"), otherwise anyone with the anon key can
+  register directly and skip invite codes. The admin API used by `/api/auth/signup` keeps
+  working with it off.

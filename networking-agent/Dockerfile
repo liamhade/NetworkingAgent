@@ -15,13 +15,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DATABASE_DIR=/data/database \
     LLM_USAGE_LOG=/data/logs/llm_usage.csv \
     FRONTEND_DIST=/app/frontend/dist \
+    PYTHONPATH=/app/backend/src \
     PORT=8000
 WORKDIR /app/backend
 
 # Headless Chromium lets read_page render job postings that need JavaScript (~1 GB of the
-# image). `--build-arg INSTALL_BROWSER=false` leaves it out; those pages are then read from
-# their static HTML only. Google search never needs it (it goes through SERPER_API_KEY).
-ARG INSTALL_BROWSER=true
+# image), so it is left out by default: such pages are read from their static HTML only.
+# `--build-arg INSTALL_BROWSER=true` adds it. Google search never needs it (SERPER_API_KEY).
+ARG INSTALL_BROWSER=false
 ENV READ_PAGE_BROWSER=${INSTALL_BROWSER}
 
 COPY backend/requirements.txt ./

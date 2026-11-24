@@ -106,3 +106,23 @@ def provider_api_key(provider: str) -> str | None:
     """API key for `provider`, accepting this project's `<PROVIDER>_KEY` naming too."""
     name = provider.upper()
     return os.environ.get(f"{name}_API_KEY") or os.environ.get(f"{name}_KEY")
+
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+"""Supabase project URL. With the two keys below it turns accounts on (see `auth`)."""
+
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "").strip()
+"""Public key: password sign-in, token refresh, reading the signed-in user."""
+
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+"""Admin key, backend only: creates accounts for valid invite codes. Never send it out."""
+
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").strip().lower()
+"""Session cookies' `Secure` flag: `auto` (when the request came over HTTPS, including
+behind a proxy that sets `X-Forwarded-Proto`), `true` or `false`."""
+
+
+def auth_enabled() -> bool:
+    """True when Supabase is configured: every `/api` call then needs a signed-in user.
+    Otherwise (development, tests) everything runs as TEST_USER."""
+    return bool(SUPABASE_URL and SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY)

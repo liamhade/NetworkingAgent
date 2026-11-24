@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type { User } from '@/api'
 import { Icon, type IconName } from '@/components/icon'
 import { initials } from '@/utils/initials'
+import { useAuth } from '@/utils/auth-context'
 import type { Theme } from '@/utils/theme'
 import { type View, viewHash } from '@/utils/view'
 
@@ -44,6 +45,7 @@ export function AppShell({
   }, [sidebarOpen, onSidebarOpenChange])
 
   const name = user?.display_name || user?.id || ''
+  const auth = useAuth()
   return (
     <>
       <header className="topbar">
@@ -100,6 +102,11 @@ export function AppShell({
             <span className="avatar" aria-hidden="true">
               {initials(name)}
             </span>
+            {auth.enabled && (
+              <button type="button" className="btn xs ghost signout" onClick={auth.signOut}>
+                Sign out
+              </button>
+            )}
           </div>
         )}
       </header>
