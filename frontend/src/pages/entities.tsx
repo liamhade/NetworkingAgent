@@ -12,6 +12,7 @@ import {
   type StatusKind,
   type StatusMap,
 } from '@/api'
+import { PageHeader } from '@/components/page-header'
 import { Icon, type IconName } from '@/components/icon'
 import { PinToggle } from '@/components/pin-toggle'
 import { StatusToggle } from '@/components/status-toggle'
@@ -332,53 +333,42 @@ function EntityPage<K extends EntityKind>({
   const page = PAGES[kind]
   const highlighted = useFocusCard(kind, items, focus, onFocusHandled)
   return (
-    <div className="wrap narrow">
-      <div className="lib-head">
-        <h1>{page.title}</h1>
-        {items && items.length > 0 && (
-          <span className="pill neu num">
-            {statusCount && 'statusLabel' in page
-              ? `${statusCount.active}/${statusCount.total} ${page.statusLabel}`
-              : `${items.length} ${items.length === 1 ? page.noun[0] : page.noun[1]}`}
-          </span>
-        )}
-        <span className="sp" />
-        {items && items.length > 1 && (
-          <>
-            <label className="tb-lab" htmlFor="lib-sort">
-              Sort
-            </label>
-            <select
-              id="lib-sort"
-              className="auto"
-              value={sort.id}
-              onChange={(event) => sort.onChange(event.target.value)}
-            >
-              {SORT_OPTIONS[kind].map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </>
-        )}
-      </div>
-      <p className="blurb">{page.blurb}</p>
-      <div className="lib-tabs">
-        <div className="seg" role="group" aria-label="Library type">
-          {(Object.keys(PAGES) as EntityKind[]).map((target) => (
-            <button
-              key={target}
-              type="button"
-              aria-pressed={target === kind}
-              onClick={() => (window.location.hash = viewHash(target))}
-            >
-              <Icon name={PAGES[target].icon} size="sm" />
-              {PAGES[target].title}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="wrap">
+      <PageHeader
+        title={page.title}
+        subtitle={page.blurb}
+        actions={
+          items &&
+          items.length > 0 && (
+            <>
+              <span className="pill neu num">
+                {statusCount && 'statusLabel' in page
+                  ? `${statusCount.active}/${statusCount.total} ${page.statusLabel}`
+                  : `${items.length} ${items.length === 1 ? page.noun[0] : page.noun[1]}`}
+              </span>
+              {items.length > 1 && (
+                <>
+                  <label className="tb-lab" htmlFor="lib-sort">
+                    Sort
+                  </label>
+                  <select
+                    id="lib-sort"
+                    className="auto"
+                    value={sort.id}
+                    onChange={(event) => sort.onChange(event.target.value)}
+                  >
+                    {SORT_OPTIONS[kind].map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </>
+          )
+        }
+      />
 
       {error && <ErrorBanner message={error} />}
       {statusError && <ErrorBanner message={statusError} />}
@@ -396,6 +386,10 @@ function EntityPage<K extends EntityKind>({
           <div className="lib-empty">
             <Icon name={page.icon} size="lg" />
             <p>No {page.noun[1]} yet. Run a search and they will show up here.</p>
+            <a className="btn pri sm" href={viewHash('search')}>
+              <Icon name="search" size="sm" />
+              Start a search
+            </a>
           </div>
         ) : (
           <ul className="rows" aria-label={page.title}>

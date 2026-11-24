@@ -11,6 +11,7 @@ import type {
 } from '@/api'
 import { ConnectDrawer, type DrawerPerson } from '@/components/connect-drawer'
 import { FindPeopleButton } from '@/components/find-people-button'
+import { PageHeader } from '@/components/page-header'
 import { Icon } from '@/components/icon'
 import { PinToggle } from '@/components/pin-toggle'
 import { StatusToggle } from '@/components/status-toggle'
@@ -261,17 +262,19 @@ export function Results({
 
   return (
     <div className="wrap">
-      <div className="head">
-        <div>
-          <div className="crumbs">
+      <PageHeader
+        crumbs={
+          <>
             <button type="button" className="crumb-link" onClick={onEdit}>
               Search
             </button>
             <span aria-hidden="true">/</span>
             <span>Results</span>
-          </div>
-          <h1>{meta.title || 'Your opportunities'}</h1>
-          <div className="sub">
+          </>
+        }
+        title={meta.title || 'Your opportunities'}
+        subtitle={
+          <>
             {meta.location && (
               <span>
                 <Icon name="pin2" size="sm" />
@@ -293,17 +296,19 @@ export function Results({
                 {meta.boards.join(', ')}
               </span>
             )}
-          </div>
-        </div>
-        <div className="chips">
-          <button type="button" className="btn sm" onClick={onEdit}>
-            Edit and re-run
-          </button>
-          <button type="button" className="btn pri sm" onClick={onNewSearch}>
-            <Icon name="plus" /> New search
-          </button>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <button type="button" className="btn sm" onClick={onEdit}>
+              Edit and re-run
+            </button>
+            <button type="button" className="btn pri sm" onClick={onNewSearch}>
+              <Icon name="plus" /> New search
+            </button>
+          </>
+        }
+      />
 
       {statusError && <ErrorBanner message={statusError} />}
       {pinError && <ErrorBanner message={pinError} />}
@@ -462,6 +467,7 @@ export function Results({
         </nav>
 
         <section aria-label="Results">
+          <h2 className="sr">{group === 'company' ? 'Companies' : 'Results by type'}</h2>
           <div className="count-line">
             <span aria-live="polite">
               Showing {shown.length} of {plural(ranked.length, 'company', 'companies')} ·{' '}

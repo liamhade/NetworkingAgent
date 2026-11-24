@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { PageHeader } from '@/components/page-header'
 import { Icon } from '@/components/icon'
 import { cx } from '@/utils/cx'
 import { formatElapsed, LOG_PREVIEW, STAGES, stageOf } from '@/utils/run-progress'
@@ -74,43 +75,49 @@ export function Running({
 
   return (
     <div className="wrap">
-      <div className="crumbs">
-        <button type="button" className="crumb-link" onClick={onEdit}>
-          Search
-        </button>
-        <span aria-hidden="true">/</span>
-        <span>{running ? 'In progress' : state === 'cancelled' ? 'Cancelled' : 'Failed'}</span>
-      </div>
-      <div className="head">
-        <div>
-          <h1>{title}</h1>
-          <div className="sub">
-            {location && (
-              <span>
-                <Icon name="pin2" size="sm" />
-                {location}
-              </span>
-            )}
-            {boards.length > 0 && (
-              <span>
-                <Icon name="layers" size="sm" />
-                {boards.join(', ')}
-              </span>
-            )}
-          </div>
-        </div>
-        {!running && (
-          <div className="chips">
-            <button type="button" className="btn" onClick={onEdit}>
-              Edit and re-run
+      <PageHeader
+        crumbs={
+          <>
+            <button type="button" className="crumb-link" onClick={onEdit}>
+              Search
             </button>
-            <button type="button" className="btn pri" onClick={onRetry}>
-              <Icon name="refresh" />
-              Retry search
-            </button>
-          </div>
-        )}
-      </div>
+            <span aria-hidden="true">/</span>
+            <span>{running ? 'In progress' : state === 'cancelled' ? 'Cancelled' : 'Failed'}</span>
+          </>
+        }
+        title={title}
+        subtitle={
+          (location || boards.length > 0) && (
+            <>
+              {location && (
+                <span>
+                  <Icon name="pin2" size="sm" />
+                  {location}
+                </span>
+              )}
+              {boards.length > 0 && (
+                <span>
+                  <Icon name="layers" size="sm" />
+                  {boards.join(', ')}
+                </span>
+              )}
+            </>
+          )
+        }
+        actions={
+          !running && (
+            <>
+              <button type="button" className="btn" onClick={onEdit}>
+                Edit and re-run
+              </button>
+              <button type="button" className="btn pri" onClick={onRetry}>
+                <Icon name="refresh" />
+                Retry search
+              </button>
+            </>
+          )
+        }
+      />
 
       <section className="card run-card" aria-label="Search progress">
         <div className="run-top">

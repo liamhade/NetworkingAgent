@@ -12,6 +12,7 @@ import { SavedResumeChip } from '@/components/saved-resume'
 import { SearchBoards } from '@/components/search-boards'
 import { anyBoardOn } from '@/utils/boards'
 import { formatSchools, parseSchools } from '@/utils/schools'
+import { PageHeader } from '@/components/page-header'
 import { cx } from '@/utils/cx'
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024
@@ -128,15 +129,10 @@ export function Hero({
 
   return (
     <div className="wrap">
-      <div className="head search-head">
-        <div>
-          <h1>Find the people behind the job</h1>
-          <div className="sub">
-            Tell the agent what you want. It returns companies, the jobs open there, and the people
-            to message first.
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title="Find the people behind the job"
+        subtitle="Tell the agent what you want. It returns companies, the jobs open there, and the people to message first."
+      />
 
       <div className="sgrid">
         <form className="card form" onSubmit={submit} noValidate>
