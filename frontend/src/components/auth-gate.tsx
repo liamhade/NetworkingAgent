@@ -13,6 +13,7 @@ type Phase = 'checking' | 'signed-in' | 'signed-out' | 'offline'
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const [phase, setPhase] = useState<Phase>('checking')
   const [enabled, setEnabled] = useState(false)
+  const [requestEmail, setRequestEmail] = useState('')
   const [session, setSession] = useState(0)
 
   useEffect(() => {
@@ -20,6 +21,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     getAuthConfig(controller.signal)
       .then(async (config) => {
         setEnabled(config.enabled)
+        setRequestEmail(config.request_email ?? '')
         if (!config.enabled) return setPhase('signed-in')
         const response = await fetch('/api/me', { signal: controller.signal })
         setPhase(response.ok ? 'signed-in' : response.status === 401 ? 'signed-out' : 'offline')
@@ -56,6 +58,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (phase === 'signed-out') {
     return (
       <SignInPage
+        requestEmail={requestEmail}
         onSignedIn={() => {
           setSession((n) => n + 1)
           setPhase('signed-in')

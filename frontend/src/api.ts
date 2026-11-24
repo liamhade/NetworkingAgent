@@ -436,25 +436,53 @@ export const listEntities = <K extends EntityKind>(kind: K, signal?: AbortSignal
 export interface AuthConfig {
   /** False in development: everyone is TEST_USER and there is nothing to sign in to. */
   enabled: boolean
+  /** The owner's inbox for access requests; empty if the server doesn't set one. */
+  request_email: string
 }
 
 export const getAuthConfig = (signal?: AbortSignal) => getJson<AuthConfig>('/api/auth/config', signal)
 
-async function postAuth(url: string, body: unknown): Promise<User> {
+export type AccessStatus = 'pending' | 'denied'
+
+/** Refused (403) because the owner hasn't approved this email (`pending`) or turned it down. */
+export class AccessError extends Error {
+  access: AccessStatus
+
+  constructor(message: string, access: AccessStatus) {
+    super(message)
+    this.access = access
+  }
+}
+
+async function postAuth(url: string, body: unknown): Promise<Response> {
   const response = await apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!response.ok) throw new Error(await errorMessage(response))
-  return response.json()
+  if (response.ok) return response
+  let detail = `Request failed (${response.status})`
+  let access: unknown
+  try {
+    const parsed = await response.json()
+    if (typeof parsed.detail === 'string') detail = parsed.detail
+    access = parsed.access
+  } catch {
+    // Not JSON; keep the generic message.
+  }
+  if (access === 'pending' || access === 'denied') throw new AccessError(detail, access)
+  throw new Error(detail)
 }
 
-export const signIn = (email: string, password: string) =>
-  postAuth('/api/auth/login', { email, password })
+export async function signIn(email: string, password: string): Promise<User> {
+  return (await postAuth('/api/auth/login', { email, password })).json()
+}
 
-export const signUp = (email: string, password: string, inviteCode: string) =>
-  postAuth('/api/auth/signup', { email, password, invite_code: inviteCode })
+/** Request access. `'pending'` until the owner approves; the user if pre-approved. */
+export async function signUp(email: string, password: string): Promise<User | 'pending'> {
+  const response = await postAuth('/api/auth/signup', { email, password })
+  return response.status === 202 ? 'pending' : response.json()
+}
 
 export async function signOut(): Promise<void> {
   await apiFetch('/api/auth/logout', { method: 'POST' })

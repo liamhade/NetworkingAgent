@@ -143,7 +143,8 @@ def logout(access_token: str) -> None:
 
 
 def admin_create_user(email: str, password: str) -> SupabaseUser:
-    """Create a confirmed account (the invite code vouches for the email)."""
+    """Create a confirmed account. The app only lets it in once the owner approves the email
+    (`auth.access`), so Supabase's own confirmation email isn't needed."""
     response = requests.post(
         _url("admin/users"),
         json={"email": email, "password": password, "email_confirm": True},

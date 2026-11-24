@@ -115,7 +115,11 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "").strip()
 """Public key: password sign-in, token refresh, reading the signed-in user."""
 
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
-"""Admin key, backend only: creates accounts for valid invite codes. Never send it out."""
+"""Admin key, backend only: creates accounts for access requests. Never send it out."""
+
+ACCESS_REQUEST_EMAIL = os.environ.get("ACCESS_REQUEST_EMAIL", "").strip()
+"""The owner's inbox. People asking for access email it from their own address, and the
+sign-in page shows it (so it is public). See `auth.access`."""
 
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").strip().lower()
 """Session cookies' `Secure` flag: `auto` (when the request came over HTTPS, including

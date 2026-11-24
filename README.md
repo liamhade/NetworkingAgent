@@ -39,7 +39,7 @@ npm install
 
 ## Deploy
 
-One Docker container (frontend + API), accounts and invite codes: [docs/deploy/README.md](docs/deploy/README.md).
+One Docker container (frontend + API), accounts and approving access requests: [docs/deploy/README.md](docs/deploy/README.md).
 
 ## Run
 
@@ -75,7 +75,8 @@ npm run build
 | `PEOPLE_PER_COMPANY` | `3` | People-search ladder stops at this many current employees |
 | `PEOPLE_SEARCH_N` | `5` | Profiles asked for per people search |
 | `READ_POSTINGS` | `2` | Job postings read in full for the results (0 = off) |
-| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | | Accounts (email + password, invite-code sign-up). Unset: everyone is `TEST_USER` |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | | Accounts (email + password, for emails you approve). Unset: everyone is `TEST_USER` |
+| `ACCESS_REQUEST_EMAIL` | | Your inbox: people email it from their address to request access (`python -m auth.access approve <email>`) |
 | `SERPER_API_KEY` / `SERPAPI_API_KEY` | | Google results from serper.dev / serpapi.com instead of Chrome (no CAPTCHAs, ~1-2 s) |
 | `GOOGLE_RESOLVE_URLS` | `true` | Follow Google redirects to real URLs (slower) |
 | `CORS_ORIGINS` | `http://localhost:5173,...` | Allowed browser origins |

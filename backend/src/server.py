@@ -24,7 +24,7 @@ import pipeline
 import resume
 import search_runs
 import tools
-from auth import invites, session, supabase
+from auth import access, session, supabase
 from entities import catalog, keys
 from llm_usage import usage_context
 from schemas import (
@@ -102,17 +102,31 @@ class LoginRequest(BaseModel):
 
 class SignupRequest(LoginRequest):
     password: str = Field(min_length=8, max_length=128)
-    invite_code: str = Field(min_length=1, max_length=32)
 
 
 class AuthConfig(BaseModel):
     enabled: bool
     """False in development: everyone is TEST_USER and there is nothing to sign in to."""
+    request_email: str = ""
+    """Where people email their access request (`ACCESS_REQUEST_EMAIL`); empty if unset."""
 
 
 @app.get("/api/auth/config")
 def auth_config() -> AuthConfig:
-    return AuthConfig(enabled=config.auth_enabled())
+    enabled = config.auth_enabled()
+    return AuthConfig(enabled=enabled, request_email=config.ACCESS_REQUEST_EMAIL if enabled else "")
+
+
+_NOT_APPROVED = {
+    "pending": "Your access request is waiting for approval. If you haven't yet, send the "
+    "request email so your address can be confirmed.",
+    "denied": "Your access request wasn't approved.",
+}
+
+
+def _access_refused(status: str) -> JSONResponse:
+    """403 for an account the owner hasn't approved; `access` tells the page which."""
+    return JSONResponse({"detail": _NOT_APPROVED[status], "access": status}, status_code=403)
 
 
 def _require_auth() -> None:
@@ -129,30 +143,38 @@ def _signed_in(request: Request, new_session: supabase.Session) -> JSONResponse:
 
 @app.post("/api/auth/login")
 def login(body: LoginRequest, request: Request) -> JSONResponse:
-    """Sign in with email + password; sets the session cookies."""
+    """Sign in with email + password; sets the session cookies once the owner approved them."""
     _require_auth()
-    return _signed_in(request, supabase.password_login(body.email.strip(), body.password))
+    new_session = supabase.password_login(body.email.strip(), body.password)
+    user = new_session.user
+    email = user.email or body.email
+    status = access.status_of(user.id, email)
+    if status is None:  # account made outside the app (e.g. Supabase dashboard): ask
+        status = access.request(email, user.id).status
+    if status != "approved":
+        supabase.logout(new_session.access_token)
+        return _access_refused(status)
+    return _signed_in(request, new_session)
 
 
 @app.post("/api/auth/signup")
 def signup(body: SignupRequest, request: Request) -> JSONResponse:
-    """Create an account with a valid invite code, then sign in."""
+    """Request access: create the account, pending until the owner approves the email.
+
+    202 `{"access": "pending"}` (no session yet), or the signed-in user if the email was
+    approved in advance.
+    """
     _require_auth()
-    email = body.email.strip()
-    try:
-        code = invites.reserve(body.invite_code)
-    except invites.InvalidInvite as exc:
-        raise HTTPException(
-            status_code=400, detail="That invite code isn't valid or has already been used."
-        ) from exc
-    try:
-        created = supabase.admin_create_user(email, body.password)
-    except Exception:
-        invites.release(code)
-        raise
-    invites.record_use(code, created.id)
-    log.info("New account %s signed up with invite %s", created.id, code)
-    return _signed_in(request, supabase.password_login(email, body.password))
+    email = access.normalize(body.email)
+    earlier = access.get(email)
+    if earlier is not None and earlier.status == "denied":
+        return _access_refused("denied")
+    created = supabase.admin_create_user(email, body.password)
+    entry = access.request(email, created.id)
+    log.info("Access request from account %s: %s", created.id, entry.status)
+    if entry.status == "approved":
+        return _signed_in(request, supabase.password_login(email, body.password))
+    return JSONResponse({"access": "pending"}, status_code=202)
 
 
 @app.post("/api/auth/logout", status_code=204)

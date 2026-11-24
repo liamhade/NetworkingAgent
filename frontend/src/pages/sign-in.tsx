@@ -1,26 +1,32 @@
 import { useId, useState } from 'react'
-import { signIn, signUp } from '@/api'
+import { AccessError, signIn, signUp } from '@/api'
+import { ACCESS_REQUEST_SUBJECT, accessRequestMailto } from '@/utils/access-request'
 
-type Mode = 'sign-in' | 'sign-up'
+type Mode = 'sign-in' | 'request' | 'awaiting'
 
 const MIN_PASSWORD = 8
 
-/** Email + password sign-in, and invite-code sign-up. */
-export function SignInPage({ onSignedIn }: { onSignedIn: () => void }) {
+interface SignInPageProps {
+  onSignedIn: () => void
+  /** Where access requests are emailed (`ACCESS_REQUEST_EMAIL`); empty if unset. */
+  requestEmail: string
+}
+
+/** Email + password sign-in, and access requests the owner approves by email. */
+export function SignInPage({ onSignedIn, requestEmail }: SignInPageProps) {
   const [mode, setMode] = useState<Mode>('sign-in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [inviteCode, setInviteCode] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const ids = { email: useId(), password: useId(), invite: useId(), hint: useId() }
+  const ids = { email: useId(), password: useId(), hint: useId() }
 
-  const signingUp = mode === 'sign-up'
+  const requesting = mode === 'request'
   const canSubmit =
     !busy &&
     email.trim() !== '' &&
     password !== '' &&
-    (!signingUp || (inviteCode.trim() !== '' && password.length >= MIN_PASSWORD))
+    (!requesting || password.length >= MIN_PASSWORD)
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -28,10 +34,15 @@ export function SignInPage({ onSignedIn }: { onSignedIn: () => void }) {
     setBusy(true)
     setError('')
     try {
-      if (signingUp) await signUp(email.trim(), password, inviteCode.trim())
-      else await signIn(email.trim(), password)
+      if (requesting) {
+        const result = await signUp(email.trim(), password)
+        if (result === 'pending') return setMode('awaiting')
+      } else {
+        await signIn(email.trim(), password)
+      }
       onSignedIn()
     } catch (err) {
+      if (err instanceof AccessError && err.access === 'pending') return setMode('awaiting')
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
     } finally {
       setBusy(false)
@@ -41,6 +52,45 @@ export function SignInPage({ onSignedIn }: { onSignedIn: () => void }) {
   function switchTo(next: Mode) {
     setMode(next)
     setError('')
+    setPassword('')
+  }
+
+  if (mode === 'awaiting') {
+    const address = email.trim()
+    return (
+      <main className="auth-page">
+        <div className="card auth-card">
+          <h1>Confirm your email</h1>
+          {requestEmail ? (
+            <>
+              <p className="hint">
+                One last step: send a short email from <strong>{address}</strong>. Sending it from
+                that address is how we confirm it&rsquo;s yours. You can sign in once your request
+                is approved.
+              </p>
+              <a className="btn pri auth-submit" href={accessRequestMailto(requestEmail, address)}>
+                Send the request email
+              </a>
+              <p className="hint">
+                If no email opens, write to <strong>{requestEmail}</strong> from {address} with the
+                subject &ldquo;{ACCESS_REQUEST_SUBJECT}&rdquo;.
+              </p>
+            </>
+          ) : (
+            <p className="hint">
+              Ask the person who runs this app to approve <strong>{address}</strong>. You can sign
+              in once they have.
+            </p>
+          )}
+          <p className="auth-switch">
+            Approved already?{' '}
+            <button type="button" className="link-btn" onClick={() => switchTo('sign-in')}>
+              Sign in
+            </button>
+          </p>
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -48,8 +98,8 @@ export function SignInPage({ onSignedIn }: { onSignedIn: () => void }) {
       <form className="card auth-card" onSubmit={submit} noValidate>
         <h1>Networking Agent</h1>
         <p className="hint">
-          {signingUp
-            ? 'Create your account with the invite code you were given.'
+          {requesting
+            ? 'Choose a password and request access. You’ll then email us from this address to confirm it.'
             : 'Sign in to find companies, jobs and people to connect with.'}
         </p>
 
@@ -69,33 +119,18 @@ export function SignInPage({ onSignedIn }: { onSignedIn: () => void }) {
           <input
             id={ids.password}
             type="password"
-            autoComplete={signingUp ? 'new-password' : 'current-password'}
+            autoComplete={requesting ? 'new-password' : 'current-password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            aria-describedby={signingUp ? ids.hint : undefined}
+            aria-describedby={requesting ? ids.hint : undefined}
             required
           />
-          {signingUp && (
+          {requesting && (
             <div className="hint" id={ids.hint}>
               At least {MIN_PASSWORD} characters.
             </div>
           )}
         </div>
-        {signingUp && (
-          <div className="field">
-            <label htmlFor={ids.invite}>Invite code</label>
-            <input
-              id={ids.invite}
-              type="text"
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="ABCD-EFGH"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              required
-            />
-          </div>
-        )}
 
         {error && (
           <div className="alert" role="alert">
@@ -104,17 +139,17 @@ export function SignInPage({ onSignedIn }: { onSignedIn: () => void }) {
         )}
 
         <button className="btn pri auth-submit" type="submit" disabled={!canSubmit}>
-          {busy ? 'Please wait…' : signingUp ? 'Create account' : 'Sign in'}
+          {busy ? 'Please wait…' : requesting ? 'Request access' : 'Sign in'}
         </button>
 
         <p className="auth-switch">
-          {signingUp ? 'Already have an account?' : 'Have an invite code?'}{' '}
+          {requesting ? 'Already approved?' : 'New here?'}{' '}
           <button
             type="button"
             className="link-btn"
-            onClick={() => switchTo(signingUp ? 'sign-in' : 'sign-up')}
+            onClick={() => switchTo(requesting ? 'sign-in' : 'request')}
           >
-            {signingUp ? 'Sign in' : 'Create an account'}
+            {requesting ? 'Sign in' : 'Request access'}
           </button>
         </p>
       </form>

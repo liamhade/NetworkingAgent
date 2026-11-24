@@ -3,16 +3,18 @@
 Plan and design notes: [plan.md](plan.md).
 
 One container serves the frontend and the API on one origin. Accounts are Supabase email +
-password; signing up needs an invite code that you hand out.
+password, and only for emails you approve: people request access on the site, then email you
+from that address ([access-requests plan](../access-requests/plan.md)).
 
 ## Before the first deploy (Supabase dashboard)
 
 1. **Turn off public sign-ups:** Authentication -> Sign In / Providers -> turn off "Allow
    new users to sign up". Otherwise anyone with the project's public anon key can create an
-   account directly and skip invite codes. The app creates accounts with the admin API, which
-   keeps working with this off.
+   account directly. The app still won't let them in until you approve the email, but this
+   keeps Supabase tidy. The app creates accounts with the admin API, which keeps working with
+   this off.
 2. Email + password sign-in must stay enabled (it is by default). No email templates are
-   needed: invited accounts are created already confirmed.
+   needed: accounts are created already confirmed, and you confirm the email yourself.
 
 ## Build and run locally
 
@@ -24,20 +26,25 @@ docker run -p 8000:8000 --env-file .env -v networking-agent-data:/data networkin
 # http://localhost:8000  (frontend and /api on one origin; /api/health for checks)
 ```
 
-## Invite codes
+## Approving access requests
+
+1. Someone clicks **Request access** and picks a password. The page then offers a **Send the
+   request email** button, which emails `ACCESS_REQUEST_EMAIL` (set it to your inbox) from
+   their address.
+2. Check that the email really came from the address it asks you to approve, then:
 
 ```powershell
-docker exec <container> python -m auth.invites create --note "alice"           # one sign-up
-docker exec <container> python -m auth.invites create --uses 10 --note "beta"  # ten sign-ups
-docker exec <container> python -m auth.invites list
-docker exec <container> python -m auth.invites revoke ABCD-EFGH
+railway ssh -- python -m auth.access list               # pending requests first
+railway ssh -- python -m auth.access approve a@x.com    # they can sign in now
+railway ssh -- python -m auth.access deny a@x.com       # refuse, or cut off an approved user
 ```
 
-On a cloud host use its shell / console (Render: Shell tab; Railway: `railway ssh`; Fly:
-`fly ssh console`) and run the same `python -m auth.invites ...`. Codes are stored in
-`/data/database/invite_codes.json`, with who used them. Codes are case-insensitive.
+`approve` also works before someone asks: their request is then approved straight away.
+Other hosts: run the same `python -m auth.access ...` in their shell (`docker exec <container>`,
+Render's Shell tab, `fly ssh console`). Requests are stored in `/data/database/access.json`.
+Accounts made with the old invite codes stay approved.
 
-Locally without Docker: `cd backend\src` then `..\.venv\Scripts\python.exe -m auth.invites ...`.
+Locally without Docker: `cd backend\src` then `..\.venv\Scripts\python.exe -m auth.access ...`.
 
 ## Railway, step by step
 
@@ -49,14 +56,14 @@ Locally without Docker: `cd backend\src` then `..\.venv\Scripts\python.exe -m au
 4. Right-click the service (or Command Palette) -> **Add Volume**, mount path **`/data`**.
 5. Settings -> Networking -> **Generate Domain** (HTTPS). Optional: Settings -> Deploy ->
    Healthcheck Path `/api/health`.
-6. Deploys run on every push to `main`. Create invite codes from the service's shell
-   (`railway ssh`, or the dashboard's shell): `python -m auth.invites create --note alice`.
+6. Deploys run on every push to `main`. Approve people from your machine with the Railway
+   CLI: `railway ssh -- python -m auth.access approve a@x.com` (see above).
 
 ## Cloud host (Render, Railway, Fly.io...)
 
 - Build from the root `Dockerfile`. The app listens on `$PORT` (default 8000).
 - **Persistent volume at `/data`** (1 GB is plenty): user data (`/data/database`, including
-  invite codes) and the LLM usage log (`/data/logs`). Without it, every deploy wipes it.
+  access requests) and the LLM usage log (`/data/logs`). Without it, every deploy wipes it.
 - **One instance only.** Running searches live in the process's memory; don't scale out.
 - **HTTPS:** the host's URL is HTTPS, and session cookies are marked `Secure` automatically
   (from `X-Forwarded-Proto`).
@@ -69,6 +76,7 @@ Locally without Docker: `cd backend\src` then `..\.venv\Scripts\python.exe -m au
 | `ANTHROPIC_KEY` | yes | |
 | `SERPER_API_KEY` | yes | The Chrome fallback needs desktop Chrome, which the image doesn't have |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | yes | Accounts. Without all three, everyone is `TEST_USER` and no sign-in is asked for: never deploy like that |
+| `ACCESS_REQUEST_EMAIL` | yes | Your inbox: people email it from their own address to ask for access. Shown on the sign-in page (public). Unset: the page just says to ask you |
 | `USAJOBS_API_KEY`, `USAJOBS_EMAIL` | optional | Federal jobs board |
 | `MAX_CONCURRENT_SEARCHES` | recommended | Default 2: a 3rd simultaneous search gets "too many searches". Measured 2026-11-24: 5 at once took 70-90 s each (vs ~66 s alone), peaking at 229 MB RAM and 0.8 CPU core, so `5` fits a 512 MB instance |
 | `LLM_MODEL` | optional | Default `anthropic:claude-haiku-5-5` |

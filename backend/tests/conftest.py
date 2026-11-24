@@ -102,3 +102,4 @@ def accounts_off(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(config, "SUPABASE_URL", "")
     monkeypatch.setattr(config, "SUPABASE_ANON_KEY", "")
     monkeypatch.setattr(config, "SUPABASE_SERVICE_ROLE_KEY", "")
+    monkeypatch.setattr(config, "ACCESS_REQUEST_EMAIL", "")

@@ -1,8 +1,9 @@
 """Sessions in HttpOnly cookies, and who is making each request.
 
 `SessionMiddleware` reads the cookies on every `/api` request (except `/api/auth/*`, which
-set them), finds the signed-in Supabase user, refreshes an expired access token with the
-refresh cookie, and re-sets the cookies on the response. It is middleware, not a
+set them), finds the signed-in Supabase user, checks the owner approved them (`access`),
+refreshes an expired access token with the refresh cookie, and re-sets the cookies on the
+response. It is middleware, not a
 dependency, because a dependency can't add cookies to a `StreamingResponse`.
 `current_user` is the FastAPI dependency the endpoints use.
 """
@@ -21,7 +22,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 import config
 from userdata import accounts
 
-from . import supabase
+from . import access, supabase
 from .supabase import AuthError, Session, SupabaseUser
 
 ACCESS_COOKIE = "na_access"
@@ -100,6 +101,18 @@ def _resolve(access: str | None, refresh: str | None) -> tuple[SupabaseUser | No
     return None, None
 
 
+def _resolve_approved(token: str | None, refresh: str | None) -> tuple[SupabaseUser | None, Any]:
+    """`_resolve`, except a user the owner hasn't approved counts as signed out.
+
+    Checked on every request (not cached) so `deny` works at once, and so a token taken
+    straight from Supabase with the public anon key can't skip the approval.
+    """
+    user, change = _resolve(token, refresh)
+    if user is not None and access.status_of(user.id, user.email) != "approved":
+        user = None
+    return user, change
+
+
 class SessionMiddleware:
     """Pure ASGI, so streamed responses (search events) pass through untouched."""
 
@@ -120,7 +133,9 @@ class SessionMiddleware:
         request = Request(scope)
         try:
             user, change = await anyio.to_thread.run_sync(
-                _resolve, request.cookies.get(ACCESS_COOKIE), request.cookies.get(REFRESH_COOKIE)
+                _resolve_approved,
+                request.cookies.get(ACCESS_COOKIE),
+                request.cookies.get(REFRESH_COOKIE),
             )
         except AuthError as exc:  # Supabase is down: say so rather than "signed out"
             response = JSONResponse({"detail": exc.message}, exc.status)
