@@ -221,6 +221,57 @@ def test_similar_company_name_is_not_a_match() -> None:
     assert linkedin.parse_profile(result, "Ramp")["at_company"] is False
 
 
+@pytest.mark.parametrize(
+    ("company", "expected"),
+    [
+        (
+            "U.S. Department of Agriculture (USDA)",
+            ["us department of agriculture usda", "us department of agriculture", "usda"],
+        ),
+        ("Artefact (artefact.com)", ["artefact artefact com", "artefact"]),
+        ("Acme (formerly Widget Co)", ["acme formerly widget co", "acme"]),
+        ("Ramp", ["ramp"]),
+    ],
+)
+def test_company_aliases(company: str, expected: list[str]) -> None:
+    assert linkedin.company_aliases(company) == expected
+
+
+@pytest.mark.parametrize(
+    "headline",
+    [
+        "Management Analyst @ USDA-Food Safety Inspection",
+        "Research Technician at US Department of Agriculture",
+        "Research Technician at U.S. Department of Agriculture",
+    ],
+)
+def test_agency_acronyms_and_us_spelling_match(headline: str) -> None:
+    result = _r(f"Sam Doe - {headline}", "LinkedIn · Sam Doe", snippet=headline)
+    person = linkedin.parse_profile(result, "U.S. Department of Agriculture (USDA)")
+    assert person["at_company"] is True
+
+
+def test_alias_in_snippet_company_slot() -> None:
+    result = _r(
+        "Sam Doe - Biologist",
+        "LinkedIn · Sam Doe",
+        snippet="Fort Collins, Colorado, United States · Biologist · USDA-APHIS Wildlife work",
+    )
+    person = linkedin.parse_profile(result, "U.S. Department of Agriculture (USDA)")
+    assert (person["company"], person["at_company"]) == (
+        "U.S. Department of Agriculture (USDA)",
+        True,
+    )
+
+
+def test_former_employee_by_acronym() -> None:
+    result = _r("Sam Doe - Analyst, ex-USDA", "LinkedIn · Sam Doe", snippet="Analyst, ex-USDA")
+    assert (
+        linkedin.parse_profile(result, "U.S. Department of Agriculture (USDA)")["at_company"]
+        is False
+    )
+
+
 # ------------------------------------------------------------------- tools.linkedin_people
 
 

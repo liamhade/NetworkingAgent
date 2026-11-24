@@ -122,13 +122,36 @@ def parse_linkedin_title(title: str) -> tuple[str, str]:
 
 
 def _norm(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+    text = re.sub(r"\bu\.\s?s\.", "us", text.lower())  # "U.S." and "US" read the same
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+
+def company_aliases(company: str) -> list[str]:
+    """Normalised names `company` may go by, longest first.
+
+    `"U.S. Department of Agriculture (USDA)"` -> the full name, `"us department of
+    agriculture"` and `"usda"`; `"Artefact (artefact.com)"` -> also `"artefact"`. A
+    bracketed part counts on its own only if it is one acronym-like word of 3+ letters.
+    """
+    aliases = [_norm(company)]
+    bracket = re.search(r"\(([^()]*)\)\s*$", company)
+    if bracket:
+        aliases.append(_norm(company[: bracket.start()]))
+        inner = bracket.group(1).strip()
+        if re.fullmatch(r"[A-Z][A-Z0-9&]{2,}", inner):
+            aliases.append(_norm(inner))
+    unique = [a for i, a in enumerate(aliases) if a and a not in aliases[:i]]
+    return sorted(unique, key=len, reverse=True)
 
 
 def _mentions(text: str, company: str) -> bool:
-    """`company` appears in `text` as whole words, case-insensitively."""
-    target = _norm(company)
-    return bool(target) and f" {target} " in f" {_norm(text)} "
+    """`company`, or one of its aliases, appears in `text` as whole words (any case)."""
+    haystack = f" {_norm(text)} "
+    return any(f" {alias} " in haystack for alias in company_aliases(company))
+
+
+def _starts_with_company(text: str, company: str) -> bool:
+    return any(f"{_norm(text)} ".startswith(f"{alias} ") for alias in company_aliases(company))
 
 
 def _is_location(segment: str) -> bool:
@@ -161,8 +184,11 @@ def parse_profile(result: SearchResult, company: str) -> dict:
     found = ""
     # The snippet runs the current company into the about text ("Ramp Data at Ramp ..."),
     # so only the target company can be recognised there.
-    if current and _norm(company) and f"{_norm(current)} ".startswith(f"{_norm(company)} "):
-        found = current[: len(_clean_company(company))]
+    if current and _starts_with_company(current, company):
+        if f"{_norm(current)} ".startswith(f"{_norm(company)} "):
+            found = current[: len(_clean_company(company))]
+        else:  # matched an alias ("USDA-APHIS ...", "Artefact ..."): the about text follows
+            found = _clean_company(company)
     if not found:
         match = _EXPERIENCE.search(snippet)
         if match:
@@ -172,7 +198,10 @@ def parse_profile(result: SearchResult, company: str) -> dict:
         if match:
             found = match.group(1).strip(" …")
 
-    left = re.search(rf"\b(?:ex|former(?:ly)?)[\s-]+{re.escape(_norm(company))}\b", _norm(headline))
+    left = any(
+        re.search(rf"\b(?:ex|former(?:ly)?)[\s-]+{re.escape(alias)}\b", _norm(headline))
+        for alias in company_aliases(company)
+    )
     at_company = not left and (
         _mentions(found, company) or (not found and _mentions(headline, company))
     )
