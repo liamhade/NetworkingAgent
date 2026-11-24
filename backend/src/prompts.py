@@ -103,7 +103,9 @@ Rules:
 - For each company, list up to 4 relevant jobs and up to 4 people to contact from the data. \
 Include every relevant person found at that company (the team the user would join, hiring \
 leaders, recruiters); skip people who clearly no longer work there (`at_company: false`, \
-"Ex-<company>") or are unrelated. If a company's `people_searched` is false, leave its \
+"Ex-<company>") or are unrelated. Keep people with a `shared_background` (they share the \
+user's school) ahead of equally relevant people without one. If a company's \
+`people_searched` is false, leave its \
 people empty. Empty lists are allowed if nothing was found.
 - Copy names, titles and URLs exactly as they appear in the data. Never invent them.
 - Use `posting_text`, when present, for requirements, seniority and salary.
@@ -121,8 +123,10 @@ Rules:
 hiring leaders, recruiters. Skip people who clearly no longer work there \
 (`at_company: false`, "Ex-<company>") or are unrelated.
 - Copy names, titles and profile URLs exactly as they appear in the data. Never invent them.
+- Keep people with a `shared_background` (they share the user's school) ahead of equally \
+relevant people without one.
 - `alignment` speaks to the user ("You ...") in 1-3 sentences: why connect, and what they \
-have in common."""
+have in common; mention a person's `shared_background` (e.g. the same school) when present."""
 
 LINKEDIN_MESSAGE_PROMPT = """Each person's `connect_message` is a LinkedIn connection note \
 the user can send as-is:
@@ -132,7 +136,8 @@ longer notes are cut off.
 ("Hi Jane, ...").
 - Mention one specific, true overlap from the profile and the research data (their team or \
 role, a shared skill, industry, school or past employer, or a job the user is applying to \
-at their company).
+at their company). If the person has a `shared_background` (e.g. "Same school: Cornell"), \
+prefer that as the overlap.
 - End with a light ask: connecting, or a short chat about their team or the role.
 - Friendly and professional. No placeholders like [Name], no emojis, no hashtags, no links, \
 no sign-off with the user's name.

@@ -56,9 +56,10 @@ def sources(monkeypatch: pytest.MonkeyPatch) -> FakeSources:
     fake.asked = []  # type: ignore[attr-defined]
     original = fake.linkedin_people
 
-    def recording(company: str, keywords: str, location: str = "", n: int = 5):
-        fake.asked.append((company, keywords))  # type: ignore[attr-defined]
-        return original(company, keywords, location, n)
+    def recording(company: str, keywords: str, location: str = "", n: int = 5, school: str = ""):
+        if not school:
+            fake.asked.append((company, keywords))  # type: ignore[attr-defined]
+        return original(company, keywords, location, n, school)
 
     monkeypatch.setattr("tools.linkedin_people", recording)
     return fake
@@ -216,3 +217,28 @@ def test_endpoint_runs_in_the_threadpool() -> None:
         r for r in server.app.routes if getattr(r, "path", "") == "/api/searches/{search_id}/people"
     )
     assert not __import__("inspect").iscoroutinefunction(route.endpoint)
+
+
+def test_on_demand_search_also_finds_people_with_the_users_school(saved, sources, model) -> None:
+    from pipeline_fakes import alumnus
+
+    record = history.get_search("TEST_USER", saved)
+    with_school = history.save_search(
+        "TEST_USER",
+        REQUEST.model_copy(update={"education": ["Cornell University"]}),
+        record.results,
+    ).id
+    sources.school_people[("Etsy", "data manager", "New York")] = [
+        alumnus("Etsy", "Cornell University", 0)
+    ]
+    model.fail = True  # the fallback keeps the mark without the LLM
+    body = _post(with_school, "Etsy").json()
+    marked = [p for p in body["people"] if p["shared_background"]]
+    assert [p["shared_background"] for p in marked] == ["Same school: Cornell University"]
+    trace = history.get_search("TEST_USER", with_school).trace
+    assert any(s.args.get("school") == "Cornell University" for s in trace)
+    # One shared-school person is fewer than wanted, so the ladder relaxed once (the cap is 2).
+    assert [(k, loc) for _, k, loc, _ in sources.school_calls] == [
+        ("data manager", "New York"),
+        ("", "New York"),
+    ]

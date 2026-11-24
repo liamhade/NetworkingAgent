@@ -1006,6 +1006,9 @@ function PersonRow({
           <div className="rmeta">
             <CompanyTag company={company} ctx={ctx} id={companyId} />
             {person.title && <span>{person.title}</span>}
+            {person.shared_background && (
+              <span className="pill per tight">{person.shared_background}</span>
+            )}
           </div>
         </div>
         {person.key && (

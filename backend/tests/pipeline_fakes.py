@@ -48,6 +48,13 @@ def profile(company: str, keywords: str, i: int = 0, at_company: bool = True) ->
     }
 
 
+def alumnus(company: str, school: str, i: int = 0, mentions: bool = True) -> dict[str, Any]:
+    """A current employee found by a school search; `mentions`: the school is on the result."""
+    person = profile(company, f"{school} alumni", i)
+    person["snippet"] = f"{school} graduate. Works at {company}." if mentions else ""
+    return person
+
+
 def plan(**changes: Any) -> SearchPlan:
     base = SearchPlan(
         role_titles=["Data Analyst", "Analytics Engineer"],
@@ -169,6 +176,8 @@ class FakeSources:
         self.google: list[dict] | Exception = []
         self.people: dict[tuple[str, str], list[dict] | Exception] = {}
         self.default_people = default_people
+        self.school_calls: list[tuple[str, str, str, str]] = []
+        self.school_people: dict[tuple[str, str, str], list[dict] | Exception] = {}
         self.calls: list[tuple[str, Any]] = []
         self.people_calls: list[tuple[str, str, str]] = []
         self.ats_boards: list[dict] | Exception = []
@@ -208,7 +217,16 @@ class FakeSources:
             raise result
         return result
 
-    def linkedin_people(self, company: str, keywords: str, location: str = "", n: int = 5):
+    def linkedin_people(
+        self, company: str, keywords: str, location: str = "", n: int = 5, school: str = ""
+    ):
+        if school:
+            # `school_people[(company, keywords, location)]`; no entry: nobody found.
+            self.school_calls.append((company, keywords, location, school))
+            result = self.school_people.get((company, keywords, location), [])
+            if isinstance(result, Exception):
+                raise result
+            return result
         self.people_calls.append((company, keywords, location))
         return self.found(company, keywords)
 

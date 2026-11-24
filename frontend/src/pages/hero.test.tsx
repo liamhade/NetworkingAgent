@@ -100,3 +100,24 @@ describe('Hero search boards', () => {
     expect(onSubmit).toHaveBeenCalledWith(filled)
   })
 })
+
+describe('Hero schools', () => {
+  it('sends the schools typed in the box', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
+    render(<Hero initial={filled} onSubmit={onSubmit} />)
+    await screen.findByText('2 of 3 boards on')
+    await user.type(screen.getByRole('textbox', { name: 'School(s)' }), 'Cornell University; MIT')
+    await user.click(screen.getByRole('button', { name: /find opportunities/i }))
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ education: ['Cornell University', 'MIT'] }),
+    )
+  })
+
+  it('shows the schools of a reopened search', async () => {
+    render(<Hero initial={{ ...filled, education: ['Cornell University'] }} onSubmit={vi.fn()} />)
+    expect(await screen.findByRole('textbox', { name: 'School(s)' })).toHaveValue(
+      'Cornell University',
+    )
+  })
+})

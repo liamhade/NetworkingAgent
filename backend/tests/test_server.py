@@ -94,7 +94,7 @@ def test_search_streams_sse(monkeypatch: pytest.MonkeyPatch) -> None:
     record = client.get(f"/api/searches/{saved['search']['id']}").json()
     assert record["user_id"] == "TEST_USER"
     # The boards config the search ran with is saved too (here: the defaults).
-    assert record["request"] == {**body, "boards": default_boards()}
+    assert record["request"] == {**body, "education": [], "boards": default_boards()}
     assert record["results"] == {"summary": "ok", "companies": []}
 
 

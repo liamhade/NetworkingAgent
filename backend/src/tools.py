@@ -346,16 +346,17 @@ def _search_profiles(query: str, company: str, n: int) -> tuple[list[dict], bool
 
 
 def linkedin_people(
-    company: str, keywords: str, location: str = "", n: int = 5
+    company: str, keywords: str, location: str = "", n: int = 5, school: str = ""
 ) -> list[dict[str, Any]]:
     """LinkedIn profiles of people at `company`, found through Google.
 
     Only linkedin.com/in profiles, current employees first: name, headline, current title
     and company, `at_company` (False = may work elsewhere now), location, URL and snippet.
+    With `school`, the search also requires that school name (people with the user's school).
     Raises `OperatorIgnoredError` if Google ignored `site:` twice. Takes 2-25 s.
     """
     people, ignored = _search_profiles(
-        linkedin.build_query(company, keywords, location), company, n
+        linkedin.build_query(company, keywords, location, school), company, n
     )
     if ignored:
         # Google sometimes drops the site: operator and serves job boards instead;
@@ -363,7 +364,7 @@ def linkedin_people(
         log.info("Google ignored site:linkedin.com/in for %r; retrying", company)
         time.sleep(LINKEDIN_RETRY_DELAY_S)
         people, ignored = _search_profiles(
-            linkedin.retry_query(company, keywords, location), company, n
+            linkedin.retry_query(company, keywords, location, school), company, n
         )
     if not people and ignored:
         raise OperatorIgnoredError(

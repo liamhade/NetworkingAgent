@@ -355,3 +355,29 @@ def test_tool_returns_errors(monkeypatch) -> None:
     monkeypatch.setattr(tools, "run_google_search", boom)
     with pytest.raises(RuntimeError, match="Chrome not found"):
         tools.linkedin_people("Ramp", "x")
+
+
+def test_build_query_with_school_quotes_it_after_the_company() -> None:
+    assert (
+        linkedin.build_query("Ramp", "data analyst", "New York", "Cornell University")
+        == 'site:linkedin.com/in "Ramp" "Cornell University" data analyst New York'
+    )
+    assert (
+        linkedin.retry_query("Ramp", "", "", ' "Cornell" ')
+        == '"Ramp" "Cornell" site:linkedin.com/in'
+    )
+
+
+def test_build_query_without_school_is_unchanged() -> None:
+    assert linkedin.build_query("Ramp", "recruiter", "", "  ") == (
+        'site:linkedin.com/in "Ramp" recruiter'
+    )
+
+
+def test_mentions_school_needs_the_whole_name_in_headline_or_snippet() -> None:
+    person = {"headline": "Analyst at Ramp", "snippet": "Cornell University · Economics"}
+    assert linkedin.mentions_school(person, "Cornell University")
+    assert linkedin.mentions_school(person, "cornell university")
+    assert not linkedin.mentions_school(person, "Columbia University")
+    assert not linkedin.mentions_school({"headline": "x", "snippet": ""}, "Cornell")
+    assert not linkedin.mentions_school(person, "")

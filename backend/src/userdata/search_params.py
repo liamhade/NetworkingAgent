@@ -26,6 +26,7 @@ class SearchParams(BaseModel):
     background: str = Field(default="", max_length=20_000)
     location: str = Field(default="", max_length=200)
     looking_for: str = Field(default="", max_length=5_000)
+    education: list[str] = Field(default_factory=list, max_length=5)
     boards: BoardsConfig = Field(default_factory=default_config)
 
     @field_validator("boards", mode="before")

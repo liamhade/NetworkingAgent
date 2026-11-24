@@ -133,6 +133,9 @@ class Person(BaseModel):
     url: str
     snippet: str = ""
     keywords: str = Field(default="", description="The people search that found them.")
+    shared_background: str = Field(
+        default="", description='What they share with the user, e.g. "Same school: Cornell".'
+    )
 
 
 # --------------------------------------------------------------------- ranking (LLM)

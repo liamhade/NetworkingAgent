@@ -75,7 +75,13 @@ def _notes(
     if notes is not None:
         return steps.match_people(notes.people, found), trace
     fallback = [
-        PersonResult(name=p.name, title=p.title or p.headline, profile_url=p.url, alignment="")
+        PersonResult(
+            name=p.name,
+            title=p.title or p.headline,
+            profile_url=p.url,
+            alignment="",
+            shared_background=p.shared_background,
+        )
         for p in found
         if p.at_company
     ]
@@ -128,7 +134,12 @@ def find_people(
     keywords += company.people_keywords
     known_urls = [p.profile_url for p in company.people]
     found, trace = steps.search_people(
-        company.name, keywords, _city(record.request.location), STEP, known_urls
+        company.name,
+        keywords,
+        _city(record.request.location),
+        STEP,
+        known_urls,
+        education=record.request.education,
     )
     people: list[PersonResult] = []
     if found:

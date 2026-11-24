@@ -47,19 +47,36 @@ def _clean_company(company: str) -> str:
     return " ".join(company.replace('"', " ").split())
 
 
-def build_query(company: str, keywords: str, location: str = "") -> str:
-    """The people query: `site:linkedin.com/in "Company" keywords location`.
+def _school(school: str) -> str:
+    cleaned = _clean_company(school)
+    return f'"{cleaned}"' if cleaned else ""
+
+
+def build_query(company: str, keywords: str, location: str = "", school: str = "") -> str:
+    """The people query: `site:linkedin.com/in "Company" ["School"] keywords location`.
 
     The operator works as well at the end as at the start, and both beat no operator.
     An unquoted company name matches the word anywhere (e.g. "ramp" in a job title).
     """
-    parts = [SITE, f'"{_clean_company(company)}"', keywords.strip(), location.strip()]
+    parts = [
+        SITE,
+        f'"{_clean_company(company)}"',
+        _school(school),
+        keywords.strip(),
+        location.strip(),
+    ]
     return " ".join(p for p in parts if p)
 
 
-def retry_query(company: str, keywords: str, location: str = "") -> str:
+def retry_query(company: str, keywords: str, location: str = "", school: str = "") -> str:
     """Same search with the operator at the end, used when Google ignored the first one."""
-    parts = [f'"{_clean_company(company)}"', keywords.strip(), location.strip(), SITE]
+    parts = [
+        f'"{_clean_company(company)}"',
+        _school(school),
+        keywords.strip(),
+        location.strip(),
+        SITE,
+    ]
     return " ".join(p for p in parts if p)
 
 
@@ -101,6 +118,14 @@ def looks_like_profile(result: SearchResult) -> bool:
     return bool(_NAME_SEPARATOR.search(title)) or bool(
         named and named.group("name").strip() == title
     )
+
+
+def mentions_school(person: dict, school: str) -> bool:
+    """True if the parsed profile's headline or snippet names `school` (whole words, any
+    case), i.e. the shared school is visible on the result, not only matched by Google."""
+    text = f"{person.get('headline', '')} {person.get('snippet', '')}"
+    needle = _norm(school)
+    return bool(needle) and f" {needle} " in f" {_norm(text)} "
 
 
 def operator_ignored(results: list[SearchResult]) -> bool:

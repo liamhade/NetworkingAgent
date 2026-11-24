@@ -698,6 +698,9 @@ function PersonRow({
           </Title>
           <div className="rmeta">
             {person.title && <span>{person.title}</span>}
+            {person.shared_background && (
+              <span className="pill per tight">{person.shared_background}</span>
+            )}
             <CompanyTag name={person.company} />
           </div>
         </div>

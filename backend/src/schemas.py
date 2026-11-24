@@ -26,6 +26,12 @@ class SearchRequest(BaseModel):
     background: str = Field(min_length=1, max_length=20_000)
     location: str = Field(default="", max_length=200)
     looking_for: str = Field(min_length=1, max_length=5_000)
+    education: list[str] = Field(
+        default_factory=list,
+        max_length=5,
+        description='Schools the user attended, most relevant first (e.g. "Cornell University"). '
+        "Used to find people at the target companies with the same school; may be empty.",
+    )
     boards: BoardsConfig = Field(
         default_factory=default_config,
         description="Which job boards to search and how many jobs to gather from each: "
@@ -39,8 +45,18 @@ class SearchRequest(BaseModel):
         return normalize(value)
 
 
+def _require_education(schema: dict) -> None:
+    # `education` has a default so resumes saved before it existed still load, but the LLM
+    # must always answer it, so it stays required in the structured-output schema.
+    required = schema.setdefault("required", [])
+    if "education" not in required:
+        required.append("education")
+
+
 class ResumeProfile(BaseModel):
     """Fields extracted from an uploaded resume to pre-fill the hero form."""
+
+    model_config = ConfigDict(json_schema_extra=_require_education)
 
     background: str = Field(
         description="2-5 sentence first-person summary of experience, skills and education."
@@ -49,6 +65,11 @@ class ResumeProfile(BaseModel):
     looking_for: str = Field(
         description="Roles the person seems to be targeting, inferred from the resume, "
         "or empty string if unclear."
+    )
+    education: list[str] = Field(
+        default_factory=list,
+        description="Colleges/universities attended, most recent or highest degree first, each "
+        'as the full school name only (e.g. "Cornell University"); [] if none are listed.',
     )
 
 
@@ -112,6 +133,11 @@ class PersonResult(BaseModel):
         default="",
         description="Example LinkedIn connection note from the user to this person, at most "
         f"{config.LINKEDIN_MESSAGE_MAX_CHARS} characters.",
+    )
+    shared_background: SkipJsonSchema[str] = Field(
+        default="",
+        description='What the user has in common with them, e.g. "Same school: Cornell '
+        'University"; set by the server from the search, empty if nothing shared was found.',
     )
     key: SkipJsonSchema[str] = Field(default="", description=ENTITY_KEY_DESCRIPTION)
 
@@ -322,6 +348,9 @@ class PersonEntity(Sighting):
     alignment: str
     connect_message: str = Field(
         default="", description="Example LinkedIn connection note; empty for older searches."
+    )
+    shared_background: str = Field(
+        default="", description='What the user shares with them, e.g. "Same school: Cornell".'
     )
     company: str
     company_key: str

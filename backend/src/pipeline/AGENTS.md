@@ -25,6 +25,7 @@ The search is a fixed LangGraph `StateGraph`, not a free-form tool-calling agent
   people, with URLs copied from the gathered data.
 - Every source call and validation is recorded in the search's `trace` (saved with the search,
   not streamed). Check it first when a result list is unexpectedly empty.
-- Knobs are in `config.py`: `MAX_COMPANIES`, `PEOPLE_AUTO_COMPANIES`, `READ_POSTINGS` and
-  `PEOPLE_PER_COMPANY`.
+- Knobs are in `config.py`: `MAX_COMPANIES`, `PEOPLE_AUTO_COMPANIES`, `READ_POSTINGS`,
+  `PEOPLE_PER_COMPANY`, and for the shared-school people search `PEOPLE_SIMILAR_MAX_QUERIES`
+  (extra Google searches per company; 0 turns it off) and `PEOPLE_SIMILAR_PER_COMPANY`.
 - Tests use mocked LLMs and sources only (`backend/tests/pipeline_fakes.py`).

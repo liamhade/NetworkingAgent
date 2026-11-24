@@ -26,11 +26,16 @@ export interface SearchRequest {
   background: string
   location: string
   looking_for: string
+  /** Schools attended, most relevant first; used to find people with the same school. */
+  education?: string[]
   /** Boards to search; leave out for the server's defaults (older searches have none). */
   boards?: BoardsConfig
 }
 
-export type ResumeProfile = Pick<SearchRequest, 'background' | 'location' | 'looking_for'>
+export type ResumeProfile = Pick<
+  SearchRequest,
+  'background' | 'location' | 'looking_for' | 'education'
+>
 
 /**
  * The search parameters as saved for the user (`GET`/`PUT /api/search/params`): a
@@ -69,6 +74,8 @@ export interface PersonResult {
   alignment: string
   /** Example LinkedIn connection note (server caps its length); absent on older searches. */
   connect_message?: string
+  /** What you share with them, e.g. "Same school: Cornell"; absent when nothing was found. */
+  shared_background?: string
   /** Stable identity across searches (server-computed); keys the CONNECTED toggle. */
   key: string
 }
@@ -417,6 +424,7 @@ export interface PersonEntity extends Sighting {
   alignment: string
   /** Example LinkedIn connection note (server caps its length); absent on older searches. */
   connect_message?: string
+  shared_background?: string
   company: string
   company_key: string
 }

@@ -46,6 +46,13 @@ on demand ("Find People To Connect With")."""
 PEOPLE_PER_COMPANY = max(1, int(os.environ.get("PEOPLE_PER_COMPANY", "3")))
 """The people-search ladder stops once this many current employees were found."""
 
+PEOPLE_SIMILAR_MAX_QUERIES = max(0, int(os.environ.get("PEOPLE_SIMILAR_MAX_QUERIES", "2")))
+"""Most extra Google searches per company for people who share the user's school (0 turns the
+similar-background search off). Hard cap: the relaxation ladder never runs more than this."""
+
+PEOPLE_SIMILAR_PER_COMPANY = max(1, int(os.environ.get("PEOPLE_SIMILAR_PER_COMPANY", "2")))
+"""The similar-background ladder stops once this many people with a shared school were found."""
+
 PEOPLE_SEARCH_N = max(1, min(10, int(os.environ.get("PEOPLE_SEARCH_N", "5"))))
 """Profiles asked for per people search (more is slower: each link is resolved)."""
 

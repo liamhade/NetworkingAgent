@@ -11,6 +11,7 @@ import { Icon } from '@/components/icon'
 import { SavedResumeChip } from '@/components/saved-resume'
 import { SearchBoards } from '@/components/search-boards'
 import { anyBoardOn } from '@/utils/boards'
+import { formatSchools, parseSchools } from '@/utils/schools'
 import { cx } from '@/utils/cx'
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024
@@ -49,7 +50,18 @@ export function Hero({
   // True while the user picks a new file to replace the saved resume.
   const [replacing, setReplacing] = useState(false)
 
-  const update = (field: keyof SearchRequest) => (value: string) =>
+  // The schools box is free text; keep what was typed and sync only when the form changes
+  // from elsewhere (a resume fills it in, a saved search is restored).
+  const [schoolsText, setSchoolsText] = useState(formatSchools(initial.education))
+  useEffect(() => {
+    setSchoolsText((shown) =>
+      formatSchools(parseSchools(shown)) === formatSchools(form.education)
+        ? shown
+        : formatSchools(form.education),
+    )
+  }, [form.education])
+
+  const update = (field: 'background' | 'location' | 'looking_for') => (value: string) =>
     setForm((current) => ({ ...current, [field]: value }))
 
   const handleResume = async (file: File) => {
@@ -67,6 +79,7 @@ export function Hero({
         background: profile.background || current.background,
         location: profile.location || current.location,
         looking_for: profile.looking_for || current.looking_for,
+        education: profile.education?.length ? profile.education : current.education,
       }))
       setResume({ status: 'done', name: file.name })
       setReplacing(false)
@@ -171,6 +184,27 @@ export function Hero({
                 placeholder="I'm a data analyst with 3 years of SQL and Python experience in payments…"
                 value={form.background}
                 onChange={(event) => update('background')(event.target.value)}
+              />
+            )}
+          </Field>
+          <Field
+            label="School(s)"
+            hint="Optional. We also look for people at each company who went to your school."
+          >
+            {(id, describedBy) => (
+              <input
+                id={id}
+                type="text"
+                aria-describedby={describedBy}
+                placeholder="Cornell University"
+                value={schoolsText}
+                onChange={(event) => {
+                  setSchoolsText(event.target.value)
+                  setForm((current) => ({
+                    ...current,
+                    education: parseSchools(event.target.value),
+                  }))
+                }}
               />
             )}
           </Field>

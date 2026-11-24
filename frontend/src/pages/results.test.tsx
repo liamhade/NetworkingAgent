@@ -204,6 +204,19 @@ describe('results layout', () => {
   })
 })
 
+describe('shared background', () => {
+  it('shows why a person was found on their card, only when there is one', () => {
+    stubFetch()
+    const ann = { ...person('Ann'), shared_background: 'Same school: Cornell University' }
+    render(
+      <Harness
+        initial={{ summary: '', companies: [company('Acme', { people: [ann, person('Bob')] })] }}
+      />,
+    )
+    expect(screen.getAllByText('Same school: Cornell University')).toHaveLength(1)
+  })
+})
+
 describe('message drawer', () => {
   it('opens with the example message, counts characters and marks connected', async () => {
     stubFetch()

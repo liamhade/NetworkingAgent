@@ -36,3 +36,11 @@ def test_parse_resume_accepts_dict_output(scripted_model) -> None:
         structured={"background": "I build things.", "location": "", "looking_for": "SWE"}
     )
     assert resume.parse_resume(make_pdf(["x"]), llm=model).looking_for == "SWE"
+
+
+def test_resume_profile_education_is_required_for_the_llm_but_defaults_for_saved_ones() -> None:
+    from schemas import ResumeProfile
+
+    assert "education" in ResumeProfile.model_json_schema()["required"]
+    old = ResumeProfile.model_validate({"background": "b", "location": "", "looking_for": ""})
+    assert old.education == []

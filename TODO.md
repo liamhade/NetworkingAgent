@@ -12,7 +12,7 @@
 
 - [ ] Search for people that have similar background as the user (e.g. just education for now), as well as the current company search. If there aren't enough people, relax the search criteria and try again.
 
-- [ ] (**people with a similar background**) Search for people that have similar background as the user (e.g. just education for now), as well as the current company search. If there aren't enough people, relax the search criteria and try again.
+- [x] (**people with a similar background**) Search for people that have similar background as the user (e.g. just education for now), as well as the current company search. If there aren't enough people, relax the search criteria and try again.
 
 - [ ] (**refine UI**) It's a little confusiong at the moment, especially with the headers. The UI should be clear, modern, and easy to navigate.
 

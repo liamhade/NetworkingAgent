@@ -16,6 +16,8 @@ MAX_RESUME_CHARS = 60_000
 SYSTEM_PROMPT = """You read resumes and summarize them for a job-search assistant.
 Write `background` in the first person ("I am a ..."), 2-5 sentences covering current
 role, years of experience, key skills, notable accomplishments and education.
+Also list the schools attended in `education` (full school names only, most recent or highest
+degree first; [] if none).
 Only use facts that appear in the resume. Use an empty string for unknown fields."""
 
 

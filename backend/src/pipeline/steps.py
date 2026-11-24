@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 import ats
 import config
+import linkedin
 import prompts
 import tools
 from boards import BoardsConfig, effective_limit, is_on, on_boards
@@ -101,9 +102,22 @@ def structured(llm: BaseChatModel, schema: type[T], system: str, human: str, pur
     return result if isinstance(result, schema) else schema.model_validate(result)
 
 
+def clean_schools(education: Iterable[str]) -> list[str]:
+    """School names with blanks and repeats (any case) removed, order kept."""
+    schools: list[str] = []
+    for name in education:
+        name = " ".join(name.split())
+        if name and name.lower() not in {s.lower() for s in schools}:
+            schools.append(name)
+    return schools
+
+
 def format_profile(request: SearchRequest) -> str:
+    schools = clean_schools(request.education)
+    education = f"<education>{'; '.join(schools)}</education>\n" if schools else ""
     return (
         f"<background>\n{request.background.strip()}\n</background>\n"
+        f"{education}"
         f"<location>{request.location.strip() or 'not specified'}</location>\n"
         f"<looking_for>\n{request.looking_for.strip()}\n</looking_for>"
     )
@@ -695,18 +709,94 @@ def ladder(keywords: Iterable[str], location: str) -> list[tuple[str, str]]:
     return unique
 
 
+def similar_ladder(
+    keywords: Iterable[str], location: str, max_queries: int
+) -> list[tuple[str, str]]:
+    """The similar-background relaxation ladder, at most `max_queries` rungs, each one
+    also requiring the user's school: the first planned keywords and the location, then
+    the company and location only, then the company only (no keywords, no location)."""
+    first = next((k.strip() for k in keywords if k.strip()), "")
+    rungs: list[tuple[str, str]] = []
+    for rung in [(first, location), ("", location), ("", "")]:
+        if rung not in rungs:
+            rungs.append(rung)
+    return rungs[: max(0, max_queries)]
+
+
+def search_similar_people(
+    company: str,
+    education: Iterable[str],
+    keywords: Iterable[str],
+    location: str,
+    step: str,
+    people: list[Person],
+    seen: set[str],
+) -> list[TraceStep]:
+    """Find people at `company` who share the user's school, merging them into `people`.
+
+    Searches for the user's first school only, climbing `similar_ladder` until
+    `PEOPLE_SIMILAR_PER_COMPANY` people with a visible shared school were found, and never
+    running more than `PEOPLE_SIMILAR_MAX_QUERIES` Google searches. A person already in
+    `people` (by profile URL) is not added again, but is marked if the result shows the
+    school. Skipped (no query) when the user has no school or the knob is 0.
+    """
+    schools = clean_schools(education)
+    rungs = similar_ladder(keywords, location, config.PEOPLE_SIMILAR_MAX_QUERIES)
+    if not schools or not rungs:
+        return []
+    school = schools[0]
+    label = f"Same school: {school}"
+    by_key = {_url_key(p.url): p for p in people}
+    trace: list[TraceStep] = []
+    for words, where in rungs:
+        status(f"Looking for {school} alumni at {company}")
+        args = {"company": company, "keywords": words, "location": where, "school": school}
+        found, rung = call(
+            step,
+            "linkedin_people",
+            args,
+            lambda w=words, loc=where: tools.linkedin_people(
+                company, w, loc, n=config.PEOPLE_SEARCH_N, school=school
+            ),
+        )
+        trace.append(rung)
+        for raw in found or []:
+            if not raw.get("url"):
+                continue
+            key = _url_key(raw["url"])
+            shared = bool(raw.get("at_company")) and linkedin.mentions_school(raw, school)
+            person = by_key.get(key)
+            if person is None and key in seen:
+                continue  # already known (e.g. saved earlier): don't add it again
+            if person is None:
+                person = Person.model_validate({**raw, "keywords": words})
+                by_key[key] = person
+                seen.add(key)
+                people.append(person)
+            if shared and not person.shared_background:
+                person.shared_background = label
+        shared_count = sum(bool(p.shared_background) for p in people)
+        rung.note = f"similar background: {shared_count} people with a shared school so far"
+        if shared_count >= config.PEOPLE_SIMILAR_PER_COMPANY:
+            break
+    return trace
+
+
 def search_people(
     company: str,
     keywords: Iterable[str],
     location: str,
     step: str = "find_people",
     known_urls: Iterable[str] = (),
+    education: Iterable[str] = (),
 ) -> tuple[list[Person], list[TraceStep]]:
-    """Climb the ladder until `PEOPLE_PER_COMPANY` new current employees are found.
+    """Climb the ladder until `PEOPLE_PER_COMPANY` new current employees are found, then
+    search for people with the user's school (`education`), if they have one.
 
     Every rung is a trace step; an error on one rung is recorded and the next one runs.
     People already in `known_urls` (or found by an earlier rung) are skipped.
     """
+    keywords = list(keywords)
     seen = {_url_key(u) for u in known_urls}
     people: list[Person] = []
     trace: list[TraceStep] = []
@@ -732,6 +822,7 @@ def search_people(
         rung.note = f"{current} current employees so far"
         if current >= config.PEOPLE_PER_COMPANY:
             break
+    trace += search_similar_people(company, education, keywords, location, step, people, seen)
     return people, trace
 
 
@@ -741,11 +832,18 @@ def find_people_node(state: PipelineState) -> dict:
     people: dict[str, list[Person]] = {}
     trace: list[TraceStep] = []
     for company in state["chosen"][: config.PEOPLE_AUTO_COMPANIES]:
-        found, steps = search_people(company.name, company.people_keywords, location)
+        found, steps = search_people(
+            company.name,
+            company.people_keywords,
+            location,
+            education=state["request"].education,
+        )
         people[company.name] = found
         trace += steps
         current = sum(p.at_company for p in found)
-        status(f"{company.name}: {_plural(current, 'current employee')} found")
+        similar = sum(bool(p.shared_background) for p in found)
+        extra = f" ({similar} with a shared school)" if similar else ""
+        status(f"{company.name}: {_plural(current, 'current employee')} found{extra}")
     return {"people": people, "trace": trace}
 
 
@@ -832,7 +930,9 @@ def match_people(written: list[PersonResult], found: list[Person]) -> list[Perso
     for person in written:
         match = by_url.get(_url_key(person.profile_url)) or by_name.get(normalize_text(person.name))
         if match is not None and match.url not in kept:
-            kept[match.url] = person.model_copy(update={"profile_url": match.url})
+            kept[match.url] = person.model_copy(
+                update={"profile_url": match.url, "shared_background": match.shared_background}
+            )
     return list(kept.values())
 
 
@@ -855,8 +955,14 @@ def _fallback_company(c: ChosenCompany, found: list[Person] | None) -> CompanyRe
             for j in c.jobs
         ],
         people=[
-            PersonResult(name=p.name, title=p.title or p.headline, profile_url=p.url, alignment="")
-            for p in found or []
+            PersonResult(
+                name=p.name,
+                title=p.title or p.headline,
+                profile_url=p.url,
+                alignment="",
+                shared_background=p.shared_background,
+            )
+            for p in sorted(found or [], key=lambda p: not p.shared_background)
             if p.at_company
         ][:4],
         score=c.score,
