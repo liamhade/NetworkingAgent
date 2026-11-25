@@ -58,6 +58,17 @@ class FakeSupabase:
     def logout(self, token: str) -> None:
         self.access.pop(token, None)
 
+    def admin_set_password(self, user_id: str, password: str) -> None:
+        for email, (uid, _) in self.passwords.items():
+            if uid == user_id:
+                self.passwords[email] = (uid, password)
+                return
+        raise AuthError(404, "There is no account with this email.")
+
+    def admin_find_user(self, email: str) -> SupabaseUser | None:
+        found = self.passwords.get(email.strip().lower())
+        return SupabaseUser(found[0], email.strip().lower()) if found else None
+
 
 @pytest.fixture
 def fake(monkeypatch: pytest.MonkeyPatch) -> FakeSupabase:
@@ -66,7 +77,15 @@ def fake(monkeypatch: pytest.MonkeyPatch) -> FakeSupabase:
     monkeypatch.setattr(config, "SUPABASE_SERVICE_ROLE_KEY", "service")
     monkeypatch.setattr(config, "ACCESS_REQUEST_EMAIL", OWNER)
     f = FakeSupabase()
-    for name in ("admin_create_user", "password_login", "get_user", "refresh", "logout"):
+    for name in (
+        "admin_create_user",
+        "password_login",
+        "get_user",
+        "refresh",
+        "logout",
+        "admin_set_password",
+        "admin_find_user",
+    ):
         monkeypatch.setattr(supabase, name, getattr(f, name))
     session._verified.clear()
     return f

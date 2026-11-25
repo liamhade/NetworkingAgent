@@ -6,6 +6,7 @@ address; the owner checks the sender and approves. Plan: `docs/access-requests/p
     python -m auth.access list               # pending first
     python -m auth.access approve a@x.com    # also pre-approves an email that hasn't asked
     python -m auth.access deny a@x.com       # blocks it (pending or approved)
+    python -m auth.access reset-password a@x.com  # prints a new temporary password
 
 The same actions are on the owner's Admin tab (`admin`). `OWNER_EMAIL` is always approved.
 Run from `backend/src`. In the container (`PYTHONPATH` already points at `src`):
@@ -156,7 +157,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m auth.access")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("list", help="show every request, pending first")
-    for name, text in (("approve", "let this email in"), ("deny", "block this email")):
+    for name, text in (
+        ("approve", "let this email in"),
+        ("deny", "block this email"),
+        ("reset-password", "give this account a new temporary password (also the owner's)"),
+    ):
         sub.add_parser(name, help=text).add_argument("email")
     args = parser.parse_args(argv)
 
@@ -171,6 +176,20 @@ def main(argv: list[str] | None = None) -> int:
     if "@" not in args.email:
         print(f"Not an email address: {args.email}", file=sys.stderr)
         return 1
+    if args.command == "reset-password":
+        from . import passwords, supabase
+
+        if not config.auth_enabled():
+            print("Accounts are off (no Supabase settings): there's no password.", file=sys.stderr)
+            return 1
+        try:
+            password = passwords.reset(args.email)
+        except supabase.AuthError as exc:
+            print(exc.message, file=sys.stderr)
+            return 1
+        print(f"{normalize(args.email)}: new temporary password: {password}")
+        print("Sign in with it, then change it from the top bar (Change password).")
+        return 0
     try:
         entry = approve(args.email) if args.command == "approve" else deny(args.email)
     except ValueError as exc:

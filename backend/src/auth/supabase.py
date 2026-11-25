@@ -1,7 +1,8 @@
 """The Supabase Auth REST calls the app needs, with `requests` (no Supabase SDK).
 
 Public calls (`apikey` = anon key): password sign-in, refresh, read the signed-in user,
-sign out. Admin calls (service-role key, backend only): create and delete users.
+sign out. Admin calls (service-role key, backend only): create, find and delete users, and
+set a password.
 Docs: https://supabase.com/docs/reference/api (GoTrue `/auth/v1/...`).
 """
 
@@ -169,3 +170,45 @@ def admin_delete_user(user_id: str) -> None:
     )
     if response.status_code not in (200, 204, 404):
         raise _unavailable(response)
+
+
+def admin_set_password(user_id: str, password: str) -> None:
+    """Set an account's password (no email, no old password needed)."""
+    response = requests.put(
+        _url(f"admin/users/{user_id}"),
+        json={"password": password},
+        headers=_admin_headers(),
+        timeout=TIMEOUT_S,
+    )
+    if response.status_code == 200:
+        return
+    if response.status_code == 404:
+        raise AuthError(404, "There is no account with this email.")
+    if response.status_code in (400, 422):
+        raise AuthError(400, _message(_body(response)) or "That password isn't accepted.")
+    raise _unavailable(response)
+
+
+ADMIN_PAGE_SIZE = 1000
+
+
+def admin_find_user(email: str) -> SupabaseUser | None:
+    """The account with this email (case-insensitive), by paging through every user."""
+    wanted = email.strip().lower()
+    page = 1
+    while True:
+        response = requests.get(
+            _url("admin/users"),
+            params={"page": page, "per_page": ADMIN_PAGE_SIZE},
+            headers=_admin_headers(),
+            timeout=TIMEOUT_S,
+        )
+        if response.status_code != 200:
+            raise _unavailable(response)
+        users = _body(response).get("users") or []
+        for data in users:
+            if str(data.get("email") or "").lower() == wanted:
+                return _user(data)
+        if len(users) < ADMIN_PAGE_SIZE:
+            return None
+        page += 1

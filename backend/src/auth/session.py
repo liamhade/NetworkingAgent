@@ -187,3 +187,8 @@ def require_admin(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Please sign in.")
     if not is_admin(request):
         raise HTTPException(status_code=403, detail="Only the owner can open the admin page.")
+
+
+def signed_in_user(request: Request) -> SupabaseUser | None:
+    """The Supabase account behind this request (None without accounts or when signed out)."""
+    return request.scope.get("state", {}).get(_STATE_KEY)

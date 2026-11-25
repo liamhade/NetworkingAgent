@@ -604,3 +604,15 @@ select.auto{width:auto}
 .admin-table .r{text-align:right}
 .admin-email{display:inline-flex;align-items:center;gap:8px}
 .admin-acts{display:flex;gap:6px;justify-content:flex-end}
+.admin-temp{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;margin-bottom:18px;border-color:var(--con)}
+.admin-temp > .i{color:var(--con-d);margin-top:3px}
+.admin-temp p{margin:0 0 8px;font-size:14px}
+.admin-temp-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.admin-temp code{font:600 15px ui-monospace,Consolas,monospace;background:var(--alt);padding:4px 10px;border-radius:8px;user-select:all}
+
+/* Change password (components/change-password.tsx) */
+.modal-scrim{position:fixed;inset:0;background:var(--scrim);display:grid;place-items:center;padding:24px;z-index:70}
+.modal{box-shadow:var(--shadow-lg)}
+.modal h2{font-size:22px}
+.modal-acts{display:flex;gap:10px;justify-content:flex-end}
+.hint.err{color:var(--danger);font-weight:600}

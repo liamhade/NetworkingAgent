@@ -25,7 +25,7 @@ import resume
 import search_runs
 import tools
 from admin import overview as admin_overview
-from auth import access, session, supabase
+from auth import access, passwords, session, supabase
 from entities import catalog, keys
 from llm_usage import usage_context
 from schemas import (
@@ -125,6 +125,23 @@ def admin_whitelist_add(body: WhitelistRequest) -> access.Entry:
     entry = access.approve(body.email)
     log.info("Owner approved %s", entry.email)
     return entry
+
+
+class TemporaryPassword(BaseModel):
+    email: str
+    password: str
+    """Shown to the owner once, to pass on; the user should change it after signing in."""
+
+
+@app.post("/api/admin/users/{email}/reset-password", dependencies=AdminOnly)
+def admin_reset_password(email: str) -> TemporaryPassword:
+    """Give an account a new temporary password (owner only). No email is sent."""
+    _require_auth()
+    if "@" not in email:
+        raise HTTPException(status_code=422, detail="Not an email address.")
+    password = passwords.reset(email)
+    log.info("Owner reset the password of %s", access.normalize(email))
+    return TemporaryPassword(email=access.normalize(email), password=password)
 
 
 @app.delete("/api/admin/whitelist/{email}", dependencies=AdminOnly)
@@ -232,6 +249,23 @@ def logout(request: Request) -> Response:
     response = Response(status_code=204)
     session.clear_session_cookies(response, session.is_secure(request))
     return response
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=passwords.MIN_LENGTH, max_length=128)
+
+
+@app.post("/api/account/password", status_code=204)
+def change_password(body: ChangePasswordRequest, request: Request) -> Response:
+    """The signed-in user changes their own password (needs the current one)."""
+    _require_auth()
+    user = session.signed_in_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Please sign in.")
+    passwords.change(user.id, user.email, body.current_password, body.new_password)
+    log.info("Account %s changed its password", user.id)
+    return Response(status_code=204)
 
 
 @app.get("/api/health")

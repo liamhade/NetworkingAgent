@@ -3,6 +3,7 @@ import {
   addToWhitelist,
   getAdminOverview,
   removeFromWhitelist,
+  resetUserPassword,
   type AdminOverview,
   type AdminUser,
   type WhitelistStatus,
@@ -55,8 +56,13 @@ export function AdminPage() {
   const [adding, setAdding] = useState(false)
   /** The email whose action is in flight. */
   const [busy, setBusy] = useState<string | null>(null)
-  /** The email waiting for "Confirm remove". */
-  const [confirming, setConfirming] = useState<string | null>(null)
+  /** The row waiting for "Confirm remove" / "Confirm reset". */
+  const [confirming, setConfirming] = useState<{ email: string; action: 'remove' | 'reset' } | null>(
+    null,
+  )
+  /** The last temporary password set, shown once to pass on. */
+  const [temporary, setTemporary] = useState<{ email: string; password: string } | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const reload = (signal?: AbortSignal) =>
     withRetry(getAdminOverview, signal)
@@ -106,16 +112,23 @@ export function AdminPage() {
     if (user.is_owner) return <span className="muted">Owner</span>
     if (!user.email.includes('@')) return <span className="muted">No email</span>
     const disabled = busy !== null
-    if (confirming === user.email) {
+    if (confirming?.email === user.email) {
+      const removing = confirming.action === 'remove'
       return (
         <>
           <button
             type="button"
             className="btn xs danger"
             disabled={disabled}
-            onClick={() => run(user.email, () => removeFromWhitelist(user.email))}
+            onClick={() =>
+              run(user.email, async () => {
+                if (removing) return removeFromWhitelist(user.email)
+                setCopied(false)
+                setTemporary(await resetUserPassword(user.email))
+              })
+            }
           >
-            Confirm remove
+            {removing ? 'Confirm remove' : 'Confirm reset'}
           </button>
           <button
             type="button"
@@ -146,9 +159,20 @@ export function AdminPage() {
             type="button"
             className="btn xs danger"
             disabled={disabled}
-            onClick={() => setConfirming(user.email)}
+            onClick={() => setConfirming({ email: user.email, action: 'remove' })}
           >
             Remove
+          </button>
+        )}
+        {user.status === 'approved' && (
+          <button
+            type="button"
+            className="btn xs ghost"
+            disabled={disabled}
+            title="Set a new temporary password to send them"
+            onClick={() => setConfirming({ email: user.email, action: 'reset' })}
+          >
+            Reset password
           </button>
         )}
         {user.status === 'pending' && (
@@ -217,6 +241,41 @@ export function AdminPage() {
         </p>
       </form>
 
+      {temporary && (
+        <div className="card admin-temp" role="status">
+          <Icon name="check" />
+          <div>
+            <p>
+              New temporary password for <b>{temporary.email}</b>. Send it to them; it
+              isn&rsquo;t shown again. They can change it from the top bar after signing in.
+            </p>
+            <div className="admin-temp-row">
+              <code>{temporary.password}</code>
+              <button
+                type="button"
+                className="btn xs"
+                onClick={() =>
+                  navigator.clipboard
+                    ?.writeText(temporary.password)
+                    .then(() => setCopied(true))
+                    .catch(() => {})
+                }
+              >
+                <Icon name="copy" />
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+              <button
+                type="button"
+                className="btn xs ghost"
+                aria-label="Dismiss"
+                onClick={() => setTemporary(null)}
+              >
+                <Icon name="x" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {actionError && <ErrorBanner message={actionError} />}
       {loadError && <ErrorBanner message={loadError} />}
 

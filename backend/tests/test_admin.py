@@ -92,7 +92,8 @@ def test_whitelist_remove_blocks_live_sessions(owner: TestClient) -> None:
 
 
 def test_owner_cannot_be_removed_and_is_always_let_in(
-    owner: TestClient, fake: FakeSupabase  # noqa: F811
+    owner: TestClient,
+    fake: FakeSupabase,  # noqa: F811
 ) -> None:
     response = owner.delete(f"/api/admin/whitelist/{OWNER_EMAIL}")
     assert response.status_code == 400

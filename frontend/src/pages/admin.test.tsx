@@ -56,6 +56,9 @@ function stubBackend(isAdmin: boolean) {
         else users.push(row(email, 'approved'))
         return json({ email, status: 'approved' })
       }
+      const reset = url.match(/^\/api\/admin\/users\/(.+)\/reset-password$/)
+      if (reset && method === 'POST')
+        return json({ email: decodeURIComponent(reset[1]), password: 'Temp-Pass-123' })
       const removed = url.match(/^\/api\/admin\/whitelist\/(.+)$/)
       if (removed && method === 'DELETE') {
         const email = decodeURIComponent(removed[1])
@@ -88,39 +91,54 @@ describe('Admin tab', () => {
     expect(requests).toEqual([])
   })
 
-  it('lists users with usage, approves, removes and adds emails', async () => {
+  /** Render the Admin tab and wait for its table. */
+  async function openAdmin() {
     const requests = stubBackend(true)
     window.location.hash = '#/admin'
     render(<App />)
-    expect(await screen.findByRole('link', { name: 'Admin' })).toBeTruthy()
     const table = await screen.findByRole('table')
+    const rowOf = (email: RegExp) => screen.getByRole('row', { name: email })
+    return { requests, table, rowOf, user: userEvent.setup() }
+  }
+
+  it('lists users with their usage', async () => {
+    const { table } = await openAdmin()
+    expect(screen.getByRole('link', { name: 'Admin' })).toBeTruthy()
     const ben = within(table).getByRole('row', { name: /ben@x\.com/ })
     expect(within(ben).getByText('$1.25')).toBeTruthy()
     expect(within(table).getByRole('row', { name: /boss@x\.com/ }).textContent).toContain('Owner')
+  })
 
-    const user = userEvent.setup()
-    const ann = within(table).getByRole('row', { name: /ann@x\.com/ })
-    await user.click(within(ann).getByRole('button', { name: /Approve/ }))
-    await waitFor(() => expect(requests).toContain('PUT /api/admin/whitelist'))
-    await waitFor(() =>
-      expect(within(screen.getByRole('row', { name: /ann@x\.com/ })).getByText('Whitelisted')),
-    )
+  it('approves a pending request', async () => {
+    const { requests, rowOf, user } = await openAdmin()
+    await user.click(within(rowOf(/ann@x\.com/)).getByRole('button', { name: /Approve/ }))
+    await waitFor(() => expect(within(rowOf(/ann@x\.com/)).getByText('Whitelisted')))
+    expect(requests).toContain('PUT /api/admin/whitelist')
+  })
 
-    await user.click(
-      within(screen.getByRole('row', { name: /ben@x\.com/ })).getByRole('button', {
-        name: 'Remove',
-      }),
-    )
+  it('removes a whitelisted email after confirming', async () => {
+    const { requests, rowOf, user } = await openAdmin()
+    await user.click(within(rowOf(/ben@x\.com/)).getByRole('button', { name: 'Remove' }))
     await user.click(screen.getByRole('button', { name: 'Confirm remove' }))
-    await waitFor(() =>
-      expect(requests).toContain('DELETE /api/admin/whitelist/ben%40x.com'),
-    )
-    await waitFor(() =>
-      expect(within(screen.getByRole('row', { name: /ben@x\.com/ })).getByText('Removed')),
-    )
+    await waitFor(() => expect(within(rowOf(/ben@x\.com/)).getByText('Removed')))
+    expect(requests).toContain('DELETE /api/admin/whitelist/ben%40x.com')
+  })
 
+  it('adds a new email', async () => {
+    const { user } = await openAdmin()
     await user.type(screen.getByLabelText('Add to whitelist'), 'new@x.com')
     await user.click(screen.getByRole('button', { name: 'Add' }))
     expect(await screen.findByRole('row', { name: /new@x\.com/ })).toBeTruthy()
+  })
+
+  it('resets a password and shows the temporary one once', async () => {
+    const { requests, rowOf, user } = await openAdmin()
+    await user.click(within(rowOf(/ben@x\.com/)).getByRole('button', { name: 'Reset password' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm reset' }))
+    expect(await screen.findByText('Temp-Pass-123')).toBeTruthy()
+    expect(requests).toContain('POST /api/admin/users/ben%40x.com/reset-password')
+    expect(screen.getByText(/New temporary password for/).textContent).toContain('ben@x.com')
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.queryByText('Temp-Pass-123')).toBeNull()
   })
 })

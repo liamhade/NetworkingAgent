@@ -38,11 +38,17 @@ docker run -p 8000:8000 --env-file .env -v networking-agent-data:/data networkin
 railway ssh -- python -m auth.access list               # pending requests first
 railway ssh -- python -m auth.access approve a@x.com    # they can sign in now
 railway ssh -- python -m auth.access deny a@x.com       # refuse, or cut off an approved user
+railway ssh -- python -m auth.access reset-password a@x.com  # prints a temporary password
 ```
 
 `approve` (Admin tab: **Add to whitelist**) also works before someone asks: their request is
 then approved straight away. The Admin tab's **Remove** is `deny`. `OWNER_EMAIL` is always let
 in and can't be removed, so sign up with it first.
+
+**Passwords** (no email is sent; plan: `docs/password-reset/plan.md`): on the Admin tab,
+**Reset password** gives a whitelisted user a temporary password to pass on. Anyone signed in can
+**Change password** from the top bar. Forgot your own (owner) password? Run
+`reset-password you@x.com` above, sign in with the printed password, then change it.
 Other hosts: run the same `python -m auth.access ...` in their shell (`docker exec <container>`,
 Render's Shell tab, `fly ssh console`). Requests are stored in `/data/database/access.json`.
 Accounts made with the old invite codes stay approved.

@@ -541,3 +541,21 @@ export async function removeFromWhitelist(email: string): Promise<void> {
   })
   if (!response.ok) throw new Error(await errorMessage(response))
 }
+
+/** Give an account a new temporary password (owner only); shown once, no email is sent. */
+export const resetUserPassword = (email: string) =>
+  sendJson<{ email: string; password: string }>(
+    `/api/admin/users/${encodeURIComponent(email)}/reset-password`,
+    'POST',
+    {},
+  )
+
+/** The signed-in user changes their own password. */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const response = await apiFetch('/api/account/password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  })
+  if (!response.ok) throw new Error(await errorMessage(response))
+}

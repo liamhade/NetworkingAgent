@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { User } from '@/api'
+import { ChangePasswordDialog } from '@/components/change-password'
 import { Icon, type IconName } from '@/components/icon'
 import { initials } from '@/utils/initials'
 import { useAuth } from '@/utils/auth-context'
@@ -52,6 +53,7 @@ export function AppShell({
 
   const name = user?.display_name || user?.id || ''
   const auth = useAuth()
+  const [changingPassword, setChangingPassword] = useState(false)
   const navItems = user?.is_admin ? [...NAV_ITEMS, ADMIN_ITEM] : NAV_ITEMS
   return (
     <>
@@ -110,9 +112,18 @@ export function AppShell({
               {initials(name)}
             </span>
             {auth.enabled && (
-              <button type="button" className="btn xs ghost signout" onClick={auth.signOut}>
-                Sign out
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="btn xs ghost signout"
+                  onClick={() => setChangingPassword(true)}
+                >
+                  Change password
+                </button>
+                <button type="button" className="btn xs ghost signout" onClick={auth.signOut}>
+                  Sign out
+                </button>
+              </>
             )}
           </div>
         )}
@@ -123,6 +134,7 @@ export function AppShell({
           {children}
         </main>
       </div>
+      {changingPassword && <ChangePasswordDialog onClose={() => setChangingPassword(false)} />}
       <div
         className={sidebarOpen ? 'scrim open' : 'scrim'}
         aria-hidden="true"
