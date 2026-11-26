@@ -27,6 +27,11 @@ from .supabase import AuthError, Session, SupabaseUser
 
 ACCESS_COOKIE = "na_access"
 REFRESH_COOKIE = "na_refresh"
+DEV_COOKIE = "na_dev"
+"""`LOCAL_DEV_MODE`: signed in as TEST_USER (set by any sign-in)."""
+DEV_USER = SupabaseUser(id=accounts.TEST_USER_ID, email="")
+"""Stands for TEST_USER in the request state while `LOCAL_DEV_MODE` is on."""
+_LOOPBACK = {"127.0.0.1", "::1", "localhost", "testclient"}
 REFRESH_MAX_AGE_S = 30 * 24 * 3600
 VERIFIED_TTL_S = 60.0
 """How long a checked access token is trusted before asking Supabase again."""
@@ -75,7 +80,21 @@ def set_session_cookies(response: Response, session: Session, secure: bool) -> N
     response.set_cookie(REFRESH_COOKIE, session.refresh_token, max_age=REFRESH_MAX_AGE_S, **common)
 
 
+def is_local_request(scope: Scope) -> bool:
+    """From this machine and not through a proxy: the only requests `LOCAL_DEV_MODE` lets in.
+    (`testclient` is what FastAPI's TestClient reports.)"""
+    client = scope.get("client")
+    host = client[0] if client else ""
+    forwarded = any(name.lower() == b"x-forwarded-for" for name, _ in scope.get("headers", []))
+    return host in _LOOPBACK and not forwarded
+
+
+def set_dev_cookie(response: Response) -> None:
+    response.set_cookie(DEV_COOKIE, "1", httponly=True, samesite="lax", path="/")
+
+
 def clear_session_cookies(response: Response, secure: bool) -> None:
+    response.delete_cookie(DEV_COOKIE, path="/", httponly=True, samesite="lax")
     for name in (ACCESS_COOKIE, REFRESH_COOKIE):
         response.delete_cookie(name, path="/", secure=secure, httponly=True, samesite="lax")
 
@@ -123,10 +142,15 @@ class SessionMiddleware:
         path = scope.get("path", "")
         if (
             scope["type"] != "http"
-            or not config.auth_enabled()
+            or not config.sign_in_required()
             or not path.startswith("/api/")
             or path.startswith("/api/auth/")
         ):
+            await self.app(scope, receive, send)
+            return
+        if config.LOCAL_DEV_MODE:
+            signed_in = DEV_COOKIE in Request(scope).cookies and is_local_request(scope)
+            scope.setdefault("state", {})[_STATE_KEY] = DEV_USER if signed_in else None
             await self.app(scope, receive, send)
             return
 
@@ -164,31 +188,39 @@ class SessionMiddleware:
 
 def current_user(request: Request) -> accounts.User:
     """FastAPI dependency: the signed-in user (401 if none), or TEST_USER without auth."""
-    if not config.auth_enabled():
+    if not config.sign_in_required():
         return accounts.get_current_user()
     user: SupabaseUser | None = request.scope.get("state", {}).get(_STATE_KEY)
     if user is None:
         raise HTTPException(status_code=401, detail="Please sign in.")
+    if config.LOCAL_DEV_MODE:
+        return accounts.get_current_user()
     return accounts.ensure_user(user.id, user.email or user.id)
 
 
 def is_admin(request: Request) -> bool:
     """True for the owner (`OWNER_EMAIL`). Without accounts (local development, where everyone
-    is TEST_USER and the server is open anyway) everyone is: the Admin tab can be tried."""
-    if not config.auth_enabled():
+    is TEST_USER and the server is open anyway) everyone is, and in `LOCAL_DEV_MODE` the
+    signed-in TEST_USER is: the Admin tab can be tried."""
+    if not config.sign_in_required():
         return True
     user: SupabaseUser | None = request.scope.get("state", {}).get(_STATE_KEY)
+    if config.LOCAL_DEV_MODE:
+        return user is not None  # TEST_USER runs the Admin tab locally
     return user is not None and access.is_owner(user.email)
 
 
 def require_admin(request: Request) -> None:
     """FastAPI dependency for the owner-only `/api/admin` endpoints (401 signed out, else 403)."""
-    if config.auth_enabled() and request.scope.get("state", {}).get(_STATE_KEY) is None:
+    if config.sign_in_required() and request.scope.get("state", {}).get(_STATE_KEY) is None:
         raise HTTPException(status_code=401, detail="Please sign in.")
     if not is_admin(request):
         raise HTTPException(status_code=403, detail="Only the owner can open the admin page.")
 
 
 def signed_in_user(request: Request) -> SupabaseUser | None:
-    """The Supabase account behind this request (None without accounts or when signed out)."""
+    """The Supabase account behind this request (None without accounts, in `LOCAL_DEV_MODE`,
+    or when signed out)."""
+    if config.LOCAL_DEV_MODE:
+        return None
     return request.scope.get("state", {}).get(_STATE_KEY)

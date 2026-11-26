@@ -448,6 +448,8 @@ export interface AuthConfig {
   enabled: boolean
   /** The owner's inbox for access requests; empty if the server doesn't set one. */
   request_email: string
+  /** `LOCAL_DEV_MODE`: any credentials sign in as TEST_USER. */
+  local_dev?: boolean
 }
 
 export const getAuthConfig = (signal?: AbortSignal) => getJson<AuthConfig>('/api/auth/config', signal)

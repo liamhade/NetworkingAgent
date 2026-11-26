@@ -10,10 +10,12 @@ interface SignInPageProps {
   onSignedIn: () => void
   /** Where access requests are emailed (`ACCESS_REQUEST_EMAIL`); empty if unset. */
   requestEmail: string
+  /** `LOCAL_DEV_MODE`: any email and password (even empty) sign in as TEST_USER. */
+  localDev?: boolean
 }
 
 /** Email + password sign-in, and access requests the owner approves by email. */
-export function SignInPage({ onSignedIn, requestEmail }: SignInPageProps) {
+export function SignInPage({ onSignedIn, requestEmail, localDev = false }: SignInPageProps) {
   const [mode, setMode] = useState<Mode>('sign-in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -24,9 +26,10 @@ export function SignInPage({ onSignedIn, requestEmail }: SignInPageProps) {
   const requesting = mode === 'request'
   const canSubmit =
     !busy &&
-    email.trim() !== '' &&
-    password !== '' &&
-    (!requesting || password.length >= MIN_PASSWORD)
+    (localDev ||
+      (email.trim() !== '' &&
+        password !== '' &&
+        (!requesting || password.length >= MIN_PASSWORD)))
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -102,6 +105,11 @@ export function SignInPage({ onSignedIn, requestEmail }: SignInPageProps) {
             ? 'Choose a password and request access. You’ll then email us from this address to confirm it.'
             : 'Sign in to find companies, jobs and people to connect with.'}
         </p>
+        {localDev && (
+          <p className="dev-note" role="note">
+            <b>Local dev mode.</b> Any email and password (or none) sign you in as TEST_USER.
+          </p>
+        )}
 
         <div className="field">
           <label htmlFor={ids.email}>Email</label>
@@ -142,16 +150,18 @@ export function SignInPage({ onSignedIn, requestEmail }: SignInPageProps) {
           {busy ? 'Please wait…' : requesting ? 'Request access' : 'Sign in'}
         </button>
 
-        <p className="auth-switch">
-          {requesting ? 'Already approved?' : 'New here?'}{' '}
-          <button
-            type="button"
-            className="link-btn"
-            onClick={() => switchTo(requesting ? 'sign-in' : 'request')}
-          >
-            {requesting ? 'Sign in' : 'Request access'}
-          </button>
-        </p>
+        {!localDev && (
+          <p className="auth-switch">
+            {requesting ? 'Already approved?' : 'New here?'}{' '}
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => switchTo(requesting ? 'sign-in' : 'request')}
+            >
+              {requesting ? 'Sign in' : 'Request access'}
+            </button>
+          </p>
+        )}
       </form>
     </main>
   )

@@ -137,6 +137,22 @@ COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "auto").strip().lower()
 behind a proxy that sets `X-Forwarded-Proto`), `true` or `false`."""
 
 
+LOCAL_DEV_MODE = os.environ.get("LOCAL_DEV_MODE", "").strip().lower() in ("1", "true", "yes", "on")
+"""Local development: the sign-in page stays, but any email and password (even empty) sign in as
+TEST_USER, without Supabase. Only honoured for loopback requests, so it can't open a deployed
+server. See `docs/local-dev-mode/plan.md`."""
+
+
+def sign_in_required() -> bool:
+    """True when the page asks for a sign-in: real accounts, or `LOCAL_DEV_MODE`."""
+    return LOCAL_DEV_MODE or auth_enabled()
+
+
+def accounts_active() -> bool:
+    """True when real Supabase accounts are in use (not overridden by `LOCAL_DEV_MODE`)."""
+    return auth_enabled() and not LOCAL_DEV_MODE
+
+
 def auth_enabled() -> bool:
     """True when Supabase is configured: every `/api` call then needs a signed-in user.
     Otherwise (development, tests) everything runs as TEST_USER."""

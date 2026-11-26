@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { UNAUTHORIZED_EVENT } from '@/api'
+import { AppShell } from '@/components/app-shell'
 import { AuthGate } from '@/components/auth-gate'
 import { SignInPage } from '@/pages/sign-in'
 
@@ -102,5 +103,58 @@ describe('AuthGate', () => {
     window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument()
     expect(screen.queryByText('app content')).not.toBeInTheDocument()
+  })
+})
+
+describe('SignInPage in LOCAL_DEV_MODE', () => {
+  it('says so and signs in with empty fields', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({ ...USER, id: 'TEST_USER' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const onSignedIn = vi.fn()
+    render(<SignInPage onSignedIn={onSignedIn} requestEmail="" localDev />)
+
+    expect(screen.getByRole('note').textContent).toContain('TEST_USER')
+    expect(screen.queryByRole('button', { name: 'Request access' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/auth/login')
+    expect(onSignedIn).toHaveBeenCalled()
+  })
+
+  it('shows the sign-in page first and hides Change password once in', async () => {
+    let signedIn = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url === '/api/auth/config')
+          return json({ enabled: true, request_email: '', local_dev: true })
+        if (url === '/api/auth/login') {
+          signedIn = true
+          return json(USER)
+        }
+        if (url === '/api/me') return signedIn ? json(USER) : json({ detail: 'x' }, 401)
+        return json(null)
+      }),
+    )
+    render(
+      <AuthGate>
+        <AppShell
+          view="search"
+          user={{ ...USER, display_name: 'Test User' }}
+          theme="light"
+          onThemeChange={() => {}}
+          sidebar={null}
+          sidebarOpen={false}
+          onSidebarOpenChange={() => {}}
+        >
+          <p>app</p>
+        </AppShell>
+      </AuthGate>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByText('app')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Change password' })).toBeNull()
   })
 })

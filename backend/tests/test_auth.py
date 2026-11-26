@@ -113,13 +113,21 @@ def _signed_in(email: str) -> TestClient:
 
 def test_without_supabase_everyone_is_test_user() -> None:
     client = _client()
-    assert client.get("/api/auth/config").json() == {"enabled": False, "request_email": ""}
+    assert client.get("/api/auth/config").json() == {
+        "enabled": False,
+        "request_email": "",
+        "local_dev": False,
+    }
     assert client.get("/api/me").json()["id"] == "TEST_USER"
 
 
 def test_signed_out_requests_get_401_but_health_works(fake: FakeSupabase) -> None:
     client = _client()
-    assert client.get("/api/auth/config").json() == {"enabled": True, "request_email": OWNER}
+    assert client.get("/api/auth/config").json() == {
+        "enabled": True,
+        "request_email": OWNER,
+        "local_dev": False,
+    }
     assert client.get("/api/me").status_code == 401
     assert client.get("/api/searches").status_code == 401
     assert client.get("/api/health").status_code == 200

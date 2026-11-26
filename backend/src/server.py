@@ -10,13 +10,14 @@ import uuid
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, TypeVar
 
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Body, Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 import boards
 import config
@@ -65,6 +66,10 @@ MAX_RESUME_BYTES = 10 * 1024 * 1024
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if config.LOCAL_DEV_MODE:
+        log.warning(
+            "LOCAL_DEV_MODE is on: any sign-in from this machine is TEST_USER. Never deploy it."
+        )
     accounts.seed()
     history.mark_interrupted()  # Nothing survives a restart: stale `running` -> failed.
     yield
@@ -171,10 +176,14 @@ class AuthConfig(BaseModel):
     """False in development: everyone is TEST_USER and there is nothing to sign in to."""
     request_email: str = ""
     """Where people email their access request (`ACCESS_REQUEST_EMAIL`); empty if unset."""
+    local_dev: bool = False
+    """`LOCAL_DEV_MODE`: any credentials sign in as TEST_USER."""
 
 
 @app.get("/api/auth/config")
 def auth_config() -> AuthConfig:
+    if config.LOCAL_DEV_MODE:
+        return AuthConfig(enabled=True, local_dev=True)
     enabled = config.auth_enabled()
     return AuthConfig(enabled=enabled, request_email=config.ACCESS_REQUEST_EMAIL if enabled else "")
 
@@ -192,8 +201,36 @@ def _access_refused(status: str) -> JSONResponse:
 
 
 def _require_auth() -> None:
+    """404 unless real Supabase accounts are in use (not without them, not in LOCAL_DEV_MODE)."""
+    if config.LOCAL_DEV_MODE:
+        raise HTTPException(status_code=404, detail="There are no passwords in local dev mode.")
     if not config.auth_enabled():
         raise HTTPException(status_code=404, detail="Accounts are not enabled on this server.")
+
+
+def _dev_sign_in(request: Request) -> JSONResponse:
+    """`LOCAL_DEV_MODE`: sign in as TEST_USER whatever was typed (loopback requests only)."""
+    if not session.is_local_request(request.scope):
+        raise HTTPException(
+            status_code=403, detail="Local dev mode only signs in from this machine (localhost)."
+        )
+    response = JSONResponse(accounts.get_current_user().model_dump(mode="json"))
+    session.set_dev_cookie(response)
+    return response
+
+
+AuthBody = Annotated[dict[str, Any] | None, Body()]
+"""Sign-in bodies are checked inside the endpoint, so LOCAL_DEV_MODE can take anything."""
+
+
+_Model = TypeVar("_Model", bound=BaseModel)
+
+
+def _parse(model: type[_Model], body: dict[str, Any] | None) -> _Model:
+    try:
+        return model.model_validate(body or {})
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors(include_url=False)) from exc
 
 
 def _signed_in(request: Request, new_session: supabase.Session) -> JSONResponse:
@@ -204,9 +241,12 @@ def _signed_in(request: Request, new_session: supabase.Session) -> JSONResponse:
 
 
 @app.post("/api/auth/login")
-def login(body: LoginRequest, request: Request) -> JSONResponse:
+def login(request: Request, raw: AuthBody = None) -> JSONResponse:
     """Sign in with email + password; sets the session cookies once the owner approved them."""
+    if config.LOCAL_DEV_MODE:
+        return _dev_sign_in(request)
     _require_auth()
+    body = _parse(LoginRequest, raw)
     new_session = supabase.password_login(body.email.strip(), body.password)
     user = new_session.user
     email = user.email or body.email
@@ -220,13 +260,16 @@ def login(body: LoginRequest, request: Request) -> JSONResponse:
 
 
 @app.post("/api/auth/signup")
-def signup(body: SignupRequest, request: Request) -> JSONResponse:
+def signup(request: Request, raw: AuthBody = None) -> JSONResponse:
     """Request access: create the account, pending until the owner approves the email.
 
     202 `{"access": "pending"}` (no session yet), or the signed-in user if the email was
-    approved in advance.
+    approved in advance. In LOCAL_DEV_MODE: signs in as TEST_USER, like `login`.
     """
+    if config.LOCAL_DEV_MODE:
+        return _dev_sign_in(request)
     _require_auth()
+    body = _parse(SignupRequest, raw)
     email = access.normalize(body.email)
     earlier = access.get(email)
     if earlier is not None and earlier.status == "denied":
@@ -243,7 +286,7 @@ def signup(body: SignupRequest, request: Request) -> JSONResponse:
 def logout(request: Request) -> Response:
     """Sign out: revoke the session at Supabase and drop the cookies."""
     access = request.cookies.get(session.ACCESS_COOKIE)
-    if access and config.auth_enabled():
+    if access and config.accounts_active():
         session.forget_token(access)
         supabase.logout(access)
     response = Response(status_code=204)

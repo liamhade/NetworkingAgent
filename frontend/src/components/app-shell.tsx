@@ -113,13 +113,15 @@ export function AppShell({
             </span>
             {auth.enabled && (
               <>
-                <button
-                  type="button"
-                  className="btn xs ghost signout"
-                  onClick={() => setChangingPassword(true)}
-                >
-                  Change password
-                </button>
+                {!auth.localDev && (
+                  <button
+                    type="button"
+                    className="btn xs ghost signout"
+                    onClick={() => setChangingPassword(true)}
+                  >
+                    Change password
+                  </button>
+                )}
                 <button type="button" className="btn xs ghost signout" onClick={auth.signOut}>
                   Sign out
                 </button>

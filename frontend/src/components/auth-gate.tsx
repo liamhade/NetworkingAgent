@@ -14,6 +14,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [phase, setPhase] = useState<Phase>('checking')
   const [enabled, setEnabled] = useState(false)
   const [requestEmail, setRequestEmail] = useState('')
+  const [localDev, setLocalDev] = useState(false)
   const [session, setSession] = useState(0)
 
   useEffect(() => {
@@ -22,6 +23,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       .then(async (config) => {
         setEnabled(config.enabled)
         setRequestEmail(config.request_email ?? '')
+        setLocalDev(config.local_dev ?? false)
         if (!config.enabled) return setPhase('signed-in')
         const response = await fetch('/api/me', { signal: controller.signal })
         setPhase(response.ok ? 'signed-in' : response.status === 401 ? 'signed-out' : 'offline')
@@ -59,6 +61,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <SignInPage
         requestEmail={requestEmail}
+        localDev={localDev}
         onSignedIn={() => {
           setSession((n) => n + 1)
           setPhase('signed-in')
@@ -67,7 +70,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     )
   }
   return (
-    <AuthContext.Provider value={{ enabled, signOut: handleSignOut }}>
+    <AuthContext.Provider value={{ enabled, localDev, signOut: handleSignOut }}>
       <div key={session} style={{ display: 'contents' }}>
         {children}
       </div>

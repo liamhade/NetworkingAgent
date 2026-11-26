@@ -28,6 +28,8 @@
 
 ## Done
 
+- [x] (**local dev mode**) `LOCAL_DEV_MODE` env var: the sign-in page stays, but any credentials sign in as TEST_USER (localhost only).
+
 - [x] (**reset password**) Owner resets a user's password from the Admin tab (temporary password, no email), users change their own from the top bar, and `python -m auth.access reset-password` works for any account, including the owner's.
 
 - [x] (**admin tab and whitelist**) An Admin tab, only for `OWNER_EMAIL`, showing every user's email and LLM usage, where the owner adds emails to or removes them from the whitelist. Emails not on the whitelist can't use the app.

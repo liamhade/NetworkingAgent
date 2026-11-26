@@ -616,3 +616,6 @@ select.auto{width:auto}
 .modal h2{font-size:22px}
 .modal-acts{display:flex;gap:10px;justify-content:flex-end}
 .hint.err{color:var(--danger);font-weight:600}
+
+/* LOCAL_DEV_MODE note on the sign-in page */
+.dev-note{margin:0;padding:10px 12px;border-radius:var(--r-sm);background:var(--pin-t);color:var(--pin-d);border:1px dashed var(--accent-line);font-size:14px}
