@@ -28,7 +28,7 @@ _unquote_environment()
 LLM_MODEL = os.environ.get("LLM_MODEL", "anthropic:claude-haiku-5-5")
 """`<provider>:<model>` string understood by LangChain's `init_chat_model`."""
 
-CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(
+CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(
     ","
 )
 

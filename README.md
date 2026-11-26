@@ -50,7 +50,7 @@ cd backend
 
 # terminal 2
 cd frontend
-npm run dev          # http://localhost:5173 (proxies /api to :8000)
+npm run dev          # http://localhost:3000 (proxies /api to :8000)
 ```
 
 ## Test
@@ -81,4 +81,4 @@ npm run build
 | `LOCAL_DEV_MODE` | `false` | `true`: the sign-in page stays, but any credentials sign in as TEST_USER (no Supabase). Localhost only; never on a host. See `docs/local-dev-mode/plan.md` |
 | `SERPER_API_KEY` / `SERPAPI_API_KEY` | | Google results from serper.dev / serpapi.com instead of Chrome (no CAPTCHAs, ~1-2 s) |
 | `GOOGLE_RESOLVE_URLS` | `true` | Follow Google redirects to real URLs (slower) |
-| `CORS_ORIGINS` | `http://localhost:5173,...` | Allowed browser origins |
+| `CORS_ORIGINS` | `http://localhost:3000,...` | Allowed browser origins |

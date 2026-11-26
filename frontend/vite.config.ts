@@ -10,6 +10,9 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   server: {
+    // Not Vite's default 5173: Windows (Hyper-V / WSL) often reserves 5141-5240, and a reserved
+    // port fails with EACCES instead of moving on to the next free one.
+    port: 3000,
     // The FastAPI backend (see backend/src/server.py).
     proxy: { '/api': 'http://localhost:8000' },
   },
