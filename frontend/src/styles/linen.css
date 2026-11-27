@@ -71,7 +71,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .topbar .menu-btn{display:none}
 
 /* ---------- shell ---------- */
-.shell{display:grid;grid-template-columns:272px minmax(0,1fr);min-height:calc(100vh - 60px)}
+.shell{position:relative;display:grid;grid-template-columns:var(--side-w,272px) minmax(0,1fr);min-height:calc(100vh - 60px)}
 .side{background:var(--surface);border-right:1px solid var(--border);padding:18px 14px;position:sticky;top:60px;height:calc(100vh - 60px);overflow:auto;display:flex;flex-direction:column;gap:14px}
 .side h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);padding:0 8px}
 .hist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
@@ -409,6 +409,7 @@ details.boards[open] summary .i:last-child{transform:rotate(180deg)}
   .shell{grid-template-columns:1fr}
   .side{position:fixed;left:0;top:0;bottom:0;height:auto;width:290px;z-index:70;transform:translateX(-102%);transition:transform .25s;box-shadow:var(--shadow-lg);visibility:hidden}
   .side.open{transform:none;visibility:visible}
+  .side-resize{display:none}
   .scrim.open{display:block;position:fixed;inset:0;background:var(--scrim);z-index:65}
   .topbar .menu-btn{display:grid}
 }
@@ -619,3 +620,10 @@ select.auto{width:auto}
 
 /* LOCAL_DEV_MODE note on the sign-in page */
 .dev-note{margin:0;padding:10px 12px;border-radius:var(--r-sm);background:var(--pin-t);color:var(--pin-d);border:1px dashed var(--accent-line);font-size:14px}
+
+/* ---------- sidebar resize handle ---------- */
+.side-resize{position:absolute;top:0;bottom:0;left:calc(var(--side-w,272px) - 4px);width:8px;cursor:col-resize;z-index:5;touch-action:none}
+.side-resize::after{content:"";position:sticky;top:60px;display:block;margin:0 auto;width:2px;height:calc(100vh - 60px);background:transparent;transition:background .15s}
+.side-resize:hover::after,.side-resize:focus-visible::after,body.resizing .side-resize::after{background:var(--accent)}
+.side-resize:focus-visible{outline:none}
+body.resizing{cursor:col-resize;user-select:none}
