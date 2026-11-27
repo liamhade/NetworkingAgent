@@ -16,13 +16,20 @@ from pathlib import Path
 from schemas import SavedSearch, SearchRequest, SearchResults, SearchSummary, TraceStep
 from userdata import accounts
 
-TITLE_MAX_CHARS = 40
-LOCATION_MAX_CHARS = 24
+TITLE_MAX_CHARS = 32
+LOCATION_MAX_CHARS = 20
 _ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 _FILLER = re.compile(
     r"^(?:i\s*(?:'m|am)\s+|i\s+(?:want|would like|'d like)\s+(?:to\s+)?|"
     r"(?:currently\s+)?(?:looking|searching|hoping)\s+(?:for|to)\s+|to\s+find\s+|"
     r"find\s+|a\s+|an\s+|some\s+)+",
+    re.IGNORECASE,
+)
+# Where a request turns from "what" into qualifiers: "roles, particularly in fintech".
+_QUALIFIER = re.compile(
+    r"\s*(?:[,(:\u2013\u2014]|\s-\s|\s(?:particularly|especially|ideally|preferably|mainly|"
+    r"mostly|primarily|specifically|such as|including|like|with|that|which|where|who|"
+    r"focused|focusing|in|at|for|on|within|near|around|across|using)\b)",
     re.IGNORECASE,
 )
 
@@ -43,6 +50,9 @@ def make_title(request: SearchRequest) -> str:
     text = " ".join(request.looking_for.split())
     text = re.split(r"(?<=[.!?;])\s|[.!?;]$", text, maxsplit=1)[0].rstrip(".!?;")
     text = _FILLER.sub("", text + " ").strip() or "Search"
+    head = _QUALIFIER.split(text, maxsplit=1)[0].strip()
+    if len(head.split()) >= 2:  # Keep the core noun phrase, drop the qualifiers.
+        text = head
     title = _truncate(text[0].upper() + text[1:], TITLE_MAX_CHARS)
     location = " ".join(request.location.split())
     if location:
@@ -254,7 +264,7 @@ def load_searches(user_id: str, only_done: bool = False) -> list[SavedSearch]:
     records = []
     for path in folder.glob("*.json"):
         try:
-            record = SavedSearch.model_validate_json(path.read_text(encoding="utf-8"))
+            record = _read(path)
         except (OSError, ValueError):
             continue  # Skip unreadable/corrupt files rather than breaking the page.
         if not only_done or record.status == "done":
@@ -280,4 +290,10 @@ def get_search(user_id: str, search_id: str) -> SavedSearch | None:
     path = _searches_dir(user_id) / f"{search_id}.json"
     if not path.is_file():
         return None
-    return SavedSearch.model_validate_json(path.read_text(encoding="utf-8"))
+    return _read(path)
+
+
+def _read(path: Path) -> SavedSearch:
+    """Load a record, re-deriving its title so older searches get the current title style."""
+    record = SavedSearch.model_validate_json(path.read_text(encoding="utf-8"))
+    return record.model_copy(update={"title": make_title(record.request)})

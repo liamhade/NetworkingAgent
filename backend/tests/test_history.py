@@ -16,6 +16,16 @@ def test_make_title_strips_filler_and_adds_location() -> None:
     assert title == "Data analyst roles · NYC"
 
 
+def test_make_title_drops_qualifiers() -> None:
+    title = history.make_title(
+        _request("Software engineering roles, particularly in fintech", "New York, NY")
+    )
+    assert title == "Software engineering roles · New York, NY"
+    assert history.make_title(_request("Product manager jobs in healthcare")) == (
+        "Product manager jobs"
+    )
+
+
 def test_make_title_truncates_on_word_boundary() -> None:
     title = history.make_title(
         _request("Senior machine learning engineering positions at climate tech startups")
