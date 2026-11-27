@@ -8,7 +8,7 @@ from pipeline_fakes import (
     FakeSources,
     ats_board,
     ats_job,
-    compiled,
+    notes,
     plan,
     ranking,
 )
@@ -17,8 +17,8 @@ import boards
 import config
 import pipeline
 from pipeline import steps
-from pipeline.state import AtsJobQuery, JobRanking, SearchPlan
-from schemas import ResultEvent, SearchResults, StatusEvent, TraceEvent
+from pipeline.state import AtsJobQuery, CompileNotes, JobRanking, SearchPlan
+from schemas import ResultEvent, StatusEvent, TraceEvent
 
 ATS_PLAN = plan(ats_jobs=[AtsJobQuery(keywords="data analyst", location="New York")])
 
@@ -36,7 +36,7 @@ def run(model, request=REQUEST) -> list:
 
 
 def answers(search_plan: SearchPlan, ranked: JobRanking = DEFAULT_RANKING) -> dict:
-    return {SearchPlan: search_plan, JobRanking: ranked, SearchResults: compiled()}
+    return {SearchPlan: search_plan, JobRanking: ranked, CompileNotes: notes()}
 
 
 def trace_of(events: list) -> list:

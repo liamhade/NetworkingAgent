@@ -224,6 +224,26 @@ class ChosenCompany(BaseModel):
     people_keywords: list[str] = []
 
 
+# ---------------------------------------------------------------------- compile (LLM)
+
+
+class CompanyNotes(BaseModel):
+    name: str = Field(description="Company name, copied from the research data.")
+    description: str = Field(
+        description='One sentence on what the company does, or "" if its `describe` is false.'
+    )
+    people: list[PersonResult] = Field(
+        description="Up to 4 people to contact, from the company's `people`; [] if none."
+    )
+
+
+class CompileNotes(BaseModel):
+    """What the compile step writes: people notes and company descriptions only. Jobs,
+    scores, links and the summary are built in code (`steps.compile.assemble_results`)."""
+
+    companies: list[CompanyNotes] = Field(description="One entry per company, in the given order.")
+
+
 # ----------------------------------------------------------- on-demand people (LLM)
 
 

@@ -3,15 +3,15 @@
 import json
 
 import pytest
-from pipeline_fakes import DEFAULT_RANKING, REQUEST, FakeSources, compiled, plan, slug
+from pipeline_fakes import DEFAULT_RANKING, REQUEST, FakeSources, notes, plan, slug
 
 import config
 import pipeline
 import prompts
 import tools
 from pipeline import steps
-from pipeline.state import JobRanking, SearchPlan, UsajobsQuery
-from schemas import ResultEvent, SearchResults, TraceEvent
+from pipeline.state import CompileNotes, JobRanking, SearchPlan, UsajobsQuery
+from schemas import ResultEvent, TraceEvent
 from usajobs import Agency, Job, JobFilter
 from usajobs import api as usajobs_api
 
@@ -68,7 +68,7 @@ def run_scripted(scripted_model):
 
 
 def answers(search_plan: SearchPlan) -> dict:
-    return {SearchPlan: search_plan, JobRanking: DEFAULT_RANKING, SearchResults: compiled()}
+    return {SearchPlan: search_plan, JobRanking: DEFAULT_RANKING, CompileNotes: notes()}
 
 
 def usajobs_steps(events: list) -> list:

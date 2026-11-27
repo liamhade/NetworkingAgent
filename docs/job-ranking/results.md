@@ -97,3 +97,26 @@ There is no separate people-notes call; `compile` is the only call after `rank_j
   posting fell back to `text_source = none`. Environment issue, not a pipeline bug.
 - `compile` input/output did not shrink after the ranker took over job alignment (15k in,
   9k out); worth checking in phase 4.
+
+## Phase 4: compile slimmed
+
+Code, not the compile call, now builds `SearchResults`: companies, jobs (rank, score, reason,
+years, alignment), URLs and the summary come from the ranker's output and the gathered data.
+The compile call returns `CompileNotes`: per company a one-sentence description (only when
+the BuiltInNYC listing gave none) and the people's alignment notes and connect messages.
+It is sent `name`, `describe`, up to 3 job titles, `people_searched` and the current
+employees found, only for companies that need a description or have people, and is skipped
+when none does. Company `alignment` is now the best job's reason (code); the summary is
+built in code (one line: counts, roles, top match).
+
+Compile input on a synthetic fixture (8 companies, 16 jobs with 1,200-character
+requirements, 3 companies with 3 people): 28.2k characters before, 3.5k after. The output no
+longer carries job lists or job alignments, so the 9k output tokens of Run 1 should drop to
+the people notes (about 200 tokens per person) plus descriptions. The `rank_jobs` output is
+trimmed too: alignment only for the top `MAX_JOBS`, reasons of at most 15 words. Re-measure
+with a real run.
+
+Also in this phase: `filter.user_years` reads dated work ranges ("Nov 2025 - present") and
+new-grad wording; a search that finds only BuiltInNYC company listings ends with empty results
+and a summary rather than an error; the order-dependent assertion in
+`test_filter_node_reads_only_the_survivors_and_records_counts` (parallel reads) is fixed.

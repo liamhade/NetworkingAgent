@@ -11,6 +11,8 @@ from boards import catalog
 from pipeline.state import (
     BuiltinJobQuery,
     CompanyKeywords,
+    CompanyNotes,
+    CompileNotes,
     JobRank,
     JobRanking,
     PeopleNotes,
@@ -143,6 +145,31 @@ def compiled(found: dict[str, list[dict]] | None = None) -> SearchResults:
             )
             for i, c in enumerate(COMPANIES)
         ],
+    )
+
+
+def notes(found: dict[str, list[dict]] | None = None) -> CompileNotes:
+    """What a well-behaved compile step writes for the default fakes: a description for
+    every company and notes for the people `found` there (by company name)."""
+    found = found or {}
+    return CompileNotes(
+        companies=[
+            CompanyNotes(
+                name=c,
+                description=f"{c} is a company.",
+                people=[
+                    PersonResult(
+                        name=p["name"],
+                        title=p["title"],
+                        profile_url=p["url"],
+                        alignment="You both do data.",
+                        connect_message=f"Hi {p['name'].split()[0]}, would love to connect.",
+                    )
+                    for p in found.get(c, [])
+                ],
+            )
+            for c in COMPANIES
+        ]
     )
 
 

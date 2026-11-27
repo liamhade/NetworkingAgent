@@ -8,9 +8,12 @@ outputs, and code runs every search. One prompt per LLM step:
   filters (`pipeline.state.SearchPlan`). `plan_prompt(boards)` assembles it from the boards
   the search turned on (and, for USAJOBS, only when `config.usajobs_configured()`).
 - `RANK_JOBS_PROMPT`: `rank_jobs` node. Job cards (completed postings) -> the best jobs scored
-  0-100 for fit, each with a reason and alignment note, plus people-search keywords per
-  company (`pipeline.state.JobRanking`). Replaces the old company ranking and rescoring.
-- `COMPILE_PROMPT`: `compile` node. Gathered data -> `SearchResults` with alignment notes.
+  0-100 for fit, each with a reason (and an alignment note for the top jobs only), plus
+  people-search keywords per company (`pipeline.state.JobRanking`). Replaces the old company
+  ranking and rescoring.
+- `COMPILE_PROMPT`: `compile` node. Companies (job titles and the people found) -> `CompileNotes`:
+  each person's alignment note and connect message, and one-sentence company descriptions.
+  Jobs, scores, links and the summary are built in code from the ranker's output.
 - `PEOPLE_NOTES_PROMPT`: on-demand people search ("Find People To Connect With"). People
   found at one company -> their alignment and connection notes.
 - `LINKEDIN_MESSAGE_PROMPT`: rules for each person's `connect_message`, the example LinkedIn
@@ -118,23 +121,26 @@ should contact there: someone on the team they would join (e.g. "data science ma
 "engineering manager") and/or "recruiter". Describe the person, not the job posting (no \
 "jobs", "hiring")."""
 
-COMPILE_PROMPT = """You turn gathered job-search research data into the final results.
+COMPILE_PROMPT = """You write the contact notes for a job seeker's search results. The \
+research data lists companies they may apply to, in rank order, each with the titles of the \
+jobs and the LinkedIn profiles of current employees that were found there. Jobs, scores and \
+links are handled elsewhere; you only write notes.
 
 Rules:
-- Include every company in the research data, in the given order (they are ranked).
-- For each company, list up to 4 relevant jobs and up to 4 people to contact from the data. \
-Include every relevant person found at that company (the team the user would join, hiring \
-leaders, recruiters); skip people who clearly no longer work there (`at_company: false`, \
-"Ex-<company>") or are unrelated. Keep people with a `shared_background` (they share the \
-user's school) ahead of equally relevant people without one. If a company's \
-`people_searched` is false, leave its \
-people empty. Empty lists are allowed if nothing was found.
-- Copy names, titles and URLs exactly as they appear in the data. Never invent them.
-- Use `posting_text`, when present, for requirements, seniority and salary.
-- `alignment` fields speak to the user ("You ...") and point to concrete overlaps between \
-their background/goals and the company, job or person: skills, industry, school, past \
-employers, location, seniority.
-- Keep each alignment to 1-3 sentences."""
+- Return one entry per company in the research data, in the given order, with its `name` \
+copied exactly.
+- description: one sentence on what the company does, only when its `describe` is true \
+(otherwise ""). Say only what you know; if you do not recognise the company, write a \
+neutral sentence based on its job titles.
+- people: up to 4 of the company's `people`, most relevant first: the team the user would \
+join, hiring leaders, recruiters. Skip people who are unrelated. Keep people with a \
+`shared_background` (they share the user's school) ahead of equally relevant people without \
+one. [] if `people` is empty or `people_searched` is false.
+- Copy each person's name, title and profile URL exactly as they appear in the data. Never \
+invent people.
+- `alignment` speaks to the user ("You ...") in 1-3 sentences: why they should connect and \
+what they have in common (skills, industry, school, past employers, location); mention a \
+`shared_background` when present. Use the job titles to say what the user would apply for."""
 
 PEOPLE_NOTES_PROMPT = """You help a job seeker reach out to people at one company. You get \
 their profile, the company (and the job they are interested in, if any) and LinkedIn \

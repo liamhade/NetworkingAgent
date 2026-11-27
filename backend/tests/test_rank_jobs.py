@@ -3,13 +3,20 @@
 import json
 
 import pytest
-from pipeline_fakes import COMPANIES, REQUEST, FakeSources, compiled, job_url, plan, ranking
+from pipeline_fakes import COMPANIES, REQUEST, FakeSources, job_url, notes, plan, ranking
 
 import config
 import pipeline
 from pipeline import steps
-from pipeline.state import CompanyKeywords, JobPosting, JobRank, JobRanking, SearchPlan
-from schemas import JobResult, ResultEvent, SearchResults, TraceEvent
+from pipeline.state import (
+    CompanyKeywords,
+    CompileNotes,
+    JobPosting,
+    JobRank,
+    JobRanking,
+    SearchPlan,
+)
+from schemas import JobResult, ResultEvent, TraceEvent
 
 
 def posting(i: int, company: str = "Ramp", **fields) -> JobPosting:
@@ -158,7 +165,7 @@ def sources(monkeypatch: pytest.MonkeyPatch) -> FakeSources:
 
 
 def answers(ranked: JobRanking) -> dict:
-    return {SearchPlan: plan(), JobRanking: ranked, SearchResults: compiled()}
+    return {SearchPlan: plan(), JobRanking: ranked, CompileNotes: notes()}
 
 
 def test_graph_runs_filter_between_find_jobs_and_rank_jobs(scripted_model, sources) -> None:
@@ -178,7 +185,7 @@ def test_graph_runs_filter_between_find_jobs_and_rank_jobs(scripted_model, sourc
         "find_people",
         "compile",
     ]
-    assert [c["schema"] for c in model.structured_calls] == [SearchPlan, JobRanking, SearchResults]
+    assert [c["schema"] for c in model.structured_calls] == [SearchPlan, JobRanking, CompileNotes]
     results = events[-1].data
     assert [c.name for c in results.companies] == ["Plaid", "Ramp"]
     assert [j.url for c in results.companies for j in c.jobs] == [job_url(5), job_url(1)]
@@ -191,7 +198,7 @@ def test_max_jobs_limits_the_results(scripted_model, sources) -> None:
 
 
 def test_rank_jobs_runs_on_its_own_model(scripted_model, sources) -> None:
-    default = scripted_model(structured={SearchPlan: plan(), SearchResults: compiled()})
+    default = scripted_model(structured={SearchPlan: plan(), CompileNotes: notes()})
     ranker = scripted_model(structured={JobRanking: ranking(("Ramp", 0, [("j1", 80)]))})
     graph = pipeline.build_graph(default, ranker)
     final = graph.invoke({"request": REQUEST, "trace": []})

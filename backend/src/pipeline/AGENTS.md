@@ -3,7 +3,7 @@
 The search is a fixed LangGraph `StateGraph`, not a free-form tool-calling agent:
 `plan → find_jobs → filter → rank_jobs → find_people → compile`
 (`filter` is code: dedupe, location, experience, cap, then reads the postings; `rank_jobs`
-scores jobs on `RANK_MODEL`; see `docs/job-ranking/plan.md`). The LLM decides
+scores jobs on `RANK_MODEL`; `compile` only writes people notes and company descriptions, and code assembles the results; see `docs/job-ranking/plan.md`). The LLM decides
 *what* to search for, *how well* jobs fit (0-100 score) and writes the text; code decides
 *that* every step runs. Design, trace format and tradeoffs:
 `docs/langgraph-pipeline/plan.md`.
@@ -24,6 +24,7 @@ scores jobs on `RANK_MODEL`; see `docs/job-ranking/plan.md`). The LLM decides
   `rank_jobs`, `compile_results`, `find_people_on_demand`).
 - Sources are called through the plain functions in `tools.py`. Google calls all queue in the
   one shared Chrome worker; never start a second browser for parallelism.
+- `compile` (`CompileNotes`) is skipped when no company needs a description and nobody was found; job text, scores, links and the summary never come from it.
 - Code, not the LLM, enforces what reaches the results: only gathered companies, jobs and
   people, with URLs copied from the gathered data.
 - Every source call and validation is recorded in the search's `trace` (saved with the search,

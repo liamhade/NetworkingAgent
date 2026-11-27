@@ -4,14 +4,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from anthropic import transform_schema
-from pipeline_fakes import COMPANIES, FakeSources, compiled, plan
+from pipeline_fakes import COMPANIES, FakeSources, notes, plan
 from pipeline_fakes import DEFAULT_RANKING as RANKING
 
 import config
 import pipeline
 import prompts
 from entities import catalog
-from pipeline.state import JobRanking, SearchPlan
+from pipeline.state import CompileNotes, JobRanking, SearchPlan
 from schemas import (
     CompanyResult,
     PersonResult,
@@ -93,7 +93,7 @@ def test_old_people_without_a_message_still_load() -> None:
 
 
 def test_llm_schema_requires_message_and_hides_key() -> None:
-    schema = transform_schema(SearchResults)
+    schema = transform_schema(CompileNotes)
     person = schema["$defs"]["PersonResult"]
     assert "connect_message" in person["properties"]
     assert "connect_message" in person["required"]
@@ -120,13 +120,13 @@ def test_compile_step_sends_linkedin_message_rules(scripted_model, monkeypatch) 
         structured={
             SearchPlan: plan(),
             JobRanking: RANKING,
-            SearchResults: compiled(found),
+            CompileNotes: notes(found),
         }
     )
     events = list(pipeline.run_search(REQUEST, llm=model))
 
     compile_call = model.structured_calls[-1]
-    assert compile_call["schema"] is SearchResults
+    assert compile_call["schema"] is CompileNotes
     system = compile_call["input"][0].content
     assert system == prompts.compile_prompt()
     assert f"{config.LINKEDIN_MESSAGE_MAX_CHARS} characters" in system

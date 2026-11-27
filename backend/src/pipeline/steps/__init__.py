@@ -24,13 +24,13 @@ from pipeline.steps.common import (
     url_key,
 )
 from pipeline.steps.compile import (
-    _fallback_company,
+    assemble_results,
+    build_summary,
     compile_node,
     job_result,
     match_people,
     person_data,
     research_data,
-    restrict_results,
 )
 from pipeline.steps.complete import HOST_READS, PAGE_MAX_CHARS, REQUIREMENTS_CHARS, complete_jobs
 from pipeline.steps.filter import filter_jobs, filter_node, user_years
@@ -142,8 +142,8 @@ __all__ = [
     "research_data",
     "job_result",
     "match_people",
-    "_fallback_company",
-    "restrict_results",
+    "assemble_results",
+    "build_summary",
     "compile_node",
     "HOST_READS",
     "PAGE_MAX_CHARS",

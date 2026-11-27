@@ -11,7 +11,7 @@ from pipeline_fakes import (
     FakeSources,
     ats_board,
     ats_job,
-    compiled,
+    notes,
     plan,
 )
 
@@ -24,6 +24,7 @@ import tools
 from pipeline import steps
 from pipeline.state import (
     AtsJobQuery,
+    CompileNotes,
     ConservationJobQuery,
     JobRanking,
     SearchPlan,
@@ -251,7 +252,7 @@ def test_plan_step_sends_the_filtered_prompt(scripted_model, monkeypatch) -> Non
 def answers_for(search_plan: SearchPlan, google: list[str] | None = None) -> dict:
     if google is not None:
         search_plan = search_plan.model_copy(update={"google_queries": google})
-    return {SearchPlan: search_plan, JobRanking: DEFAULT_RANKING, SearchResults: compiled()}
+    return {SearchPlan: search_plan, JobRanking: DEFAULT_RANKING, CompileNotes: notes()}
 
 
 def run(model, request: SearchRequest = REQUEST) -> list:

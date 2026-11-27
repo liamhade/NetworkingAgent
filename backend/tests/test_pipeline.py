@@ -6,8 +6,8 @@ from pipeline_fakes import (
     DEFAULT_RANKING,
     REQUEST,
     FakeSources,
-    compiled,
     job_url,
+    notes,
     plan,
     profile,
     ranking,
@@ -16,10 +16,9 @@ from pipeline_fakes import (
 import config
 import pipeline
 from pipeline import steps
-from pipeline.state import JobRanking, SearchPlan
+from pipeline.state import BuiltinCompanyQuery, CompanyNotes, CompileNotes, JobRanking, SearchPlan
 from schemas import (
     ErrorEvent,
-    JobResult,
     PersonResult,
     ResultEvent,
     SearchResults,
@@ -44,8 +43,8 @@ def run(model) -> list:
 def answers(sources: FakeSources, **overrides) -> dict:
     """Structured answers per schema; compile includes everyone the fakes will find."""
     found = {c: sources.found(c, "data manager") for c in COMPANIES[:3]}
-    return {SearchPlan: plan(), JobRanking: DEFAULT_RANKING, SearchResults: compiled(found)} | {
-        {"plan": SearchPlan, "ranking": JobRanking, "results": SearchResults}[k]: v
+    return {SearchPlan: plan(), JobRanking: DEFAULT_RANKING, CompileNotes: notes(found)} | {
+        {"plan": SearchPlan, "ranking": JobRanking, "results": CompileNotes}[k]: v
         for k, v in overrides.items()
     }
 
@@ -100,11 +99,7 @@ def test_results_are_in_job_order_and_company_score_is_its_best_job(
         ("Plaid", 0, [("j5", 60), ("j6", 90)]),
         ("Ramp", 0, [("j1", 70)]),
     )
-    written = compiled()
-    written.companies[4].jobs.append(
-        JobResult(title="Lead Analyst", url=job_url(6), location="", salary="", alignment="a")
-    )
-    events = run(scripted_model(structured=answers(sources, ranking=ranked, results=written)))
+    events = run(scripted_model(structured=answers(sources, ranking=ranked)))
     results = result_of(events)
 
     # Companies by their best job; scores are job scores, not the compile step's.
@@ -123,14 +118,27 @@ def test_results_are_in_job_order_and_company_score_is_its_best_job(
     assert [c for c, _, _ in sources.people_calls] == ["Plaid", "Ramp", "Etsy"]
 
 
-def test_the_rankers_job_text_is_not_overridden_by_compile(scripted_model, sources) -> None:
-    written = compiled()
-    written.companies[0].jobs[0].alignment = "Compile wrote this."
-    written.companies[0].jobs[0].score = 5
-    results = result_of(run(scripted_model(structured=answers(sources, results=written))))
+def test_job_text_and_scores_are_the_rankers_not_the_compile_steps(scripted_model, sources) -> None:
+    results = result_of(run(scripted_model(structured=answers(sources))))
     job = results.companies[0].jobs[0]
     assert job.alignment == "You fit j1."  # from the ranker
     assert (job.score, job.rank, job.reason) == (90, 1, "j1 fits.")
+    assert results.companies[0].alignment == "j1 fits."  # the best job's reason
+
+
+def test_a_job_the_ranker_wrote_no_alignment_for_shows_its_reason(scripted_model, sources) -> None:
+    ranked = DEFAULT_RANKING.model_copy(deep=True)
+    ranked.jobs[0].alignment = ""
+    results = result_of(run(scripted_model(structured=answers(sources, ranking=ranked))))
+    assert results.companies[0].jobs[0].alignment == "j1 fits."
+
+
+def test_the_summary_is_built_in_code(scripted_model, sources) -> None:
+    results = result_of(run(scripted_model(structured=answers(sources))))
+    assert results.summary == (
+        "Ranked 5 jobs at 5 companies for Data Analyst, Analytics Engineer, best fit first. "
+        "Top match: Data Analyst at Ramp (90)."
+    )
 
 
 def test_people_ladder_climbs_when_results_are_empty(scripted_model, sources) -> None:
@@ -169,24 +177,22 @@ def test_ladder_skips_duplicate_rungs() -> None:
 # --- validation: nothing that wasn't gathered ----------------------------------------
 
 
-def test_compile_cannot_add_companies_jobs_or_people_that_were_not_gathered(
+def test_compile_cannot_add_companies_or_people_that_were_not_gathered(
     scripted_model, sources
 ) -> None:
     real = sources.found("Ramp", "data manager")[0]
-    written = compiled()
+    written = notes()
     ramp = written.companies[0]
-    ramp.jobs.append(
-        JobResult(
-            title="Made-up job", url="https://x.example/1", location="", salary="", alignment=""
-        )
-    )
     ramp.people = [
         PersonResult(
             name="Invented Person", title="", profile_url="https://x.example/in/a", alignment=""
         ),
-        # Right name, mangled URL: matched by name and the found URL is written back.
+        # Right name, mangled URL and title: matched by name, found data written back.
         PersonResult(
-            name=real["name"], title="", profile_url="https://linkedin.com/in/typo", alignment=""
+            name=real["name"],
+            title="Wizard",
+            profile_url="https://linkedin.com/in/typo",
+            alignment="a",
         ),
     ]
     written.companies[1].people = [  # Someone found at Ramp can't be listed under Notion.
@@ -195,9 +201,7 @@ def test_compile_cannot_add_companies_jobs_or_people_that_were_not_gathered(
     written.companies[3].people = [  # Etsy was never searched.
         PersonResult(name="y", title="", profile_url="https://www.linkedin.com/in/y", alignment="")
     ]
-    written.companies.append(
-        written.companies[0].model_copy(update={"name": "Fake Co", "url": "https://fake.example"})
-    )
+    written.companies.append(CompanyNotes(name="Fake Co", description="Invented.", people=[]))
     del written.companies[2]  # Datadog left out: added back from gathered data.
     events = run(scripted_model(structured=answers(sources, results=written)))
     results = result_of(events)
@@ -205,26 +209,50 @@ def test_compile_cannot_add_companies_jobs_or_people_that_were_not_gathered(
     by_name = {c.name: c for c in results.companies}
     assert set(by_name) == set(COMPANIES)
     assert [j.url for j in by_name["Ramp"].jobs] == [job_url(1)]
-    assert [(p.name, p.profile_url) for p in by_name["Ramp"].people] == [
-        (real["name"], real["url"])
+    assert [(p.name, p.title, p.profile_url) for p in by_name["Ramp"].people] == [
+        (real["name"], real["title"], real["url"])
     ]
+    assert by_name["Ramp"].people[0].alignment == "a"
     assert by_name["Notion"].people == [] and by_name["Etsy"].people == []
     datadog = by_name["Datadog"]
     assert datadog.people_searched and len(datadog.people) == 3
-    assert [j.url for j in datadog.jobs] == [job_url(3)]
+    assert {p.alignment for p in datadog.people} == {""}  # no notes: the LLM left it out
     check = next(s for s in trace_of(events) if s.step == "compile" and s.source == "validate")
-    assert check.args == {
-        "companies_dropped": 1,
-        "jobs_dropped": 1,
-        "people_dropped": 3,
-        "companies_added": 1,
-    }
+    assert check.args == {"companies_dropped": 1, "people_dropped": 3, "companies_added": 1}
+
+
+def test_people_are_copied_exactly_and_capped_at_four(scripted_model, sources) -> None:
+    sources.people[("Ramp", "data manager")] = [
+        profile("Ramp", "data manager", i) for i in range(6)
+    ]
+    found = {"Ramp": sources.found("Ramp", "data manager")}
+    model = scripted_model(structured=answers(sources, results=notes(found)))
+    people = result_of(run(model)).companies[0].people
+    assert [p.profile_url for p in people] == [p["url"] for p in found["Ramp"][:4]]
+    assert [p.title for p in people] == [p["title"] for p in found["Ramp"][:4]]
+    assert all(p.connect_message.startswith("Hi Ramp") for p in people)
+
+
+def test_company_description_comes_from_compile_unless_the_listing_has_one(
+    scripted_model, sources, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        steps.tools,
+        "builtin_companies",
+        lambda *a, **k: [{"name": "Ramp", "url": "u", "mission": "Spend management."}],
+    )
+    query = BuiltinCompanyQuery(industries=["fintech"], tech_stack=[])
+    model = scripted_model(structured=answers(sources, plan=plan(builtin_companies=[query])))
+    by_name = {c.name: c for c in result_of(run(model)).companies}
+    assert by_name["Ramp"].description == "Spend management."
+    assert by_name["Notion"].description == "Notion is a company."
+    compile_input = model.structured_calls[-1]["input"][1].content
+    assert '"describe": false' in compile_input  # Ramp: described by its listing
+    assert '"describe": true' in compile_input
 
 
 def test_company_url_must_come_from_the_gathered_data(scripted_model, sources) -> None:
-    written = compiled()
-    written.companies[0].url = "https://invented.example"
-    results = result_of(run(scripted_model(structured=answers(sources, results=written))))
+    results = result_of(run(scripted_model(structured=answers(sources))))
     assert results.companies[0].url == "https://www.builtinnyc.com/company/ramp"
 
 
@@ -349,30 +377,44 @@ def test_event_stream_order(scripted_model, sources) -> None:
     ]
 
 
-def test_compile_input_is_only_gathered_data(scripted_model, sources) -> None:
+def test_compile_input_has_titles_and_people_but_no_posting_text(scripted_model, sources) -> None:
     model = scripted_model(structured=answers(sources))
     run(model)
     [plan_call, rank_call, compile_call] = model.structured_calls
+    assert compile_call["schema"] is CompileNotes
     assert compile_call["kwargs"] == {"method": "json_schema"}
     research = compile_call["input"][1].content
-    assert "<research>" in research and "Posting https://www.builtinnyc.com/job/1" in research
+    assert "<research>" in research
+    assert "Data Analyst at Ramp" in research  # the job title
+    assert "Posting https://www.builtinnyc.com" not in research  # no posting text
+    assert "posting_text" not in research and "builtinnyc.com" not in research
     assert '"people_searched": false' in research  # Etsy / Plaid
     cards = rank_call["input"][1].content
     assert '"id": "j1"' in cards and "Posting https://www.builtinnyc.com/job/1" in cards
 
 
-def test_a_search_that_finds_only_listed_companies_ends_with_empty_results(
-    scripted_model, sources, monkeypatch
-) -> None:
-    from pipeline.state import BuiltinCompanyQuery
+def test_compile_input_is_smaller_than_the_old_full_research_dump(scripted_model, sources) -> None:
+    model = scripted_model(structured=answers(sources))
+    run(model)
+    research = model.structured_calls[-1]["input"][1].content
+    assert len(research) < 5000
 
-    sources.jobs = []
-    listed = [{"name": "Ramp", "url": "https://www.builtinnyc.com/company/ramp"}]
-    monkeypatch.setattr(steps.tools, "builtin_companies", lambda *a, **k: listed)
+
+def test_compile_is_skipped_when_nothing_needs_it(scripted_model, sources, monkeypatch) -> None:
+    sources.default_people = 0  # nobody found anywhere
+    monkeypatch.setattr(
+        steps.tools,
+        "builtin_companies",
+        lambda *a, **k: [
+            {"name": c, "url": "u", "mission": f"{c} does things."} for c in COMPANIES
+        ],
+    )
     query = BuiltinCompanyQuery(industries=["fintech"], tech_stack=[])
-    model = scripted_model(structured={SearchPlan: plan(builtin_companies=[query])})
+    model = scripted_model(structured=answers(sources, plan=plan(builtin_companies=[query])))
     events = run(model)
+    assert [c["schema"] for c in model.structured_calls] == [SearchPlan, JobRanking]
     results = result_of(events)
-    assert results.companies == [] and "Ramp" in results.summary
-    assert not any(isinstance(e, ErrorEvent) for e in events)
-    assert len(model.structured_calls) == 1  # the plan only: nothing to rank or compile
+    assert [c.name for c in results.companies] == COMPANIES
+    assert results.companies[0].description == "Ramp does things."
+    skipped = next(s for s in trace_of(events) if s.step == "compile" and s.source == "llm")
+    assert skipped.note.startswith("skipped")

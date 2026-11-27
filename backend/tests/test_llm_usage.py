@@ -33,7 +33,7 @@ from llm_usage import (
     usage_context,
     usage_handler,
 )
-from pipeline.state import JobRanking, SearchPlan
+from pipeline.state import CompileNotes, JobRanking, SearchPlan
 from schemas import ErrorEvent, ResultEvent, SearchRequest, SearchResults
 
 REQUEST = SearchRequest(background="Analyst", location="NYC", looking_for="Data roles")
@@ -113,7 +113,11 @@ def _pipeline_model(**kwargs: Any) -> "UsageChatModel":
             reply("{}", inp=1200, out=60, read=4500),  # rank_jobs
             reply("{}", inp=6000, out=900),  # compile_results
         ],
-        structured={SearchPlan: plan(), JobRanking: RANKING, SearchResults: RESULTS},
+        structured={
+            SearchPlan: plan(),
+            JobRanking: RANKING,
+            CompileNotes: CompileNotes(companies=[]),
+        },
         **kwargs,
     )
 
