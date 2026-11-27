@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 import tools
+from boards import catalog
 from pipeline.state import (
     BuiltinJobQuery,
     CompanyRanking,
@@ -21,6 +22,8 @@ REQUEST = SearchRequest(
     background="I am a data analyst with 3 years of SQL and Python.",
     location="New York, NY",
     looking_for="Senior data analyst roles in fintech",
+    # Every board on (the shipped defaults are narrower), so pipeline tests cover them all.
+    boards={b.id: {"enabled": True} for b in catalog()},
 )
 
 COMPANIES = ["Ramp", "Notion", "Datadog", "Etsy", "Plaid"]

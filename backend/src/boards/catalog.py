@@ -18,6 +18,8 @@ BUILTIN_QUERIES = 3
 GOOGLE_QUERIES = 2
 """Most queries per search (`pipeline.steps.MAX_JOB_QUERIES` / `MAX_GOOGLE_QUERIES`)."""
 ATS_PROVIDER_COUNT = 4
+DEFAULT_ON = frozenset({"builtin_nyc", "ashby", "google"})
+"""Boards a new search starts with; the rest are opt-in."""
 """Providers that used to share the `ATS_MAX_BOARDS` budget; each now has its own."""
 
 
@@ -145,7 +147,8 @@ def catalog() -> list[BoardInfo]:
                 available=not reason,
                 unavailable_reason=reason,
                 default=BoardSetting(
-                    enabled=True, max_jobs=max(d.min_jobs, min(d.max_jobs, d.default_jobs()))
+                    enabled=d.id in DEFAULT_ON,
+                    max_jobs=max(d.min_jobs, min(d.max_jobs, d.default_jobs())),
                 ),
                 min_jobs=d.min_jobs,
                 max_jobs=d.max_jobs,
@@ -155,7 +158,7 @@ def catalog() -> list[BoardInfo]:
 
 
 def default_config() -> BoardsConfig:
-    """Today's behaviour: every board on at its default limit."""
+    """Every board at its default limit; only `DEFAULT_ON` boards are on."""
     return {b.id: b.default.model_copy() for b in catalog()}
 
 

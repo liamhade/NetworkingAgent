@@ -570,3 +570,10 @@ def test_full_pipeline_with_a_trimmed_config_still_ranks_and_compiles(
     # The LLM ranked the (fewer) gathered jobs; ranking and ordering stay with the pipeline.
     assert ("google_search", "x") not in sources.calls
     assert len([s for s in trace_of(events) if s.source == "builtin_jobs"]) == 1
+
+
+@pytest.mark.real_board_defaults
+def test_new_searches_default_to_builtin_nyc_ashby_and_google() -> None:
+    on = {b.id for b in boards.catalog() if b.default.enabled}
+    assert on == {"builtin_nyc", "ashby", "google"}
+    assert SearchRequest(background="a", looking_for="b").boards["conservation"].enabled is False

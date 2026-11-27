@@ -105,3 +105,23 @@ def accounts_off(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(config, "ACCESS_REQUEST_EMAIL", "")
     monkeypatch.setattr(config, "OWNER_EMAIL", "")
     monkeypatch.setattr(config, "LOCAL_DEV_MODE", False)
+
+
+@pytest.fixture(autouse=True)
+def every_board_on(request, monkeypatch: pytest.MonkeyPatch):
+    """Pipeline tests predate the narrower defaults (`catalog.DEFAULT_ON`) and expect every
+    board on unless they say otherwise. Mark a test `real_board_defaults` to keep the real ones.
+    """
+    if request.node.get_closest_marker("real_board_defaults"):
+        return
+    import importlib
+
+    catalog = importlib.import_module("boards.catalog")
+
+    monkeypatch.setattr(catalog, "DEFAULT_ON", frozenset(d.id for d in catalog._definitions()))
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "real_board_defaults: use the shipped default boards, not every board on"
+    )
