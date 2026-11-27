@@ -120,3 +120,82 @@ Also in this phase: `filter.user_years` reads dated work ranges ("Nov 2025 - pre
 new-grad wording; a search that finds only BuiltInNYC company listings ends with empty results
 and a summary rather than an error; the order-dependent assertion in
 `test_filter_node_reads_only_the_survivors_and_records_counts` (parallel reads) is fixed.
+
+## Run 2: final (2026-11-27)
+
+The same script ([`research/job_ranking_e2e/run.py`](../../research/job_ranking_e2e/run.py),
+unchanged: the graph's inputs and node names did not change), the `TEST_USER` account's newest
+saved search, real boards and models, usage in a scratch CSV, nothing saved to `database/`.
+It was run twice. The first run had no Playwright browser installed (the generic page reader
+failed); the browser was then installed and the search repeated. Both are listed; "Run 2" below
+is the second.
+
+### LLM cost per step
+
+| Step | Calls | Input tok | Output tok | Cost | Latency |
+|---|---|---|---|---|---|
+| plan | 1 | 4,920 | 321 | $0.0007 | 3.3 s |
+| rank_jobs (Sonnet 5.5) | 1 | 7,712 | 2,120 | $0.0366 | 13.8 s |
+| compile (CompileNotes: people notes + descriptions) | 1 | 5,804 | 6,364 | $0.0038 | 23.0 s |
+| **Total** | 3 | 18,436 | 8,805 | **$0.0410** | |
+
+First run: $0.0376 total (rank 6.1k in / 2.1k out, $0.0335; compile 5.4k in / 5.7k out, $0.0034).
+
+### Wall time per node (seconds)
+
+plan 3.5, find_jobs 9.4, filter 8.1, rank_jobs 13.9, find_people 7.6, compile 23.0.
+**Total 110.1 s** (first run 112.5 s).
+
+### Job counts
+
+- Found: 30. After `filter`: 30 (0 duplicates, 0 far away, 0 over the limit, **0 dropped by
+  the years filter**). First run: 23 found, 20 after filter (3 duplicates).
+- `user_years` was still **None**: the saved background has only a bare "2025" mention and no
+  dated work range or "N years", so the new derivation has nothing to read. The years filter
+  therefore did not act, for this user.
+- `text_source`: 3 parser, 27 none (first run: 4 parser, 16 none). Cards, not postings, were
+  ranked for most jobs (see Bugs and gaps).
+- Ranked and returned: 12.
+
+### Seniority check
+
+- Run 2: no job in the top 12 is a senior title or asks for 3+ years. Top 12: Toast Software
+  Engineer II, Support AI 90; Whatnot AI Tooling Engineer 88; Affirm SWE I 78; Runpod 77;
+  Percepta 76; Ramp 72; Sequence 70; Aegis AI 68; Multi Media 68; Netic 66; Navan 62; Notion 60.
+  No later-year new-grad programme appeared. `years_required` was empty for all 12 (the text
+  was mostly not read).
+- First run: **three Mastercard "Lead" roles ranked 7, 8 and 11 with scores 78, 75 and 66**
+  for a user with about one year of experience. With no posting text (`none`) and
+  `user_years` None, neither the filter nor the ranker caught the title. This breaks the
+  "clearly too senior scores 40 or less" expectation.
+- Verdict: **not fully met.** The ranker can score a "Lead" title high when it has only card
+  text.
+
+### Comparison
+
+| | Baseline | Plan target | Run 1 | Run 2 |
+|---|---|---|---|---|
+| LLM cost per search | $0.0063 | $0.04-0.05 | $0.0653 | **$0.0410** |
+| rank_jobs | 3.5-8.4k in (Haiku) | 8-10k in (Sonnet) | 12.1k in / 3.4k out, $0.0586 | 7.7k in / 2.1k out, $0.0366 |
+| compile | $0.0043, ~40 s | smaller | $0.0061, 33.4 s, 15.1k in / 9.1k out | $0.0038, 23.0 s, 5.8k in / 6.4k out |
+| Added read time (filter node) | 0-25 s | 10-20 s | 7.8 s | 8.1 s (capped by the 8 s batch timeout) |
+| Total time | 80-100 s | | 88.0 s | 110.1 s |
+| Postings read | | | 29 of 30 | 3 of 30 |
+| Years filter dropped | | | 0 (user_years None) | 0 (user_years None) |
+
+### Gate
+
+- Cost <= $0.08: **pass** ($0.0410, inside the plan's $0.04-0.05).
+- Time <= ~200 s: **pass** (110 s; 10-20 s above the baseline mostly from slower find_jobs
+  and compile).
+
+### Bugs and gaps found
+
+- **Most postings were not read.** The 8 s batch timeout (`READ_TIMEOUT_S`) with 3 reads per
+  host at about 2.4 s each (BuiltInNYC was slower than in Run 1, about 1.2 s) fits roughly 9
+  reads; the rest time out and fall back to card text. Raising the timeout, or the per-host
+  reads, would trade time for text. Not changed here.
+- The ranker gives high scores to "Lead" titles when no posting text was read (first run).
+  A prompt rule (title seniority vs. the user's experience applies even without years) is the
+  likely fix. Not changed here.
+- `user_years` stays None for backgrounds with no dated work range or "N years".
