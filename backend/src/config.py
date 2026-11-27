@@ -67,6 +67,16 @@ READ_TIMEOUT_S = max(1.0, float(os.environ.get("READ_TIMEOUT_S", "8")))
 """Seconds a batch of posting reads may take; pages not read by then are skipped, so one slow
 page (e.g. a JS-only board that needs the browser) cannot hold up the search."""
 
+READ_BUDGET_S = max(1.0, float(os.environ.get("READ_BUDGET_S", "20")))
+"""Seconds the posting reads of the `filter` step may take in all (every read starts at once,
+so this is a deadline for the batch, not per read); jobs not read by then keep their card text."""
+
+READ_HOST_CONCURRENCY = max(1, int(os.environ.get("READ_HOST_CONCURRENCY", "5")))
+"""Posting reads of one site at once (the shared page pool has 6 workers)."""
+
+READ_RETRY_BACKOFF_S = max(0.0, float(os.environ.get("READ_RETRY_BACKOFF_S", "1.5")))
+"""Wait before the one retry of a read that got HTTP 429 (only if the budget has room)."""
+
 ATS_MAX_BOARDS = max(0, int(os.environ.get("ATS_MAX_BOARDS", "6")))
 """Most ATS boards (any provider) fetched per search (0 turns ATS off)."""
 

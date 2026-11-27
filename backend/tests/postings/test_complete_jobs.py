@@ -146,6 +146,40 @@ def test_http_429_keeps_the_job_with_its_card_text(monkeypatch: pytest.MonkeyPat
     assert trace[-1].args["none"] == 3
 
 
+def test_a_429_is_retried_once_after_a_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "READ_RETRY_BACKOFF_S", 0.01)
+    calls: dict[str, int] = {}
+
+    def flaky(url: str) -> Any:
+        calls[url] = calls.get(url, 0) + 1
+        if calls[url] == 1:
+            response = requests.Response()
+            response.status_code = 429
+            raise requests.HTTPError("429", response=response)
+        return fetch_mod.Fetched(url=url, final_url=url, status=200, content=BUILTIN_HTML.encode())
+
+    monkeypatch.setattr(fetch_mod, "fetch", flaky)
+    [posting], trace = steps.complete_jobs([job(BUILTIN_URL, 1)], max_reads=5)
+    assert posting.text_source == "parser"
+    assert list(calls.values()) == [2]
+    assert not trace[0].error
+
+
+def test_reads_beyond_three_per_host_run_together(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "READ_HOST_CONCURRENCY", 5)
+    monkeypatch.setattr(config, "READ_BUDGET_S", 3.0)
+
+    def slow(url: str) -> Any:
+        time.sleep(0.3)
+        return fetch_mod.Fetched(url=url, final_url=url, status=200, content=BUILTIN_HTML.encode())
+
+    monkeypatch.setattr(fetch_mod, "fetch", slow)
+    start = time.monotonic()
+    postings, _ = steps.complete_jobs([job(BUILTIN_URL, n) for n in range(1, 11)], max_reads=10)
+    assert {p.text_source for p in postings} == {"parser"}
+    assert time.monotonic() - start < 1.5  # two waves of 5; 3 per host would take 4 waves
+
+
 def test_empty_page_counts_as_a_failed_read(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         tools,
@@ -158,11 +192,11 @@ def test_empty_page_counts_as_a_failed_read(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_a_slow_read_times_out_and_the_job_is_kept(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(config, "READ_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(config, "READ_BUDGET_S", 1.0)
 
     def slow(url: str, max_chars: int = 0) -> PageResult:
         if url.endswith("/1"):
-            time.sleep(1)
+            time.sleep(2)
         return fake_page(url)
 
     monkeypatch.setattr(tools, "read_page", slow)

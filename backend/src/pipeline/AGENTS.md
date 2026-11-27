@@ -23,7 +23,7 @@ State keys (`state.py`, `PipelineState`): `request`, `plan`, `jobs`, `listed_com
 - `graph.py`: builds the graph; `run_search()` yields the status/result/error event stream
 - `steps/`: one module per node (`plan`, `find_jobs`, `filter`, `rank`, `people`, `compile`), `common` (shared helpers) and `reading` (parallel page reads); `steps/__init__.py` re-exports everything as `steps.<name>`
 - `steps/complete.py`: `complete_jobs(jobs, max_reads)` turns `Job`s into `JobPosting`s (full text, `text_source`); called by `filter`
-- `backend/src/postings/` (the postings service): `reader_for(url)` picks the reader for a posting URL: Greenhouse, Lever and Ashby per-posting APIs (`text_source=api`), BuiltInNYC and Workable page parsers (`parser`), else the generic `read_page` (`page`); a failed or timed-out read keeps the card text (`none`). `READ_TIMEOUT_S` bounds a batch of reads
+- `backend/src/postings/` (the postings service): `reader_for(url)` picks the reader for a posting URL: Greenhouse, Lever and Ashby per-posting APIs (`text_source=api`), BuiltInNYC and Workable page parsers (`parser`), else the generic `read_page` (`page`); a failed or timed-out read keeps the card text (`none`). `READ_BUDGET_S` bounds the batch of posting reads (`READ_HOST_CONCURRENCY` per site, one retry on 429)
 - `state.py`: typed graph state and the structured-output models of the LLM steps
 - `on_demand.py`: the "Find People To Connect With" flow behind
   `POST /api/searches/{search_id}/people`
@@ -40,7 +40,7 @@ State keys (`state.py`, `PipelineState`): `request`, `plan`, `jobs`, `listed_com
   people, with URLs copied from the gathered data.
 - Every source call and validation is recorded in the search's `trace` (saved with the search,
   not streamed). Check it first when a result list is unexpectedly empty.
-- Knobs are in `config.py`: `MAX_JOBS`, `RANK_MAX_JOBS`, `RANK_MODEL`, `PEOPLE_AUTO_COMPANIES`, `READ_TIMEOUT_S`,
+- Knobs are in `config.py`: `MAX_JOBS`, `RANK_MAX_JOBS`, `RANK_MODEL`, `PEOPLE_AUTO_COMPANIES`, `READ_TIMEOUT_S`, `READ_BUDGET_S`,
   `PEOPLE_PER_COMPANY`, and for the shared-school people search `PEOPLE_SIMILAR_MAX_QUERIES`
   (extra Google searches per company; 0 turns it off) and `PEOPLE_SIMILAR_PER_COMPANY`.
 - Tests use mocked LLMs and sources only (`backend/tests/pipeline_fakes.py`). To test one node,

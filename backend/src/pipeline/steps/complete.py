@@ -17,9 +17,13 @@ HTTP 429) keeps the job with its card text and `text_source="none"`.
 """
 
 import threading
+import time
+from collections.abc import Callable
 from concurrent.futures import Future, wait
-from typing import cast
+from typing import TypeVar, cast
 from urllib.parse import urlsplit
+
+import requests
 
 import config
 import postings
@@ -30,12 +34,12 @@ from pipeline.steps.common import call
 from pipeline.steps.reading import page_pool, posting_excerpt
 from schemas import TraceStep
 
+T = TypeVar("T")
 REQUIREMENTS_CHARS = 1200
 """Length of `JobPosting.requirements`, the part of the text the ranking card carries."""
 PAGE_MAX_CHARS = 12_000
 """Characters kept of a generic page read."""
-HOST_READS = 3
-"""Reads of one site at once, so a burst doesn't trip its rate limit."""
+RETRY_STATUS = 429
 
 _host_slots: dict[str, threading.Semaphore] = {}
 _host_lock = threading.Lock()
@@ -44,10 +48,29 @@ _host_lock = threading.Lock()
 def _slot(url: str) -> threading.Semaphore:
     host = urlsplit(url).netloc.lower()
     with _host_lock:
-        return _host_slots.setdefault(host, threading.Semaphore(HOST_READS))
+        return _host_slots.setdefault(host, threading.Semaphore(config.READ_HOST_CONCURRENCY))
 
 
-def _read(job: Job, step: str) -> tuple[postings.ParsedPosting | None, TextSource, TraceStep]:
+def _retry_once_on_429(fetch: Callable[[], T], deadline: float) -> Callable[[], T]:
+    """`fetch`, repeated once after `config.READ_RETRY_BACKOFF_S` when the site answers 429,
+    if the batch budget still has room for the wait."""
+
+    def attempt() -> T:
+        try:
+            return fetch()
+        except requests.HTTPError as exc:
+            status = getattr(exc.response, "status_code", None)
+            if status != RETRY_STATUS or time.monotonic() + config.READ_RETRY_BACKOFF_S >= deadline:
+                raise
+        time.sleep(config.READ_RETRY_BACKOFF_S)
+        return fetch()
+
+    return attempt
+
+
+def _read(
+    job: Job, step: str, deadline: float
+) -> tuple[postings.ParsedPosting | None, TextSource, TraceStep]:
     """One read: (what was found, text_source, trace step)."""
     known = postings.reader_for(job.url)
     if known is not None:
@@ -65,7 +88,7 @@ def _read(job: Job, step: str) -> tuple[postings.ParsedPosting | None, TextSourc
             return postings.ParsedPosting(description=page.markdown.strip())
 
     with _slot(job.url):
-        parsed, trace = call(step, source, {"url": job.url}, fetch)
+        parsed, trace = call(step, source, {"url": job.url}, _retry_once_on_429(fetch, deadline))
     if parsed is not None and parsed.description:
         trace.count = len(parsed.description)
         trace.note = f"text_source={text_source}; count = characters"
@@ -105,15 +128,19 @@ def complete_jobs(
     """Turn `jobs` into `JobPosting`s, in the same order and never dropping one.
 
     Jobs whose board API gave the text are completed without a read. Of the others, the first
-    `max_reads` are read in parallel (the shared page pool, each site at most `HOST_READS` at
-    a time) and the whole batch waits at most `config.READ_TIMEOUT_S`. Jobs beyond the cap, and
+    `max_reads` are read in parallel (the shared page pool, each site at most
+    `config.READ_HOST_CONCURRENCY` at a time; a 429 is retried once after a short backoff) and the
+    whole batch waits at most `config.READ_BUDGET_S`. Jobs beyond the cap, and
     reads that fail, time out or get HTTP 429, keep the card text with `text_source="none"`.
 
     The trace has one step per read (url, source, characters or error) and one summary step.
     """
     to_read = [j for j in jobs if not j.description][: max(0, max_reads)]
-    futures: dict[int, Future] = {id(j): page_pool.submit(_read, j, step) for j in to_read}
-    wait(futures.values(), timeout=config.READ_TIMEOUT_S)
+    deadline = time.monotonic() + config.READ_BUDGET_S
+    futures: dict[int, Future] = {
+        id(j): page_pool.submit(_read, j, step, deadline) for j in to_read
+    }
+    wait(futures.values(), timeout=config.READ_BUDGET_S)
 
     completed: list[JobPosting] = []
     trace: list[TraceStep] = []
@@ -132,8 +159,8 @@ def complete_jobs(
                     step=step,
                     source="read_page",
                     args={"url": job.url},
-                    error=f"Timeout: not read within {config.READ_TIMEOUT_S:g} s",
-                    duration_ms=round(config.READ_TIMEOUT_S * 1000),
+                    error=f"Timeout: not read within {config.READ_BUDGET_S:g} s",
+                    duration_ms=round(config.READ_BUDGET_S * 1000),
                 )
             )
             completed.append(_posting(job, None, "none"))

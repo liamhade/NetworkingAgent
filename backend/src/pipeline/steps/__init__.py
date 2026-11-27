@@ -32,7 +32,7 @@ from pipeline.steps.compile import (
     person_data,
     research_data,
 )
-from pipeline.steps.complete import HOST_READS, PAGE_MAX_CHARS, REQUIREMENTS_CHARS, complete_jobs
+from pipeline.steps.complete import PAGE_MAX_CHARS, REQUIREMENTS_CHARS, complete_jobs
 from pipeline.steps.filter import filter_jobs, filter_node, user_years
 from pipeline.steps.find_jobs import (
     BUILTIN_PER_QUERY,
@@ -145,7 +145,6 @@ __all__ = [
     "assemble_results",
     "build_summary",
     "compile_node",
-    "HOST_READS",
     "PAGE_MAX_CHARS",
     "REQUIREMENTS_CHARS",
     "complete_jobs",
