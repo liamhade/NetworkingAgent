@@ -16,7 +16,7 @@ from pipeline.state import Job, JobPosting, PipelineState
 from pipeline.steps.background import user_years
 from pipeline.steps.common import name_key, plural, status, url_key
 from pipeline.steps.complete import complete_jobs
-from schemas import SearchRequest, TraceStep
+from schemas import SearchRequest, SearchResults, TraceStep
 
 FAR_YEARS = 4
 """A job is dropped when it asks for at least this many years more than the user has."""
@@ -120,6 +120,39 @@ def filter_jobs(
     return kept, counts
 
 
+def no_jobs_update(state: PipelineState, reason: str, trace: list[TraceStep]) -> dict:
+    """The update when no posting is left to rank. If a BuiltInNYC company search listed
+    companies, those are not an error (before job ranking such a search returned them):
+    the results are empty, with a summary that says why and names the companies. Otherwise
+    it is an error, which ends the graph."""
+    listed = state.get("listed_companies", [])
+    if not listed:
+        return {
+            "postings": [],
+            "error": f"{reason} Try broadening what you're looking for.",
+            "trace": trace,
+        }
+    names = ", ".join(c.name for c in listed[:8]) + (", and more" if len(listed) > 8 else "")
+    summary = (
+        f"{reason} BuiltInNYC listed {len(listed)} companies that "
+        f"are hiring ({names}), but none of their job postings could be ranked for you. "
+        "Try broadening what you're looking for, or search again."
+    )
+    trace.append(
+        TraceStep(
+            step="filter",
+            source="filter",
+            count=0,
+            note=f"no jobs to rank; empty results because {len(listed)} listed companies",
+        )
+    )
+    return {
+        "postings": [],
+        "results": SearchResults(summary=summary, companies=[]),
+        "trace": trace,
+    }
+
+
 def filter_node(state: PipelineState) -> dict:
     request, plan = state["request"], state["plan"]
     jobs = state["jobs"]
@@ -136,12 +169,11 @@ def filter_node(state: PipelineState) -> dict:
         )
     ]
     if not kept:
-        return {
-            "postings": [],
-            "error": "No job postings were left to rank after filtering by location and "
-            "experience; try broadening what you're looking for.",
-            "trace": trace,
-        }
+        return no_jobs_update(
+            state,
+            "No job postings were left to rank after filtering by location and experience.",
+            trace,
+        )
     status(f"Reading {plural(len(kept), 'posting')}")
     completed, read_trace = complete_jobs(kept, max_reads=len(kept))
     trace += read_trace
@@ -156,7 +188,8 @@ def filter_node(state: PipelineState) -> dict:
             note="years_required re-checked on the posting text",
         )
     )
-    update: dict = {"postings": postings, "trace": trace}
     if not postings:
-        update["error"] = "Every posting asked for far more experience than you have."
-    return update
+        return no_jobs_update(
+            state, "Every posting asked for far more experience than you have.", trace
+        )
+    return {"postings": postings, "trace": trace}

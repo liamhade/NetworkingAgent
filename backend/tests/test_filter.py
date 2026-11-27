@@ -151,3 +151,37 @@ def test_filter_node_errors_when_nothing_is_left(monkeypatch: pytest.MonkeyPatch
     jobs = [job(1, location="Tokyo, Japan")]
     update = steps.filter_node({"request": REQUEST, "plan": plan(), "jobs": jobs, "trace": []})
     assert "No job postings were left" in update["error"]
+
+
+def test_listed_companies_without_jobs_are_empty_results_not_an_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pipeline.state import ListedCompany
+
+    FakeSources(monkeypatch)
+    listed = [ListedCompany(name="Ramp", url="u"), ListedCompany(name="Plaid", url="v")]
+    state = {"request": REQUEST, "plan": plan(), "jobs": [], "listed_companies": listed}
+    update = steps.filter_node({**state, "trace": []})
+    assert "error" not in update and update["postings"] == []
+    assert update["results"].companies == []
+    assert "Ramp, Plaid" in update["results"].summary
+    assert "No job postings were left" in update["results"].summary
+
+
+def test_listed_companies_with_only_too_senior_postings_are_empty_results_too(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pipeline.state import ListedCompany
+
+    FakeSources(monkeypatch)
+    jobs = [job(1, years_required="9+ years")]
+    state = {
+        "request": REQUEST,
+        "plan": plan(),
+        "jobs": jobs,
+        "listed_companies": [ListedCompany(name="Ramp", url="u")],
+        "trace": [],
+    }
+    update = steps.filter_node(state)
+    assert "error" not in update
+    assert update["results"].companies == []

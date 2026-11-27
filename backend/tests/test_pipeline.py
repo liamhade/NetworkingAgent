@@ -359,3 +359,20 @@ def test_compile_input_is_only_gathered_data(scripted_model, sources) -> None:
     assert '"people_searched": false' in research  # Etsy / Plaid
     cards = rank_call["input"][1].content
     assert '"id": "j1"' in cards and "Posting https://www.builtinnyc.com/job/1" in cards
+
+
+def test_a_search_that_finds_only_listed_companies_ends_with_empty_results(
+    scripted_model, sources, monkeypatch
+) -> None:
+    from pipeline.state import BuiltinCompanyQuery
+
+    sources.jobs = []
+    listed = [{"name": "Ramp", "url": "https://www.builtinnyc.com/company/ramp"}]
+    monkeypatch.setattr(steps.tools, "builtin_companies", lambda *a, **k: listed)
+    query = BuiltinCompanyQuery(industries=["fintech"], tech_stack=[])
+    model = scripted_model(structured={SearchPlan: plan(builtin_companies=[query])})
+    events = run(model)
+    results = result_of(events)
+    assert results.companies == [] and "Ramp" in results.summary
+    assert not any(isinstance(e, ErrorEvent) for e in events)
+    assert len(model.structured_calls) == 1  # the plan only: nothing to rank or compile

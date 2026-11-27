@@ -27,6 +27,11 @@ def _next_unless_error(target: str) -> Callable[[PipelineState], str]:
     return lambda state: END if state.get("error") else target
 
 
+def _rank_unless_done(state: PipelineState) -> str:
+    """After `filter`: rank, unless it errored or already has the (empty) results."""
+    return END if state.get("error") or "results" in state else "rank_jobs"
+
+
 def build_graph(llm: BaseChatModel, rank_llm: BaseChatModel | None = None):
     """The graph; `rank_llm` (default: `llm`) runs the `rank_jobs` step."""
     ranker = rank_llm or llm
@@ -41,7 +46,7 @@ def build_graph(llm: BaseChatModel, rank_llm: BaseChatModel | None = None):
     graph.add_edge(START, "plan")
     graph.add_conditional_edges("plan", _next_unless_error("find_jobs"), ["find_jobs", END])
     graph.add_conditional_edges("find_jobs", _next_unless_error("filter"), ["filter", END])
-    graph.add_conditional_edges("filter", _next_unless_error("rank_jobs"), ["rank_jobs", END])
+    graph.add_conditional_edges("filter", _rank_unless_done, ["rank_jobs", END])
     graph.add_edge("rank_jobs", "find_people")
     graph.add_edge("find_people", "compile")
     graph.add_edge("compile", END)
