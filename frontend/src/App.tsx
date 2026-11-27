@@ -531,7 +531,6 @@ export default function App() {
             loading={historyLoading}
             error={historyError}
             activeId={activeId}
-            user={user}
             open={sidebarOpen}
             onSelect={(id) => {
               setSidebarOpen(false)

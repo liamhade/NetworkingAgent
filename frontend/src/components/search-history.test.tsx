@@ -30,7 +30,6 @@ describe('SearchHistory status', () => {
         loading={false}
         error={null}
         activeId={null}
-        user={null}
         onSelect={() => {}}
         onNewSearch={() => {}}
         onCancel={() => {}}
@@ -54,7 +53,6 @@ describe('SearchHistory cancel', () => {
         loading={false}
         error={null}
         activeId={null}
-        user={null}
         onSelect={onSelect}
         onNewSearch={() => {}}
         onCancel={onCancel}
@@ -100,7 +98,6 @@ describe('SearchHistory delete', () => {
         loading={false}
         error={null}
         activeId={null}
-        user={null}
         onSelect={onSelect}
         onNewSearch={() => {}}
         onCancel={() => {}}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { SearchStatus, SearchSummary, User } from '@/api'
+import type { SearchStatus, SearchSummary } from '@/api'
 import { Icon } from '@/components/icon'
 import { cx } from '@/utils/cx'
 import { formatRelativeDate, fullDateFormat } from '@/utils/format-date'
@@ -9,7 +9,6 @@ interface SearchHistoryProps {
   loading: boolean
   error: string | null
   activeId: string | null
-  user: User | null
   onSelect: (id: string) => void
   onNewSearch: () => void
   /** Cancel a running search. */
@@ -38,7 +37,6 @@ export function SearchHistory({
   loading,
   error,
   activeId,
-  user,
   onSelect,
   onNewSearch,
   onCancel,
@@ -105,12 +103,6 @@ export function SearchHistory({
           ))}
         </ul>
       )}
-
-      <div className="side-foot">
-        Signed in as <b>{user?.display_name || user?.id || 'TEST_USER'}</b>
-        <br />
-        Local database (POC)
-      </div>
     </aside>
   )
 }
