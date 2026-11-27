@@ -10,8 +10,8 @@ export interface PanelWidthSpec {
 
 /** `localStorage` key for the Previous Searches sidebar width (px). */
 export const SIDEBAR_WIDTH_KEY = 'na-sidebar-width'
-export const SIDEBAR_DEFAULT = 272
 export const SIDEBAR_MIN = 200
+export const SIDEBAR_DEFAULT = SIDEBAR_MIN
 export const SIDEBAR_MAX = 520
 export const SIDEBAR_SPEC: PanelWidthSpec = {
   key: SIDEBAR_WIDTH_KEY,

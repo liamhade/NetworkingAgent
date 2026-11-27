@@ -309,7 +309,7 @@ export function Results({
               </span>
             )}
             {meta.boards.length > 0 && (
-              <span className="boards" title={meta.boards.join(', ')}>
+              <span className="meta-boards" title={meta.boards.join(', ')}>
                 <Icon name="layers" size="sm" />
                 <span>{meta.boards.join(', ')}</span>
               </span>
