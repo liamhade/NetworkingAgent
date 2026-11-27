@@ -15,6 +15,7 @@ vi.mock('@/api', async (importOriginal) => ({
   getSearchBoards: vi.fn(),
   getSearchParams: vi.fn(),
   getSavedResume: vi.fn(),
+  parseResume: vi.fn(),
   getSearch: vi.fn(),
   streamSearch: vi.fn(),
   streamSearchEvents: vi.fn(),
@@ -361,5 +362,23 @@ describe('App theme', () => {
     expect(localStorage.getItem('na-theme')).toBe('dark')
     await user.click(screen.getByRole('button', { name: 'Light theme' }))
     expect(localStorage.getItem('na-theme')).toBe('light')
+  })
+})
+
+describe('App keeps the search form across tabs', () => {
+  it('finishes reading a resume while you look at another tab', async () => {
+    let finish: (profile: api.ResumeProfile) => void = () => {}
+    m.parseResume.mockReturnValue(new Promise((resolve) => (finish = resolve)))
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByText('2 of 3 boards on')
+    await user.upload(
+      screen.getByLabelText('Resume PDF'),
+      new File(['%PDF'], 'cv.pdf', { type: 'application/pdf' }),
+    )
+    await user.click(screen.getByRole('link', { name: 'Jobs' }))
+    finish({ background: 'Parsed while away', location: '', looking_for: '' })
+    await user.click(screen.getByRole('link', { name: 'Search' }))
+    expect(await screen.findByDisplayValue('Parsed while away')).toBeInTheDocument()
   })
 })

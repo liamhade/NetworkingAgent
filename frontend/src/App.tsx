@@ -516,6 +516,9 @@ export default function App() {
     )
   }
 
+  // Admin is the owner's only; anyone else who lands on it sees the search page.
+  const onSearchTab = view === 'search' || (view === 'admin' && !user?.is_admin)
+
   return (
     <ToastProvider>
       <AppShell
@@ -576,8 +579,13 @@ export default function App() {
             {...entityNav}
             {...pinProps}
           />
-        ) : (
-          searchPage()
+        ) : null}
+        {/* The search form stays mounted (hidden) on other tabs, so a resume still being read
+            and anything typed survive a visit to Companies / Jobs / People. */}
+        {(onSearchTab || page === 'hero') && (
+          <div className="view-keep" hidden={!onSearchTab}>
+            {searchPage()}
+          </div>
         )}
       </AppShell>
     </ToastProvider>
