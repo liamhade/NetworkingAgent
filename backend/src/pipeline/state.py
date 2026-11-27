@@ -1,6 +1,6 @@
 """Typed state of the search graph: the LLM schemas and the gathered data.
 
-LLM schemas (`SearchPlan`, `CompanyRanking`, `PeopleNotes`) keep every field required and
+LLM schemas (`SearchPlan`, `JobRanking`, `PeopleNotes`) keep every field required and
 put limits in descriptions, not JSON-schema constraints, so they work with
 `with_structured_output(..., method="json_schema")`. Code enforces the limits.
 """
@@ -168,54 +168,58 @@ class Person(BaseModel):
 # --------------------------------------------------------------------- ranking (LLM)
 
 
-class JobScore(BaseModel):
-    id: str = Field(description='Job id from the table, e.g. "j3".')
+class JobRank(BaseModel):
+    id: str = Field(description='Job id from the cards, e.g. "j3".')
     score: int = Field(description="Fit with the user's profile, 0-100.")
-
-
-class RankedCompany(BaseModel):
-    name: str = Field(description="Company name exactly as in the data.")
-    score: int = Field(description="Overall fit with the user's profile, 0-100.")
     reason: str = Field(description="One short sentence on the score.")
-    jobs: list[JobScore] = Field(description="Its relevant postings, at most 4, best first.")
+    alignment: str = Field(
+        description='1-3 sentences on why it fits, addressed to the user: "You ...".'
+    )
+    years_required: str = Field(
+        description='Experience the posting asks for, e.g. "3+ years", or "" if it does not say.'
+    )
+    company: str = Field(
+        description="Employer name, copied from the card; when the card has no company, the "
+        'employer named in its title, site or URL, else "".'
+    )
+
+
+class CompanyKeywords(BaseModel):
+    company: str = Field(description="Company name exactly as on the cards.")
     people_keywords: list[str] = Field(
         description='1-2 keyword sets describing people to contact, e.g. "data science '
         'manager", "recruiter".'
     )
 
 
-class CompanyRanking(BaseModel):
-    companies: list[RankedCompany]
+class JobRanking(BaseModel):
+    jobs: list[JobRank] = Field(description="The best jobs, best first.")
+    companies: list[CompanyKeywords] = Field(description="One entry per company in `jobs`.")
 
 
-class JobRescore(BaseModel):
-    id: str = Field(description='Job id, e.g. "j3".')
-    years_required: str = Field(
-        description='Experience the posting asks for, e.g. "3+ years", or "" if it does not say.'
-    )
-    score: int = Field(description="Fit with the user's profile, 0-100, given the posting.")
+class RankedJob(BaseModel):
+    """A job the ranker kept: the completed posting plus its verdict. `rank` is 1-based."""
 
-
-class CompanyRescore(BaseModel):
-    name: str = Field(description="Company name exactly as given.")
-    score: int = Field(description="Overall fit with the user's profile, 0-100.")
-    jobs: list[JobRescore]
-
-
-class Rescoring(BaseModel):
-    companies: list[CompanyRescore]
+    job: JobPosting
+    rank: int
+    score: int
+    reason: str = ""
+    alignment: str = ""
+    years_required: str = ""
 
 
 class ChosenCompany(BaseModel):
-    """A validated, scored company: what the rest of the pipeline works on."""
+    """A company with at least one ranked job: what find_people and compile work on.
+
+    Companies are ordered by their best job; `score` is that job's score and `jobs` are in
+    rank order."""
 
     name: str
     url: str = ""
     about: str = ""
     score: int
     reason: str = ""
-    jobs: list[Job] = []
-    job_scores: dict[str, int] = {}
+    jobs: list[RankedJob] = []
     people_keywords: list[str] = []
 
 
@@ -234,12 +238,15 @@ class PipelineState(TypedDict, total=False):
     plan: SearchPlan
     jobs: list[Job]
     listed_companies: list[ListedCompany]
+    postings: list[JobPosting]
+    """The jobs worth ranking (`filter`), completed with their posting text."""
+    ranked: list[RankedJob]
+    """The ranker's top jobs, best first."""
     chosen: list[ChosenCompany]
-    """Ranked best first; only the top `config.PEOPLE_AUTO_COMPANIES` get a people search."""
+    """Companies of the ranked jobs, best job first; only the first
+    `config.PEOPLE_AUTO_COMPANIES` get a people search."""
     people: dict[str, list[Person]]
     """Chosen company name -> people found; a key exists only if it was searched."""
-    postings: dict[str, str]
-    """Job URL -> posting text from read_page."""
     results: SearchResults
     error: str
     """Set when nothing usable was found; the graph then ends."""

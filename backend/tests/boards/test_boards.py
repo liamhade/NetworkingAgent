@@ -24,8 +24,8 @@ import tools
 from pipeline import steps
 from pipeline.state import (
     AtsJobQuery,
-    CompanyRanking,
     ConservationJobQuery,
+    JobRanking,
     SearchPlan,
     UsajobsQuery,
 )
@@ -54,7 +54,6 @@ def pinned_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "USAJOBS_MAX_QUERIES", 2)
     monkeypatch.setattr(config, "USAJOBS_RESULTS", 10)
     monkeypatch.setattr(config, "PEOPLE_AUTO_COMPANIES", 0)
-    monkeypatch.setattr(config, "READ_POSTINGS", 0)
 
 
 def with_usajobs_key(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -252,7 +251,7 @@ def test_plan_step_sends_the_filtered_prompt(scripted_model, monkeypatch) -> Non
 def answers_for(search_plan: SearchPlan, google: list[str] | None = None) -> dict:
     if google is not None:
         search_plan = search_plan.model_copy(update={"google_queries": google})
-    return {SearchPlan: search_plan, CompanyRanking: DEFAULT_RANKING, SearchResults: compiled()}
+    return {SearchPlan: search_plan, JobRanking: DEFAULT_RANKING, SearchResults: compiled()}
 
 
 def run(model, request: SearchRequest = REQUEST) -> list:

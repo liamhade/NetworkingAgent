@@ -80,6 +80,18 @@ class JobResult(BaseModel):
     salary: str = Field(description="Salary text if listed, else empty string.")
     alignment: str = Field(description="1-3 sentences on why this job fits the user.")
     score: SkipJsonSchema[int | None] = Field(default=None, description=SCORE_DESCRIPTION)
+    rank: SkipJsonSchema[int | None] = Field(
+        default=None,
+        description="Position in the ranker's list, 1 = best. None in searches saved before "
+        "jobs were ranked; order those by `score`. Set by the server.",
+    )
+    years_required: SkipJsonSchema[str | None] = Field(
+        default=None, description='Experience the posting asks for ("3+ years"). Set by the server.'
+    )
+    reason: SkipJsonSchema[str | None] = Field(
+        default=None,
+        description="The ranker's one-sentence reason for the score. Set by the server.",
+    )
     key: SkipJsonSchema[str] = Field(default="", description=ENTITY_KEY_DESCRIPTION)
 
 

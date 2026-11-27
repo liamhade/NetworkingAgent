@@ -70,15 +70,13 @@ npm run build
 |---|---|---|
 | `LLM_MODEL` | `anthropic:claude-haiku-5-5` | Model used by the agent and resume parser |
 | `ANTHROPIC_KEY` / `ANTHROPIC_API_KEY` | | API key (`<PROVIDER>_KEY` works for other providers) |
-| `MAX_COMPANIES` | `6` | Companies a search returns, ranked by fit (0-100) |
+| `MAX_JOBS` | `12` | Jobs a search returns, ranked by fit (0-100) |
+| `RANK_MAX_JOBS` | `30` | Jobs that pass the filter, get their posting read and are ranked |
+| `RANK_MODEL` | `anthropic:claude-sonnet-5-5` | Model that ranks the jobs |
 | `PEOPLE_AUTO_COMPANIES` | `3` | Top-ranked companies that get a people search automatically |
 | `PEOPLE_PER_COMPANY` | `3` | People-search ladder stops at this many current employees |
 | `PEOPLE_SEARCH_N` | `5` | Profiles asked for per people search |
-| `READ_POSTINGS` | `2` | Job postings read in full for the results (0 = off) |
 | `READ_TIMEOUT_S` | `8` | Seconds a batch of posting reads may take; slower pages are skipped |
-| `RESCORE_POSTINGS` | `0` | Top postings per company read in full and scored again before the people search (0 = off). See `docs/experience-fit/experiment.md` |
-| `RESCORE_MODEL` | `anthropic:claude-sonnet-5-5` | Model for that rescoring step |
-| `RESCORE_POSTING_MAX_CHARS` | `2500` | Characters of each posting sent to the rescoring step |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | | Accounts (email + password, for emails you approve). Unset: everyone is `TEST_USER` |
 | `ACCESS_REQUEST_EMAIL` | | Your inbox: people email it from their address to request access (`python -m auth.access approve <email>`) |
 | `OWNER_EMAIL` | | Your account email: always allowed in, and the only account that sees the **Admin** tab (whitelist, every user's LLM usage) |

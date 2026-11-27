@@ -33,7 +33,7 @@ from llm_usage import (
     usage_context,
     usage_handler,
 )
-from pipeline.state import CompanyRanking, SearchPlan
+from pipeline.state import JobRanking, SearchPlan
 from schemas import ErrorEvent, ResultEvent, SearchRequest, SearchResults
 
 REQUEST = SearchRequest(background="Analyst", location="NYC", looking_for="Data roles")
@@ -110,10 +110,10 @@ def _pipeline_model(**kwargs: Any) -> "UsageChatModel":
     return UsageChatModel(
         responses=[
             reply("{}", inp=1000, out=50, read=4000, w5=500),  # plan
-            reply("{}", inp=1200, out=60, read=4500),  # rank_companies
+            reply("{}", inp=1200, out=60, read=4500),  # rank_jobs
             reply("{}", inp=6000, out=900),  # compile_results
         ],
-        structured={SearchPlan: plan(), CompanyRanking: RANKING, SearchResults: RESULTS},
+        structured={SearchPlan: plan(), JobRanking: RANKING, SearchResults: RESULTS},
         **kwargs,
     )
 
@@ -126,7 +126,7 @@ def test_pipeline_logs_one_row_per_llm_node(usage_log, monkeypatch) -> None:
 
     assert isinstance(events[-1], ResultEvent)
     logged = rows(usage_log)
-    assert [r["purpose"] for r in logged] == ["plan", "rank_companies", "compile_results"]
+    assert [r["purpose"] for r in logged] == ["plan", "rank_jobs", "compile_results"]
     assert {(r["user_id"], r["search_id"], r["request_id"]) for r in logged} == {
         ("TEST_USER", "s1", "r1")
     }

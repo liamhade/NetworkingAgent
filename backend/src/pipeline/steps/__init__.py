@@ -4,8 +4,9 @@ Each node takes the `PipelineState`, returns a partial update, appends `TraceSte
 reports progress through `status()`. Source errors are recorded and skipped; a node only
 sets `error` when nothing usable is left.
 
-One module per node (`plan`, `find_jobs`, `rank`, `rescore`, `people`, `postings`, `compile`)
-plus `common` and `reading`. Everything is re-exported here, so callers use `steps.<name>`.
+One module per node (`plan`, `find_jobs`, `filter`, `rank`, `people`, `compile`) plus
+`complete` (`complete_jobs`, called by `filter`), `common` and `reading`. Everything is
+re-exported here, so callers use `steps.<name>`.
 """
 
 import tools  # noqa: F401  (tests patch `steps.tools.read_page`)
@@ -25,13 +26,14 @@ from pipeline.steps.common import (
 from pipeline.steps.compile import (
     _fallback_company,
     compile_node,
-    match_jobs,
+    job_result,
     match_people,
     person_data,
     research_data,
     restrict_results,
 )
 from pipeline.steps.complete import HOST_READS, PAGE_MAX_CHARS, REQUIREMENTS_CHARS, complete_jobs
+from pipeline.steps.filter import filter_jobs, filter_node, user_years
 from pipeline.steps.find_jobs import (
     BUILTIN_PER_QUERY,
     GOOGLE_PER_QUERY,
@@ -66,13 +68,12 @@ from pipeline.steps.plan import (
     plan_node,
     turned_off_queries,
 )
-from pipeline.steps.postings import read_postings_node
 from pipeline.steps.rank import (
-    MAX_JOBS_PER_COMPANY,
     MAX_PEOPLE_KEYWORDS,
-    _jobs_table,
+    build_chosen,
     default_ranking,
-    rank_companies_node,
+    job_card,
+    rank_jobs_node,
     validate_ranking,
 )
 from pipeline.steps.reading import (
@@ -82,7 +83,6 @@ from pipeline.steps.reading import (
     posting_excerpt,
     read_pages,
 )
-from pipeline.steps.rescore import _rescore_targets, apply_rescoring, rescore_jobs_node
 
 __all__ = [
     "status",
@@ -117,20 +117,20 @@ __all__ = [
     "_ats_allowance",
     "_ats_searches",
     "find_jobs_node",
-    "MAX_JOBS_PER_COMPANY",
+    "filter_jobs",
+    "filter_node",
+    "user_years",
     "MAX_PEOPLE_KEYWORDS",
-    "_jobs_table",
+    "job_card",
     "validate_ranking",
     "default_ranking",
-    "rank_companies_node",
+    "build_chosen",
+    "rank_jobs_node",
     "PAGE_READERS",
     "page_pool",
     "read_pages",
     "_REQUIREMENTS",
     "posting_excerpt",
-    "_rescore_targets",
-    "apply_rescoring",
-    "rescore_jobs_node",
     "ladder",
     "similar_ladder",
     "search_similar_people",
@@ -138,10 +138,9 @@ __all__ = [
     "QUERY_MAX_SEARCHES",
     "search_people_by_query",
     "find_people_node",
-    "read_postings_node",
     "person_data",
     "research_data",
-    "match_jobs",
+    "job_result",
     "match_people",
     "_fallback_company",
     "restrict_results",

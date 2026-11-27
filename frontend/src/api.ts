@@ -63,6 +63,12 @@ export interface JobResult {
   alignment: string
   /** Fit with the user's profile, 0-100 (server-computed); absent on older searches. */
   score?: number | null
+  /** Position in the ranker's list, 1 = best; absent on searches saved before ranking jobs. */
+  rank?: number | null
+  /** Experience the posting asks for, e.g. "3+ years". */
+  years_required?: string | null
+  /** The ranker's one-sentence reason for the score. */
+  reason?: string | null
   /** Stable identity across searches (server-computed); keys the APPLIED toggle. */
   key: string
 }

@@ -16,7 +16,7 @@ from pipeline_fakes import (
 import config
 import pipeline
 from pipeline import steps
-from pipeline.state import CompanyRanking, SearchPlan
+from pipeline.state import JobRanking, SearchPlan
 from schemas import (
     ErrorEvent,
     JobResult,
@@ -32,8 +32,8 @@ from schemas import (
 def sources(monkeypatch: pytest.MonkeyPatch) -> FakeSources:
     monkeypatch.setattr(config, "PEOPLE_PER_COMPANY", 3)
     monkeypatch.setattr(config, "PEOPLE_AUTO_COMPANIES", 3)
-    monkeypatch.setattr(config, "MAX_COMPANIES", 6)
-    monkeypatch.setattr(config, "READ_POSTINGS", 2)
+    monkeypatch.setattr(config, "MAX_JOBS", 12)
+    monkeypatch.setattr(config, "RANK_MAX_JOBS", 30)
     return FakeSources(monkeypatch)
 
 
@@ -44,8 +44,8 @@ def run(model) -> list:
 def answers(sources: FakeSources, **overrides) -> dict:
     """Structured answers per schema; compile includes everyone the fakes will find."""
     found = {c: sources.found(c, "data manager") for c in COMPANIES[:3]}
-    return {SearchPlan: plan(), CompanyRanking: DEFAULT_RANKING, SearchResults: compiled(found)} | {
-        {"plan": SearchPlan, "ranking": CompanyRanking, "results": SearchResults}[k]: v
+    return {SearchPlan: plan(), JobRanking: DEFAULT_RANKING, SearchResults: compiled(found)} | {
+        {"plan": SearchPlan, "ranking": JobRanking, "results": SearchResults}[k]: v
         for k, v in overrides.items()
     }
 
@@ -76,43 +76,61 @@ def test_top_companies_get_a_people_search_and_the_rest_are_marked_not_searched(
     assert all(c.people_keywords == ["data manager"] for c in results.companies)
 
 
-def test_every_top_company_is_searched_even_if_the_llm_ranks_one_without_jobs(
+def test_people_search_counts_distinct_companies_in_job_order(
     scripted_model, sources, monkeypatch
 ) -> None:
-    monkeypatch.setattr(config, "PEOPLE_AUTO_COMPANIES", 5)
-    ranked = ranking(*[(c, 50, []) for c in COMPANIES])  # names only, no job ids
+    sources.jobs.append(
+        {"title": "Lead Analyst", "url": job_url(6), "company": "Plaid", "location": "NYC"}
+    )
+    monkeypatch.setattr(config, "PEOPLE_AUTO_COMPANIES", 2)
+    # Plaid has the two best jobs, then Ramp: the second Plaid job must not use up a slot.
+    ranked = ranking(("Plaid", 0, [("j5", 95), ("j6", 94)]), ("Ramp", 0, [("j1", 90)]))
     run(scripted_model(structured=answers(sources, ranking=ranked)))
-    assert sorted({c for c, _, _ in sources.people_calls}) == sorted(COMPANIES)
+    assert [c for c, _, _ in sources.people_calls] == ["Plaid", "Ramp"]
 
 
-def test_results_are_sorted_by_score_and_jobs_by_job_score(scripted_model, sources) -> None:
+def test_results_are_in_job_order_and_company_score_is_its_best_job(
+    scripted_model, sources
+) -> None:
     sources.jobs.append(
         {"title": "Lead Analyst", "url": job_url(6), "company": "Plaid", "location": "NYC"}
     )
     ranked = ranking(
-        ("Etsy", 40, [("j4", 50)]),
-        ("Plaid", 95, [("j5", 60), ("j6", 90)]),
-        ("Ramp", 70, [("j1", 70)]),
+        ("Etsy", 0, [("j4", 50)]),
+        ("Plaid", 0, [("j5", 60), ("j6", 90)]),
+        ("Ramp", 0, [("j1", 70)]),
     )
     written = compiled()
-    plaid = written.companies[4]
-    plaid.jobs.append(
+    written.companies[4].jobs.append(
         JobResult(title="Lead Analyst", url=job_url(6), location="", salary="", alignment="a")
     )
     events = run(scripted_model(structured=answers(sources, ranking=ranked, results=written)))
     results = result_of(events)
 
+    # Companies by their best job; scores are job scores, not the compile step's.
     assert [(c.name, c.score) for c in results.companies] == [
-        ("Plaid", 95),
+        ("Plaid", 90),
         ("Ramp", 70),
-        ("Etsy", 40),
+        ("Etsy", 50),
     ]
-    assert [(j.url, j.score) for j in results.companies[0].jobs] == [
-        (job_url(6), 90),
-        (job_url(5), 60),
+    plaid = results.companies[0]
+    assert [(j.url, j.score, j.rank) for j in plaid.jobs] == [
+        (job_url(6), 90, 1),
+        (job_url(5), 60, 3),
     ]
-    # Only the top 3 by score get the automatic people search.
+    assert [(j.rank, j.score) for c in results.companies[1:] for j in c.jobs] == [(2, 70), (4, 50)]
+    # Only the first 3 companies, in job order, get the automatic people search.
     assert [c for c, _, _ in sources.people_calls] == ["Plaid", "Ramp", "Etsy"]
+
+
+def test_the_rankers_job_text_is_not_overridden_by_compile(scripted_model, sources) -> None:
+    written = compiled()
+    written.companies[0].jobs[0].alignment = "Compile wrote this."
+    written.companies[0].jobs[0].score = 5
+    results = result_of(run(scripted_model(structured=answers(sources, results=written))))
+    job = results.companies[0].jobs[0]
+    assert job.alignment == "You fit j1."  # from the ranker
+    assert (job.score, job.rank, job.reason) == (90, 1, "j1 fits.")
 
 
 def test_people_ladder_climbs_when_results_are_empty(scripted_model, sources) -> None:
@@ -210,32 +228,28 @@ def test_company_url_must_come_from_the_gathered_data(scripted_model, sources) -
     assert results.companies[0].url == "https://www.builtinnyc.com/company/ramp"
 
 
-def test_ranking_drops_unknown_companies_and_job_ids(scripted_model, sources) -> None:
+def test_ranking_drops_unknown_and_duplicate_job_ids(scripted_model, sources) -> None:
     ranked = ranking(
-        ("Ramp", 90, [("j1", 90), ("j2", 80), ("j99", 70)]),  # j2 is Notion's
+        ("Ramp", 90, [("j1", 90), ("j2", 80), ("j99", 70)]),
         ("Imaginary Inc", 85, [("j42", 90)]),
-        ("ramp", 60, []),  # duplicate
+        ("Ramp", 60, [("j1", 60)]),  # duplicate id
     )
     events = run(scripted_model(structured=answers(sources, ranking=ranked)))
-    check = next(
-        s for s in trace_of(events) if s.step == "rank_companies" and s.source == "validate"
-    )
+    check = next(s for s in trace_of(events) if s.step == "rank_jobs" and s.source == "validate")
     assert check.args["dropped"] == [
-        "Ramp: job j2",
-        "Ramp: job j99",
-        "Imaginary Inc: job j42",
-        "Imaginary Inc: not in the data",
-        "ramp: duplicate",
+        "j99: not a gathered job",
+        "j42: not a gathered job",
+        "j1: duplicate",
     ]
-    assert [c.name for c in result_of(events).companies] == ["Ramp"]
+    assert [c.name for c in result_of(events).companies] == ["Ramp", "Notion"]
 
 
-def test_ranking_failure_falls_back_to_posting_counts(scripted_model, sources) -> None:
-    sources.jobs.append({"title": "Analyst II", "url": job_url(6), "company": "Plaid"})
+def test_ranking_failure_falls_back_to_the_filters_order(scripted_model, sources) -> None:
     events = run(scripted_model(structured=answers(sources, ranking=RuntimeError("provider down"))))
     results = result_of(events)
-    assert results.companies[0].name == "Plaid"  # 2 postings
-    assert {c for c, _, _ in sources.people_calls} == {"Plaid", "Ramp", "Notion"}
+    assert [c.name for c in results.companies] == COMPANIES
+    assert {j.score for c in results.companies for j in c.jobs} == {50}
+    assert {c for c, _, _ in sources.people_calls} == set(COMPANIES[:3])
 
 
 # --- graceful degradation ------------------------------------------------------------
@@ -305,29 +319,31 @@ def test_event_stream_order(scripted_model, sources) -> None:
         "Planning: Data Analyst, Analytics Engineer (mid level)",
         "Searching BuiltInNYC jobs for “data analyst”",
         "BuiltInNYC jobs for “data analyst”: 5 jobs",
-        "Ranking companies from 5 jobs",
-        "Top companies: Ramp (90), Notion (80), Datadog (70), Etsy (60), Plaid (50)",
+        "Filtering 5 jobs",
+        "Reading 5 postings",
+        "Ranking 5 jobs",
+        "Top jobs: Data Analyst at Ramp (90), Data Analyst at Notion (80), "
+        "Data Analyst at Datadog (70)",
         "Looking for data manager at Ramp",
         "Ramp: 3 current employees found",
         "Looking for data manager at Notion",
         "Notion: 3 current employees found",
         "Looking for data manager at Datadog",
         "Datadog: 3 current employees found",
-        "Reading builtinnyc.com/job/1",
-        "Reading builtinnyc.com/job/2",
         "Compiling your results",
     ]
     assert messages == expected_order
     assert [s.step for s in trace_of(events)] == [
         "plan",
         "find_jobs",
-        "rank_companies",
-        "rank_companies",
+        "filter",
+        *["complete"] * 6,  # one read per job, then the summary
+        "filter",
+        "rank_jobs",
+        "rank_jobs",
         "find_people",
         "find_people",
         "find_people",
-        "read_postings",
-        "read_postings",
         "compile",
         "compile",
     ]
@@ -341,4 +357,5 @@ def test_compile_input_is_only_gathered_data(scripted_model, sources) -> None:
     research = compile_call["input"][1].content
     assert "<research>" in research and "Posting https://www.builtinnyc.com/job/1" in research
     assert '"people_searched": false' in research  # Etsy / Plaid
-    assert '"j1"' in rank_call["input"][1].content
+    cards = rank_call["input"][1].content
+    assert '"id": "j1"' in cards and "Posting https://www.builtinnyc.com/job/1" in cards

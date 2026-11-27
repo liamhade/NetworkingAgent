@@ -11,7 +11,7 @@ import config
 import pipeline
 import prompts
 from entities import catalog
-from pipeline.state import CompanyRanking, SearchPlan
+from pipeline.state import JobRanking, SearchPlan
 from schemas import (
     CompanyResult,
     PersonResult,
@@ -119,7 +119,7 @@ def test_compile_step_sends_linkedin_message_rules(scripted_model, monkeypatch) 
     model = scripted_model(
         structured={
             SearchPlan: plan(),
-            CompanyRanking: RANKING,
+            JobRanking: RANKING,
             SearchResults: compiled(found),
         }
     )

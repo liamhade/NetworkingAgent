@@ -1,13 +1,11 @@
 """The search as a fixed LangGraph graph, and `run_search()`, which streams its events.
 
-    plan -> find_jobs -> rank_companies -> rescore_jobs -> find_people -> read_postings
-         -> compile
+    plan -> find_jobs -> filter -> rank_jobs -> find_people -> compile
 
-`rescore_jobs` is experimental and does nothing unless `config.RESCORE_POSTINGS` > 0.
-
-`plan`, `rank_companies` and `compile` are structured-output LLM calls; the rest is code,
-so every step runs. A node that finds nothing usable sets `error` and the graph ends.
-See `docs/langgraph-pipeline/plan.md`.
+`plan`, `rank_jobs` and `compile` are structured-output LLM calls (`rank_jobs` on
+`config.RANK_MODEL`); the rest is code, so every step runs. `filter` cuts the jobs found
+and reads the postings of those that remain. A node that finds nothing usable sets `error`
+and the graph ends. See `docs/langgraph-pipeline/plan.md` and `docs/job-ranking/plan.md`.
 """
 
 import logging
@@ -29,29 +27,23 @@ def _next_unless_error(target: str) -> Callable[[PipelineState], str]:
     return lambda state: END if state.get("error") else target
 
 
-def build_graph(llm: BaseChatModel, rescore_llm: BaseChatModel | None = None):
-    """The graph; `rescore_llm` (default: `llm`) runs the `rescore_jobs` step."""
-    rescore = rescore_llm or llm
+def build_graph(llm: BaseChatModel, rank_llm: BaseChatModel | None = None):
+    """The graph; `rank_llm` (default: `llm`) runs the `rank_jobs` step."""
+    ranker = rank_llm or llm
     graph = StateGraph(PipelineState)
     graph.add_node("plan", lambda state: steps.plan_node(state, llm))
     graph.add_node("find_jobs", steps.find_jobs_node)
-    graph.add_node("rank_companies", lambda state: steps.rank_companies_node(state, llm))
-    graph.add_node("rescore_jobs", lambda state: steps.rescore_jobs_node(state, rescore))
+    graph.add_node("filter", steps.filter_node)
+    graph.add_node("rank_jobs", lambda state: steps.rank_jobs_node(state, ranker))
     graph.add_node("find_people", steps.find_people_node)
-    graph.add_node("read_postings", steps.read_postings_node)
     graph.add_node("compile", lambda state: steps.compile_node(state, llm))
 
     graph.add_edge(START, "plan")
     graph.add_conditional_edges("plan", _next_unless_error("find_jobs"), ["find_jobs", END])
-    graph.add_conditional_edges(
-        "find_jobs", _next_unless_error("rank_companies"), ["rank_companies", END]
-    )
-    graph.add_conditional_edges(
-        "rank_companies", _next_unless_error("rescore_jobs"), ["rescore_jobs", END]
-    )
-    graph.add_edge("rescore_jobs", "find_people")
-    graph.add_edge("find_people", "read_postings")
-    graph.add_edge("read_postings", "compile")
+    graph.add_conditional_edges("find_jobs", _next_unless_error("filter"), ["filter", END])
+    graph.add_conditional_edges("filter", _next_unless_error("rank_jobs"), ["rank_jobs", END])
+    graph.add_edge("rank_jobs", "find_people")
+    graph.add_edge("find_people", "compile")
     graph.add_edge("compile", END)
     return graph.compile()
 
@@ -62,10 +54,9 @@ def run_search(request: SearchRequest, llm: BaseChatModel | None = None) -> Iter
     Yields `StatusEvent`s while it runs, then `TraceEvent` + `ResultEvent`, or a single
     `ErrorEvent` if nothing usable was found.
     """
-    # An injected `llm` (tests) runs every step; otherwise rescoring uses `RESCORE_MODEL`.
+    # An injected `llm` (tests) runs every step; otherwise ranking uses `RANK_MODEL`.
     if llm is None:
-        rescore_llm = get_llm(config.RESCORE_MODEL) if config.RESCORE_POSTINGS else None
-        graph = build_graph(get_llm(), rescore_llm)
+        graph = build_graph(get_llm(), get_llm(config.RANK_MODEL))
     else:
         graph = build_graph(llm)
     yield StatusEvent(message="Reading your profile")

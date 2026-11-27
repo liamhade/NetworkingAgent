@@ -12,6 +12,7 @@ from pipeline.state import (
     ChosenCompany,
     Person,
     PipelineState,
+    RankedJob,
 )
 from pipeline.steps.common import call, dump, format_profile, name_key, status, structured, url_key
 from schemas import (
@@ -36,7 +37,6 @@ def person_data(p: Person) -> dict[str, Any]:
 
 def research_data(state: PipelineState) -> list[dict[str, Any]]:
     """The compile step's whole input: chosen companies with what was found for them."""
-    postings = state.get("postings", {})
     people = state.get("people", {})
     data = []
     for c in state["chosen"]:
@@ -48,14 +48,14 @@ def research_data(state: PipelineState) -> list[dict[str, Any]]:
                 "ranking_note": c.reason,
                 "jobs": [
                     {
-                        "title": j.title,
-                        "url": j.url,
-                        "location": j.location,
-                        "salary": j.salary,
-                        "summary": j.summary,
-                        "posting_text": postings.get(j.url, ""),
+                        "title": r.job.title,
+                        "url": r.job.url,
+                        "location": r.job.location,
+                        "salary": r.job.salary,
+                        "years_required": r.years_required,
+                        "posting_text": r.job.requirements,
                     }
-                    for j in c.jobs
+                    for r in c.jobs
                 ],
                 "people_searched": c.name in people,
                 "people": [person_data(p) for p in people.get(c.name, [])],
@@ -64,18 +64,35 @@ def research_data(state: PipelineState) -> list[dict[str, Any]]:
     return data
 
 
-def match_jobs(written: list[JobResult], company: ChosenCompany) -> list[JobResult]:
-    """`written` jobs that were gathered for `company` (by URL, else title), with the
-    gathered URL and the ranking score, best first."""
-    by_url = {url_key(j.url): j for j in company.jobs}
-    by_title = {normalize_text(j.title): j for j in company.jobs}
-    kept: dict[str, JobResult] = {}
+def job_result(item: RankedJob, written: JobResult | None = None) -> JobResult:
+    """The result for a ranked job. Rank, score, reason, years and alignment are the
+    ranker's; the compile step's own wording only fills an alignment the ranker left empty."""
+    job = item.job
+    return JobResult(
+        title=job.title,
+        url=job.url,
+        location=job.location,
+        salary=job.salary,
+        alignment=item.alignment or (written.alignment if written else ""),
+        score=item.score,
+        rank=item.rank,
+        years_required=item.years_required or None,
+        reason=item.reason or None,
+    )
+
+
+def count_matched(written: list[JobResult], company: ChosenCompany) -> int:
+    """How many of the compile step's jobs are ranked jobs of `company` (by URL, else title)."""
+    urls = {url_key(r.job.url) for r in company.jobs}
+    titles = {normalize_text(r.job.title) for r in company.jobs}
+    return sum(url_key(j.url) in urls or normalize_text(j.title) in titles for j in written)
+
+
+def _written_job(written: list[JobResult], item: RankedJob) -> JobResult | None:
     for job in written:
-        found = by_url.get(url_key(job.url)) or by_title.get(normalize_text(job.title))
-        if found is not None and found.id not in kept:
-            score = company.job_scores.get(found.id)
-            kept[found.id] = job.model_copy(update={"url": found.url, "score": score})
-    return sorted(kept.values(), key=lambda j: -(j.score or 0))
+        if url_key(job.url) == url_key(item.job.url):
+            return job
+    return None
 
 
 def match_people(written: list[PersonResult], found: list[Person]) -> list[PersonResult]:
@@ -92,35 +109,29 @@ def match_people(written: list[PersonResult], found: list[Person]) -> list[Perso
     return list(kept.values())
 
 
+def _people_results(found: list[Person]) -> list[PersonResult]:
+    return [
+        PersonResult(
+            name=p.name,
+            title=p.title or p.headline,
+            profile_url=p.url,
+            alignment="",
+            shared_background=p.shared_background,
+        )
+        for p in sorted(found, key=lambda p: not p.shared_background)
+        if p.at_company
+    ][:4]
+
+
 def _fallback_company(c: ChosenCompany, found: list[Person] | None) -> CompanyResult:
     """A chosen company the compile step left out, built from gathered data only."""
     return CompanyResult(
         name=c.name,
-        url=c.url or (c.jobs[0].url if c.jobs else ""),
+        url=c.url or (c.jobs[0].job.url if c.jobs else ""),
         description=c.about or c.reason,
         alignment=c.reason,
-        jobs=[
-            JobResult(
-                title=j.title,
-                url=j.url,
-                location=j.location,
-                salary=j.salary,
-                alignment="",
-                score=c.job_scores.get(j.id),
-            )
-            for j in c.jobs
-        ],
-        people=[
-            PersonResult(
-                name=p.name,
-                title=p.title or p.headline,
-                profile_url=p.url,
-                alignment="",
-                shared_background=p.shared_background,
-            )
-            for p in sorted(found or [], key=lambda p: not p.shared_background)
-            if p.at_company
-        ][:4],
+        jobs=[job_result(r) for r in c.jobs],
+        people=_people_results(found or []),
         score=c.score,
         people_searched=found is not None,
         people_keywords=c.people_keywords,
@@ -130,43 +141,50 @@ def _fallback_company(c: ChosenCompany, found: list[Person] | None) -> CompanyRe
 def restrict_results(
     results: SearchResults, chosen: list[ChosenCompany], people: dict[str, list[Person]]
 ) -> tuple[SearchResults, dict[str, int]]:
-    """Keep only what was gathered: chosen companies, their gathered jobs and found people.
+    """Build the results from what was gathered, taking only wording from the compile step.
 
-    Companies get their ranking score and are sorted by it; a chosen company the LLM left
-    out is added back from gathered data. Returns the results and drop/add counts.
+    Companies keep the ranker's order (best job first) and score (that job's score); their
+    jobs are the ranked jobs in rank order with the ranker's score, reason and alignment;
+    people are the compile step's, kept only if found. A chosen company the LLM left out is
+    added back from gathered data. Returns the results and drop/add counts.
     """
     by_name = {name_key(c.name): c for c in chosen}
-    out: dict[str, CompanyResult] = {}
+    written_by_key: dict[str, CompanyResult] = {}
     counts = {"companies_dropped": 0, "jobs_dropped": 0, "people_dropped": 0, "companies_added": 0}
     for company in results.companies:
         key = name_key(company.name)
         c = by_name.get(key)
-        if c is None or key in out:
+        if c is None or key in written_by_key:
             counts["companies_dropped"] += 1
             continue
+        written_by_key[key] = company
         found = people.get(c.name)
-        jobs = match_jobs(company.jobs, c)
         persons = match_people(company.people, found or [])
-        counts["jobs_dropped"] += len(company.jobs) - len(jobs)
+        counts["jobs_dropped"] += len(company.jobs) - count_matched(company.jobs, c)
         counts["people_dropped"] += len(company.people) - len(persons)
-        allowed = {url_key(u) for u in [c.url, *(j.url for j in c.jobs)] if u}
-        url = company.url if url_key(company.url) in allowed else ""
-        out[key] = company.model_copy(
-            update={
-                "name": c.name,
-                "url": url or c.url or (c.jobs[0].url if c.jobs else ""),
-                "jobs": jobs,
-                "people": persons,
-                "score": c.score,
-                "people_searched": found is not None,
-                "people_keywords": c.people_keywords,
-            }
-        )
+    companies: list[CompanyResult] = []
     for key, c in by_name.items():
-        if key not in out:
-            out[key] = _fallback_company(c, people.get(c.name))
+        company = written_by_key.get(key)
+        found = people.get(c.name)
+        if company is None:
             counts["companies_added"] += 1
-    companies = sorted(out.values(), key=lambda c: -(c.score or 0))
+            companies.append(_fallback_company(c, found))
+            continue
+        allowed = {url_key(u) for u in [c.url, *(r.job.url for r in c.jobs)] if u}
+        url = company.url if url_key(company.url) in allowed else ""
+        companies.append(
+            company.model_copy(
+                update={
+                    "name": c.name,
+                    "url": url or c.url or (c.jobs[0].job.url if c.jobs else ""),
+                    "jobs": [job_result(r, _written_job(company.jobs, r)) for r in c.jobs],
+                    "people": match_people(company.people, found or []),
+                    "score": c.score,
+                    "people_searched": found is not None,
+                    "people_keywords": c.people_keywords,
+                }
+            )
+        )
     return SearchResults(summary=results.summary, companies=companies), counts
 
 

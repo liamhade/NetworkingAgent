@@ -17,7 +17,7 @@ import boards
 import config
 import pipeline
 from pipeline import steps
-from pipeline.state import AtsJobQuery, CompanyRanking, SearchPlan
+from pipeline.state import AtsJobQuery, JobRanking, SearchPlan
 from schemas import ResultEvent, SearchResults, StatusEvent, TraceEvent
 
 ATS_PLAN = plan(ats_jobs=[AtsJobQuery(keywords="data analyst", location="New York")])
@@ -26,7 +26,6 @@ ATS_PLAN = plan(ats_jobs=[AtsJobQuery(keywords="data analyst", location="New Yor
 @pytest.fixture
 def sources(monkeypatch: pytest.MonkeyPatch) -> FakeSources:
     monkeypatch.setattr(config, "PEOPLE_AUTO_COMPANIES", 0)
-    monkeypatch.setattr(config, "READ_POSTINGS", 0)
     monkeypatch.setattr(config, "ATS_MAX_BOARDS", 6)
     monkeypatch.setattr(config, "ATS_JOBS_PER_BOARD", 4)
     return FakeSources(monkeypatch)
@@ -36,8 +35,8 @@ def run(model, request=REQUEST) -> list:
     return list(pipeline.run_search(request, llm=model))
 
 
-def answers(search_plan: SearchPlan, ranked: CompanyRanking = DEFAULT_RANKING) -> dict:
-    return {SearchPlan: search_plan, CompanyRanking: ranked, SearchResults: compiled()}
+def answers(search_plan: SearchPlan, ranked: JobRanking = DEFAULT_RANKING) -> dict:
+    return {SearchPlan: search_plan, JobRanking: ranked, SearchResults: compiled()}
 
 
 def trace_of(events: list) -> list:
@@ -55,7 +54,10 @@ def test_ats_jobs_are_gathered_and_can_be_ranked(scripted_model, sources) -> Non
         ats_board("plaid", provider="lever"),
         ats_board("ramp", "r1", provider="ashby"),
     ]
-    sources.ats_board_jobs = {"acme": [ats_job("Acme", 7), ats_job("Acme", 8)], "globex": []}
+    sources.ats_board_jobs = {
+        "acme": [ats_job("Acme", 7), {**ats_job("Acme", 8), "location": "Remote"}],
+        "globex": [],
+    }
     ranked = ranking(("Acme", 95, [("j6", 90), ("j7", 70)]), ("Ramp", 80, [("j1", 80)]))
     events = run(scripted_model(structured=answers(ATS_PLAN, ranked)))
 

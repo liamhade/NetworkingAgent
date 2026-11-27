@@ -1,25 +1,25 @@
-"""The `rank_companies` node."""
+"""The `rank_jobs` node: one structured-output call over compact cards of the completed jobs."""
 
 import json
 import logging
-from typing import TypeVar
+from urllib.parse import urlsplit
 
 from langchain_core.language_models import BaseChatModel
-from pydantic import BaseModel
 
 import config
 import prompts
 from pipeline.state import (
     ChosenCompany,
-    CompanyRanking,
-    Job,
+    JobPosting,
+    JobRank,
+    JobRanking,
     ListedCompany,
     PipelineState,
+    RankedJob,
     SearchPlan,
 )
 from pipeline.steps.common import (
     call,
-    dump,
     format_profile,
     name_key,
     plural,
@@ -28,181 +28,163 @@ from pipeline.steps.common import (
     status,
     structured,
 )
-from schemas import (
-    TraceStep,
-)
+from schemas import TraceStep
 
 log = logging.getLogger(__name__)
 
-T = TypeVar("T", bound=BaseModel)
-
-MAX_JOBS_PER_COMPANY = 4
 MAX_PEOPLE_KEYWORDS = 2
+CARD_REQUIREMENTS_CHARS = 700
+"""Characters of a posting's requirements excerpt on its card (about 250 tokens per card)."""
 
 
-# -------------------------------------------------------------------- rank_companies
+def job_card(job: JobPosting) -> str:
+    """One compact JSON line per job: what the ranker judges it by."""
+    card = {
+        "id": job.id,
+        "title": job.title,
+        "company": job.company,
+        "location": job.location,
+        "salary": job.salary,
+        "years_required": job.years_required,
+        "level": job.level,
+        "requirements": short(job.requirements or job.summary, CARD_REQUIREMENTS_CHARS),
+        "url": job.url if not job.company else "",
+    }
+    return json.dumps({k: v for k, v in card.items() if v}, ensure_ascii=False)
 
 
-def _jobs_table(jobs: list[Job]) -> str:
-    rows = [
-        {
-            "id": j.id,
-            "source": j.source,
-            "title": j.title,
-            "company": j.company,
-            "location": j.location,
-            "salary": j.salary,
-            "level": j.level,
-            "years_required": j.years_required,
-            "summary": short(j.summary, 160),
-            "url": j.url if not j.company else "",
-        }
-        for j in jobs
-    ]
-    return "\n".join(
-        json.dumps({k: v for k, v in r.items() if v}, ensure_ascii=False) for r in rows
+def _employer(job: JobPosting, named: str = "") -> str:
+    """The job's company; else the one the ranker named; else the posting's site."""
+    return (
+        job.company.strip()
+        or named.strip()
+        or urlsplit(job.url).netloc.removeprefix("www.")
+        or "Unknown employer"
     )
 
 
 def validate_ranking(
-    ranking: CompanyRanking,
-    jobs: list[Job],
-    listed: list[ListedCompany],
-    max_companies: int,
-) -> tuple[list[ChosenCompany], list[str]]:
-    """Keep only companies and job ids that exist in the gathered data; sort by score.
-
-    A job id must exist and, if the job names its company, match the pick. A pick needs at
-    least one valid job or a name that appears in the data. The data's spelling wins.
-    Returns the chosen companies (best first) and what was dropped.
-    """
+    ranking: JobRanking, jobs: list[JobPosting], max_jobs: int
+) -> tuple[list[RankedJob], dict[str, list[str]], list[str]]:
+    """Keep only job ids that exist, once each, best score first (the ranker's order breaks
+    ties), at most `max_jobs`. Returns the ranked jobs, people keywords by company name key
+    and what was dropped. No cap per company."""
     by_id = {j.id: j for j in jobs}
-    known: dict[str, dict[str, str]] = {}
-    for j in jobs:
-        if j.company:
-            known.setdefault(name_key(j.company), {"name": j.company, "url": j.company_url})
-    for c in listed:
-        entry = known.setdefault(name_key(c.name), {"name": c.name, "url": c.url})
-        entry["url"] = entry["url"] or c.url
-        entry["about"] = c.about
-
-    chosen: dict[str, ChosenCompany] = {}
+    picked: dict[str, tuple[int, int, JobRank]] = {}
     dropped: list[str] = []
-    for pick in ranking.companies:
-        key = name_key(pick.name)
-        if not key:
-            continue
-        picked: list[Job] = []
-        scores: dict[str, int] = {}
-        for js in pick.jobs:
-            job = by_id.get(js.id.strip())
-            if job is None or (job.company and name_key(job.company) != key):
-                dropped.append(f"{pick.name}: job {js.id}")
-                continue
-            if job.id not in scores:
-                picked.append(job)
-                scores[job.id] = scored(js.score)
-        info = known.get(key)
-        if info is None and not picked:
-            dropped.append(f"{pick.name}: not in the data")
-            continue
-        if key in chosen:
-            dropped.append(f"{pick.name}: duplicate")
-            continue
-        picked.sort(key=lambda j: -scores[j.id])
-        keywords = [k.strip() for k in pick.people_keywords if k.strip()]
-        chosen[key] = ChosenCompany(
-            name=info["name"] if info else pick.name.strip(),
-            url=(info or {}).get("url") or "",
-            about=(info or {}).get("about") or "",
-            score=scored(pick.score),
-            reason=pick.reason,
-            jobs=picked[:MAX_JOBS_PER_COMPANY],
-            job_scores=scores,
-            people_keywords=keywords[:MAX_PEOPLE_KEYWORDS],
+    for position, entry in enumerate(ranking.jobs):
+        job_id = entry.id.strip()
+        if job_id not in by_id:
+            dropped.append(f"{job_id}: not a gathered job")
+        elif job_id in picked:
+            dropped.append(f"{job_id}: duplicate")
+        else:
+            picked[job_id] = (scored(entry.score), position, entry)
+    order = sorted(picked.values(), key=lambda item: (-item[0], item[1]))
+    ranked: list[RankedJob] = []
+    for score, _, entry in order[:max_jobs]:
+        job = by_id[entry.id.strip()]
+        updates = {"company": _employer(job, entry.company)}
+        years = entry.years_required.strip()
+        if years:
+            updates["years_required"] = years
+        ranked.append(
+            RankedJob(
+                job=job.model_copy(update=updates),
+                rank=len(ranked) + 1,
+                score=score,
+                reason=entry.reason.strip(),
+                alignment=entry.alignment.strip(),
+                years_required=updates.get("years_required", job.years_required),
+            )
         )
-    # The LLM's score decides; the number of relevant jobs breaks ties.
-    ranked = sorted(chosen.values(), key=lambda c: (-c.score, -len(c.jobs)))
-    return ranked[:max_companies], dropped
+    dropped += [f"{e.id.strip()}: over the limit of {max_jobs}" for _, _, e in order[max_jobs:]]
+    keywords: dict[str, list[str]] = {}
+    for company in ranking.companies:
+        words = [k.strip() for k in company.people_keywords if k.strip()]
+        keywords.setdefault(name_key(company.company), words[:MAX_PEOPLE_KEYWORDS])
+    return ranked, keywords, dropped
 
 
-def default_ranking(
-    jobs: list[Job], listed: list[ListedCompany], plan: SearchPlan, max_companies: int
-) -> list[ChosenCompany]:
-    """Used when the ranking call fails: companies with the most postings first."""
-    groups: dict[str, list[Job]] = {}
-    for j in jobs:
-        if j.company:
-            groups.setdefault(name_key(j.company), []).append(j)
-    keywords = [*plan.role_titles[:1], "recruiter"]
-    chosen = [
-        ChosenCompany(
-            name=group[0].company,
-            url=group[0].company_url,
-            score=min(80, 40 + 10 * len(group)),
-            reason="Ranked by number of matching postings.",
-            jobs=group[:MAX_JOBS_PER_COMPANY],
-            job_scores={j.id: 50 for j in group},
-            people_keywords=keywords,
+def default_ranking(jobs: list[JobPosting], max_jobs: int) -> list[RankedJob]:
+    """Used when the ranking call fails: the filter's order, every job at a neutral score."""
+    return [
+        RankedJob(
+            job=job.model_copy(update={"company": _employer(job)}),
+            rank=i,
+            score=50,
+            reason="Not scored: the ranking call failed.",
+            years_required=job.years_required,
         )
-        for group in sorted(groups.values(), key=len, reverse=True)
+        for i, job in enumerate(jobs[:max_jobs], start=1)
     ]
-    if not chosen:
-        chosen = [
-            ChosenCompany(name=c.name, url=c.url, about=c.about, score=40, people_keywords=keywords)
-            for c in listed
-        ]
-    return chosen[:max_companies]
 
 
-def rank_companies_node(state: PipelineState, llm: BaseChatModel) -> dict:
-    jobs, listed, plan = state["jobs"], state["listed_companies"], state["plan"]
-    status(f"Ranking companies from {plural(len(jobs), 'job')}")
+def build_chosen(
+    ranked: list[RankedJob],
+    keywords: dict[str, list[str]],
+    listed: list[ListedCompany],
+    plan: SearchPlan,
+) -> list[ChosenCompany]:
+    """Companies in the order of their best job; `score` is that job's score."""
+    about = {name_key(c.name): c for c in listed}
+    default = [*plan.role_titles[:1], "recruiter"]
+    groups: dict[str, ChosenCompany] = {}
+    for item in ranked:
+        key = name_key(item.job.company)
+        company = groups.get(key)
+        if company is None:
+            info = about.get(key)
+            company = groups[key] = ChosenCompany(
+                name=item.job.company,
+                url=item.job.company_url or (info.url if info else ""),
+                about=info.about if info else "",
+                score=item.score,
+                reason=item.reason,
+                people_keywords=keywords.get(key) or default,
+            )
+        company.jobs.append(item)
+    return list(groups.values())
+
+
+def rank_jobs_node(state: PipelineState, llm: BaseChatModel) -> dict:
+    jobs, plan = state["postings"], state["plan"]
+    status(f"Ranking {plural(len(jobs), 'job')}")
     parts = [
         format_profile(state["request"]),
         f"<plan>\nRoles: {', '.join(plan.role_titles)}\nSeniority: {plan.seniority}\n"
         f"Industries: {', '.join(plan.industries)}\nLocation: {plan.location}\n</plan>",
-        f"<jobs>\n{_jobs_table(jobs)}\n</jobs>",
+        "<jobs>\n" + "\n".join(job_card(j) for j in jobs) + "\n</jobs>",
     ]
-    if listed:
-        rows = [{"name": c.name, "about": short(c.about, 160)} for c in listed]
-        parts.append(f"<companies>\n{dump(rows)}\n</companies>")
     ranking, trace = call(
-        "rank_companies",
+        "rank_jobs",
         "llm",
-        {"jobs": len(jobs), "listed_companies": len(listed)},
+        {"jobs": len(jobs), "model": config.RANK_MODEL},
         lambda: structured(
-            llm, CompanyRanking, prompts.rank_prompt(), "\n\n".join(parts), "rank_companies"
+            llm, JobRanking, prompts.rank_jobs_prompt(), "\n\n".join(parts), "rank_jobs"
         ),
     )
     steps = [trace]
-    chosen: list[ChosenCompany] = []
+    ranked: list[RankedJob] = []
+    keywords: dict[str, list[str]] = {}
     if ranking is not None:
-        chosen, dropped = validate_ranking(ranking, jobs, listed, config.MAX_COMPANIES)
-        trace.count = len(ranking.companies)
+        ranked, keywords, dropped = validate_ranking(ranking, jobs, config.MAX_JOBS)
+        trace.count = len(ranking.jobs)
         steps.append(
             TraceStep(
-                step="rank_companies",
-                source="validate",
-                args={"dropped": dropped},
-                count=len(chosen),
+                step="rank_jobs", source="validate", args={"dropped": dropped}, count=len(ranked)
             )
         )
-    if not chosen:
-        chosen = default_ranking(jobs, listed, plan, config.MAX_COMPANIES)
+    if not ranked:
+        ranked = default_ranking(jobs, config.MAX_JOBS)
         steps.append(
             TraceStep(
-                step="rank_companies",
+                step="rank_jobs",
                 source="validate",
-                count=len(chosen),
-                note="fallback: ranked by number of postings",
+                count=len(ranked),
+                note="fallback: the filter's order, not scored",
             )
         )
-    if not chosen:
-        return {
-            "chosen": [],
-            "error": "No companies could be chosen from the jobs found.",
-            "trace": steps,
-        }
-    status("Top companies: " + ", ".join(f"{c.name} ({c.score})" for c in chosen))
-    return {"chosen": chosen, "trace": steps}
+    chosen = build_chosen(ranked, keywords, state.get("listed_companies", []), plan)
+    status("Top jobs: " + ", ".join(f"{r.job.title} ({r.score})" for r in ranked[:3]))
+    return {"ranked": ranked, "chosen": chosen, "trace": steps}

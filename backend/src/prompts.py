@@ -7,10 +7,9 @@ outputs, and code runs every search. One prompt per LLM step:
   ...): `plan` node. Profile -> target roles and which job sources to query with which
   filters (`pipeline.state.SearchPlan`). `plan_prompt(boards)` assembles it from the boards
   the search turned on (and, for USAJOBS, only when `config.usajobs_configured()`).
-- `RANK_PROMPT`: `rank_companies` node. Jobs found -> companies scored 0-100 for fit, with
-  their best postings and people-search keywords (`pipeline.state.CompanyRanking`).
-- `RESCORE_PROMPT`: `rescore_jobs` node (experimental, `config.RESCORE_POSTINGS`). The top
-  postings read in full -> new job and company scores (`pipeline.state.Rescoring`).
+- `RANK_JOBS_PROMPT`: `rank_jobs` node. Job cards (completed postings) -> the best jobs scored
+  0-100 for fit, each with a reason and alignment note, plus people-search keywords per
+  company (`pipeline.state.JobRanking`). Replaces the old company ranking and rescoring.
 - `COMPILE_PROMPT`: `compile` node. Gathered data -> `SearchResults` with alignment notes.
 - `PEOPLE_NOTES_PROMPT`: on-demand people search ("Find People To Connect With"). People
   found at one company -> their alignment and connection notes.
@@ -83,42 +82,38 @@ GOOGLE_PLAN_PROMPT = (
     "other sources fit well."
 )
 
-RANK_PROMPT = """You rank companies for a job seeker, using job postings that were just \
-found. Each posting has an id ("j1", ...).
+RANK_JOBS_PROMPT = """You rank job postings for a job seeker. Each card below is one posting \
+that was just found, with an id ("j1", ...), its requirements excerpt and, when known, the \
+experience it asks for.
 
 Rules:
-- Choose up to {max_companies} companies that fit the user best, and score each one 0-100 \
-for overall fit (role, seniority, skills, industry, location, and how many relevant open \
-jobs it has). Use the whole range: 80+ is a strong fit, below 40 a weak one.
+- Return the {max_jobs} jobs that fit the user best (fewer if fewer are worth applying to), \
+best first, each with its own 0-100 score for fit (role, seniority, skills, industry, \
+location, pay). Use the whole range: 80+ is a strong fit, below 40 a weak one. Several jobs \
+at one company are fine: rank every job on its own merits, with no limit per company.
 - Seniority is a hard limit. Judge the user's experience from their background (a student \
 or new graduate has about none). Read each job's `years_required` and `level` when present, \
-and its title ("Senior", "Staff", "Principal", "Lead", "Manager", "II"/"III"). A job that \
-needs much more experience than the user has (e.g. 3+ years for someone with none, or 8+ \
-for someone with 3) scores at most 40, however well the role matches; a company whose \
-relevant jobs are all like that scores at most 50. Jobs at or near the user's level score \
-higher than better-known roles above it.
-- Only choose companies that appear in the data, with the name exactly as listed. For a \
-Google result without a company, name the employer shown in its title, site or URL.
-- jobs: that company's relevant postings by id, at most 4, each with its own 0-100 score.
-- people_keywords: 1-2 short keyword sets describing people the user should contact there: \
-someone on the team they would join (e.g. "data science manager", "engineering manager") \
-and/or "recruiter". Describe the person, not the job posting (no "jobs", "hiring").
-- reason: one short sentence on the score."""
-
-RESCORE_PROMPT = """You re-check job fit scores for a job seeker. Each company below was \
-already scored from short job listings; you now get the full text of its top postings.
-
-Rules:
-- For every posting given, read its requirements and return years_required (the least \
-experience it asks for, e.g. "3+ years", or "" if it does not say) and a new 0-100 score.
-- Seniority is a hard limit. Judge the user's experience from their background (a student \
-or new graduate has about none). A posting that needs much more experience than the user \
-has (e.g. 3+ years for someone with none) scores at most 40, however well the role \
-matches. Also lower the score for required skills, degrees, clearances or locations the \
-user lacks.
-- Return each company's overall 0-100 score, given its postings: at most 50 when none of \
-them suits the user's level.
-- Use the company names and job ids exactly as given. Do not add jobs."""
+its requirements and its title ("Senior", "Staff", "Principal", "Lead", "Manager", \
+"II"/"III"). A job that needs much more experience than the user has (e.g. 3+ years for \
+someone with none, or 8+ for someone with 3) scores at most 40, however well the role \
+matches. Jobs at or near the user's level score higher than better-known roles above it. \
+Partial experience gets partial credit: a "2-5 years" job suits someone with 2 years.
+- Check eligibility. A new-grad, early-career or internship program for a later graduation \
+year (e.g. "2027 New Grad", "graduating by Summer 2027") does not fit someone who has \
+already graduated and is working: score it at most 40. Also lower the score for required \
+degrees, clearances, licenses, skills or locations the user lacks.
+- Only return ids that appear on the cards. Do not invent jobs.
+- company: copy it from the card; when the card has none (a Google result), the employer \
+named in its title, site or URL.
+- years_required: the least experience the posting asks for (e.g. "3+ years"), or "" if it \
+does not say.
+- reason: one short sentence on the score.
+- alignment: 1-3 sentences speaking to the user ("You ..."), pointing to concrete overlaps \
+and gaps between their background and this job: skills, industry, seniority, location.
+- companies: for every company in `jobs`, 1-2 short keyword sets describing people the user \
+should contact there: someone on the team they would join (e.g. "data science manager", \
+"engineering manager") and/or "recruiter". Describe the person, not the job posting (no \
+"jobs", "hiring")."""
 
 COMPILE_PROMPT = """You turn gathered job-search research data into the final results.
 
@@ -168,10 +163,10 @@ no sign-off with the user's name.
 - Never invent facts about the user or the person."""
 
 
-def rank_prompt(max_companies: int | None = None) -> str:
-    """`RANK_PROMPT` with the company cap (default from config)."""
-    limit = max_companies if max_companies is not None else config.MAX_COMPANIES
-    return RANK_PROMPT.format(max_companies=limit)
+def rank_jobs_prompt(max_jobs: int | None = None) -> str:
+    """`RANK_JOBS_PROMPT` with the job cap (default from config)."""
+    limit = max_jobs if max_jobs is not None else config.MAX_JOBS
+    return RANK_JOBS_PROMPT.format(max_jobs=limit)
 
 
 def linkedin_message_prompt(max_chars: int | None = None) -> str:

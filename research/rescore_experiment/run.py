@@ -1,4 +1,8 @@
-"""Measure the experimental `rescore_jobs` step on saved searches: time, tokens and cost.
+"""NOTE: obsolete. `rescore_jobs`, `RESCORE_*` and `rank_companies` were removed by
+docs/job-ranking/plan.md (phase 3); this script no longer runs. Kept as the record of
+docs/experience-fit/experiment.md.
+
+Measure the experimental `rescore_jobs` step on saved searches: time, tokens and cost.
 
 Usage (from the repo root, with the backend venv):
 

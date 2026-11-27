@@ -32,15 +32,22 @@ CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://127.
     ","
 )
 
-MAX_COMPANIES = max(1, int(os.environ.get("MAX_COMPANIES", "6")))
-"""Most companies a search returns, ranked by fit (score 0-100)."""
+RANK_MODEL = os.environ.get("RANK_MODEL", "anthropic:claude-sonnet-5-5")
+"""Model for the `rank_jobs` step (`<provider>:<model>`). It judges eligibility and partial
+experience better than the default model, for one call per search."""
+
+RANK_MAX_JOBS = max(1, int(os.environ.get("RANK_MAX_JOBS", "30")))
+"""Jobs that survive the `filter` step, get their posting read and go to the ranker."""
+
+MAX_JOBS = max(1, int(os.environ.get("MAX_JOBS", "12")))
+"""Jobs a search returns: the ranker's best, by fit score (0-100)."""
 
 MAX_CONCURRENT_SEARCHES = max(1, int(os.environ.get("MAX_CONCURRENT_SEARCHES", "2")))
 """Searches that may run at once (all users). Starting another is refused with HTTP 429, since
 they all share one Chrome worker for Google calls and one LLM rate limit."""
 
 PEOPLE_AUTO_COMPANIES = max(0, int(os.environ.get("PEOPLE_AUTO_COMPANIES", "3")))
-"""The top-ranked companies that get a people search during the search; the rest get one
+"""The first companies, in job order, that get a people search during the search; the rest get one
 on demand ("Find People To Connect With")."""
 
 PEOPLE_PER_COMPANY = max(1, int(os.environ.get("PEOPLE_PER_COMPANY", "3")))
@@ -56,27 +63,9 @@ PEOPLE_SIMILAR_PER_COMPANY = max(1, int(os.environ.get("PEOPLE_SIMILAR_PER_COMPA
 PEOPLE_SEARCH_N = max(1, min(10, int(os.environ.get("PEOPLE_SEARCH_N", "5"))))
 """Profiles asked for per people search (more is slower: each link is resolved)."""
 
-READ_POSTINGS = max(0, int(os.environ.get("READ_POSTINGS", "2")))
-"""Job postings read in full for requirements and salary (0 turns it off)."""
-
-READ_POSTING_MAX_CHARS = max(1_000, int(os.environ.get("READ_POSTING_MAX_CHARS", "4000")))
-"""Characters of each read posting passed to the compile step."""
-
-RESCORE_POSTINGS = max(0, int(os.environ.get("RESCORE_POSTINGS", "0")))
-"""Experimental: the top postings per chosen company read in full right after ranking, so
-the `rescore_jobs` step can score them again against their requirements (0 turns it off).
-See `docs/experience-fit/experiment.md`."""
-
-RESCORE_MODEL = os.environ.get("RESCORE_MODEL", "anthropic:claude-sonnet-5-5")
-"""Model for the `rescore_jobs` step (`<provider>:<model>`); it judges eligibility and partial
-experience better than the default model, at ~17x the cost of Haiku for that one call."""
-
 READ_TIMEOUT_S = max(1.0, float(os.environ.get("READ_TIMEOUT_S", "8")))
 """Seconds a batch of posting reads may take; pages not read by then are skipped, so one slow
 page (e.g. a JS-only board that needs the browser) cannot hold up the search."""
-
-RESCORE_POSTING_MAX_CHARS = max(500, int(os.environ.get("RESCORE_POSTING_MAX_CHARS", "2500")))
-"""Characters of each posting passed to the `rescore_jobs` step (requirements come first)."""
 
 ATS_MAX_BOARDS = max(0, int(os.environ.get("ATS_MAX_BOARDS", "6")))
 """Most ATS boards (any provider) fetched per search (0 turns ATS off)."""

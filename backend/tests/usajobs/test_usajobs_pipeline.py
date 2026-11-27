@@ -10,7 +10,7 @@ import pipeline
 import prompts
 import tools
 from pipeline import steps
-from pipeline.state import CompanyRanking, SearchPlan, UsajobsQuery
+from pipeline.state import JobRanking, SearchPlan, UsajobsQuery
 from schemas import ResultEvent, SearchResults, TraceEvent
 from usajobs import Agency, Job, JobFilter
 from usajobs import api as usajobs_api
@@ -53,7 +53,6 @@ def unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def sources(monkeypatch: pytest.MonkeyPatch) -> FakeSources:
     monkeypatch.setattr(config, "PEOPLE_AUTO_COMPANIES", 0)
-    monkeypatch.setattr(config, "READ_POSTINGS", 0)
     return FakeSources(monkeypatch)
 
 
@@ -69,7 +68,7 @@ def run_scripted(scripted_model):
 
 
 def answers(search_plan: SearchPlan) -> dict:
-    return {SearchPlan: search_plan, CompanyRanking: DEFAULT_RANKING, SearchResults: compiled()}
+    return {SearchPlan: search_plan, JobRanking: DEFAULT_RANKING, SearchResults: compiled()}
 
 
 def usajobs_steps(events: list) -> list:

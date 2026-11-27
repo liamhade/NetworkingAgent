@@ -5,14 +5,15 @@ from typing import Any
 
 import pytest
 
+import postings
 import tools
 from boards import catalog
 from pipeline.state import (
     BuiltinJobQuery,
-    CompanyRanking,
-    JobScore,
+    CompanyKeywords,
+    JobRank,
+    JobRanking,
     PeopleNotes,
-    RankedCompany,
     SearchPlan,
 )
 from read_page import PageResult
@@ -79,23 +80,33 @@ def plan(**changes: Any) -> SearchPlan:
     return base.model_copy(update=changes)
 
 
-def ranking(*companies: tuple[str, int, list[tuple[str, int]]]) -> CompanyRanking:
-    """`("Ramp", 90, [("j1", 80)])`, ... -> CompanyRanking (keywords: "data manager")."""
-    return CompanyRanking(
-        companies=[
-            RankedCompany(
-                name=name,
-                score=score,
-                reason=f"{name} fits.",
-                jobs=[JobScore(id=i, score=s) for i, s in jobs],
-                people_keywords=["data manager"],
+def ranking(*companies: tuple[str, int, list[tuple[str, int]]]) -> JobRanking:
+    """`("Ramp", 90, [("j1", 80)])`, ... -> JobRanking: one JobRank per `(id, score)` (the
+    company's own score is unused: jobs are ranked, not companies) and one keyword entry per
+    company (keywords: "data manager")."""
+    return JobRanking(
+        jobs=[
+            JobRank(
+                id=i,
+                score=s,
+                reason=f"{i} fits.",
+                alignment=f"You fit {i}.",
+                years_required="",
+                company=name,
             )
-            for name, score, jobs in companies
-        ]
+            for name, _, jobs in companies
+            for i, s in jobs
+        ],
+        companies=[
+            CompanyKeywords(company=name, people_keywords=["data manager"])
+            for name, _, _ in companies
+        ],
     )
 
 
-DEFAULT_RANKING = ranking(*[(c, 90 - 10 * i, [(f"j{i + 1}", 80)]) for i, c in enumerate(COMPANIES)])
+DEFAULT_RANKING = ranking(
+    *[(c, 90 - 10 * i, [(f"j{i + 1}", 90 - 10 * i)]) for i, c in enumerate(COMPANIES)]
+)
 
 
 def compiled(found: dict[str, list[dict]] | None = None) -> SearchResults:
@@ -195,6 +206,8 @@ class FakeSources:
             monkeypatch.setattr(tools, name, self._source(name))
         monkeypatch.setattr(tools, "linkedin_people", self.linkedin_people)
         monkeypatch.setattr(tools, "read_page", self.read_page)
+        # Every posting is read through the fake `read_page`, never a site parser.
+        monkeypatch.setattr(postings, "reader_for", lambda url: None)
         monkeypatch.setattr(tools, "ats_boards", self.fake_ats_boards)
         monkeypatch.setattr(tools, "ats_jobs", self.fake_ats_jobs)
 

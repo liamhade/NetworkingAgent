@@ -7,6 +7,7 @@ from ats.ashby import Ashby
 from ats.lever import Lever
 from experience import years_required
 from pipeline import steps
+from pipeline.state import JobPosting
 
 
 @pytest.mark.parametrize(
@@ -51,7 +52,7 @@ def test_ashby_reads_years_from_description() -> None:
     assert job is not None and job.years_required == "5+ years"
 
 
-def test_years_and_level_reach_the_job_table() -> None:
+def test_years_and_level_reach_the_job_card() -> None:
     builtin = steps._job_from(
         "builtin_jobs",
         {
@@ -66,10 +67,10 @@ def test_years_and_level_reach_the_job_table() -> None:
         {"title": "Junior Analyst", "url": "u2", "snippet": "1-2 years of experience required"},
     )
     builtin.id, google.id = "j1", "j2"
-    table = steps._jobs_table([builtin, google])
-    assert '"level": "Senior"' in table
-    assert '"years_required": "6+ years"' in table
-    assert '"years_required": "1-2 years"' in table
+    cards = [steps.job_card(JobPosting(**job.model_dump())) for job in (builtin, google)]
+    assert '"level": "Senior"' in cards[0]
+    assert '"years_required": "6+ years"' in cards[0]
+    assert '"years_required": "1-2 years"' in cards[1]
 
 
 def test_conservation_experience_becomes_years(monkeypatch: pytest.MonkeyPatch) -> None:
