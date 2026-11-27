@@ -2,16 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import type { User } from '@/api'
 import { BrandMark } from '@/components/brand-mark'
 import { ChangePasswordDialog } from '@/components/change-password'
+import { PanelResizer } from '@/components/panel-resizer'
 import { Icon, type IconName } from '@/components/icon'
 import { initials } from '@/utils/initials'
 import { useAuth } from '@/utils/auth-context'
-import { uiZoom } from '@/utils/ui-zoom'
-import {
-  SIDEBAR_DEFAULT,
-  SIDEBAR_MAX,
-  SIDEBAR_MIN,
-  useSidebarWidth,
-} from '@/utils/sidebar-width'
+import { SIDEBAR_SPEC, useSidebarWidth } from '@/utils/sidebar-width'
 import type { Theme } from '@/utils/theme'
 import { type View, viewHash } from '@/utils/view'
 
@@ -125,7 +120,13 @@ export function AppShell({
       </header>
       <div className="shell" style={{ '--side-w': `${sidebarWidth.width}px` } as React.CSSProperties}>
         {sidebar}
-        <SidebarResizer {...sidebarWidth} />
+        <PanelResizer
+          {...sidebarWidth}
+          spec={SIDEBAR_SPEC}
+          label="Resize previous searches"
+          controls="side"
+          className="side-resize"
+        />
         <main className="main" id="main">
           {children}
         </main>
@@ -137,79 +138,6 @@ export function AppShell({
         onClick={() => onSidebarOpenChange(false)}
       />
     </>
-  )
-}
-
-/**
- * Drag handle on the sidebar's right edge (desktop only; hidden when the sidebar is a drawer).
- * Arrow keys nudge it, Home / End jump to the limits, double-click resets the width.
- */
-function SidebarResizer({
-  width,
-  setWidth,
-  commit,
-}: {
-  width: number
-  setWidth: (width: number) => void
-  commit: (width: number) => void
-}) {
-  const drag = useRef<{ startX: number; startWidth: number; last: number; zoom: number } | null>(null)
-
-  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    drag.current = { startX: event.clientX, startWidth: width, last: width, zoom: uiZoom() }
-    document.body.classList.add('resizing')
-  }
-  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!drag.current) return
-    const { startX, startWidth, zoom } = drag.current
-    drag.current.last = startWidth + (event.clientX - startX) / zoom
-    setWidth(drag.current.last)
-  }
-  const endDrag = () => {
-    if (!drag.current) return
-    commit(drag.current.last)
-    drag.current = null
-    document.body.classList.remove('resizing')
-  }
-  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const step = event.shiftKey ? 48 : 16
-    const next =
-      event.key === 'ArrowLeft'
-        ? width - step
-        : event.key === 'ArrowRight'
-          ? width + step
-          : event.key === 'Home'
-            ? SIDEBAR_MIN
-            : event.key === 'End'
-              ? SIDEBAR_MAX
-              : null
-    if (next === null) return
-    event.preventDefault()
-    commit(next)
-  }
-
-  return (
-    <div
-      className="side-resize"
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize previous searches"
-      aria-controls="side"
-      aria-valuenow={width}
-      aria-valuemin={SIDEBAR_MIN}
-      aria-valuemax={SIDEBAR_MAX}
-      tabIndex={0}
-      title="Drag to resize · double-click to reset"
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onKeyDown={onKeyDown}
-      onDoubleClick={() => commit(SIDEBAR_DEFAULT)}
-    />
   )
 }
 

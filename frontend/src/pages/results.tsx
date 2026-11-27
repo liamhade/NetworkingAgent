@@ -13,11 +13,13 @@ import { ConnectDrawer, type DrawerPerson } from '@/components/connect-drawer'
 import { FindPeopleButton, FindPeopleSearch } from '@/components/find-people-button'
 import { PageHeader } from '@/components/page-header'
 import { Icon } from '@/components/icon'
+import { PanelResizer } from '@/components/panel-resizer'
 import { PinToggle } from '@/components/pin-toggle'
 import { StatusToggle } from '@/components/status-toggle'
 import { useToast } from '@/utils/use-toast'
 import { cx } from '@/utils/cx'
 import { uiZoom } from '@/utils/ui-zoom'
+import { type PanelWidthSpec, usePanelWidth } from '@/utils/sidebar-width'
 import { formatRelativeDate, fullDateFormat } from '@/utils/format-date'
 import { initials } from '@/utils/initials'
 
@@ -93,6 +95,7 @@ const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
 const RAIL_OPEN_KEY = 'na-results-rail'
+const RAIL_SPEC: PanelWidthSpec = { key: 'na-results-rail-width', initial: 220, min: 180, max: 420 }
 
 /** Whether the results sidebar (view options + jump list) is shown; remembered across visits. */
 function useRailOpen(): [boolean, (open: boolean) => void] {
@@ -151,6 +154,7 @@ export function Results({
   const [sort, setSort] = useState<SortId>('fit')
   const [active, setActive] = useState<string | null>(ranked[0]?.id ?? null)
   const [railOpen, setRailOpen] = useRailOpen()
+  const railWidth = usePanelWidth(RAIL_SPEC)
   const [drawer, setDrawer] = useState<{ person: PersonResult; company: CompanyResult } | null>(
     null,
   )
@@ -286,14 +290,9 @@ export function Results({
           </>
         }
         title={meta.title || 'Your opportunities'}
+        subtitleOneLine
         subtitle={
           <>
-            {meta.location && (
-              <span>
-                <Icon name="pin2" size="sm" />
-                {meta.location}
-              </span>
-            )}
             {created && (
               <span>
                 <Icon name="clock" size="sm" />
@@ -303,10 +302,16 @@ export function Results({
                 </time>
               </span>
             )}
-            {meta.boards.length > 0 && (
+            {meta.location && (
               <span>
+                <Icon name="pin2" size="sm" />
+                {meta.location}
+              </span>
+            )}
+            {meta.boards.length > 0 && (
+              <span className="boards" title={meta.boards.join(', ')}>
                 <Icon name="layers" size="sm" />
-                {meta.boards.join(', ')}
+                <span>{meta.boards.join(', ')}</span>
               </span>
             )}
           </>
@@ -340,31 +345,12 @@ export function Results({
         </div>
       </section>
 
-      <div className={cx('cols', !railOpen && 'rail-off')}>
-        {!railOpen ? (
-          <button
-            type="button"
-            className="btn sm rail-show"
-            aria-expanded={false}
-            aria-controls="results-rail"
-            onClick={() => setRailOpen(true)}
-          >
-            <Icon name="filter" /> Show filters
-          </button>
-        ) : (
+      <div
+        className={cx('cols', !railOpen && 'rail-off')}
+        style={{ '--rail-w': `${railWidth.width}px` } as React.CSSProperties}
+      >
+        {railOpen && (
           <div className="rail" id="results-rail">
-            <div className="rail-head">
-              <span className="tb-lab">View</span>
-              <button
-                type="button"
-                className="rail-hide"
-                aria-expanded={true}
-                aria-controls="results-rail"
-                onClick={() => setRailOpen(false)}
-              >
-                Hide
-              </button>
-            </div>
           <div className="toolbar" role="toolbar" aria-label="View options">
             <span className="tb-lab" id="group-by">
               Group by
@@ -479,11 +465,31 @@ export function Results({
         </nav>
           </div>
         )}
+        {railOpen && (
+          <PanelResizer
+            {...railWidth}
+            spec={RAIL_SPEC}
+            label="Resize filters"
+            controls="results-rail"
+            className="rail-resize"
+          />
+        )}
 
         <section aria-label="Results">
           <h2 className="sr">{group === 'company' ? 'Companies' : 'Results by type'}</h2>
           <div className="count-line">
-            <span aria-live="polite">
+            <button
+              type="button"
+              className="ibtn rail-tog"
+              aria-expanded={railOpen}
+              aria-controls="results-rail"
+              aria-label={railOpen ? 'Hide filters' : 'Show filters'}
+              title={railOpen ? 'Hide filters' : 'Show filters'}
+              onClick={() => setRailOpen(!railOpen)}
+            >
+              <Icon name="chevron" size="sm" className={railOpen ? 'left' : 'right'} />
+            </button>
+            <span aria-live="polite" className="count-text">
               Showing {shown.length} of {plural(ranked.length, 'company', 'companies')} ·{' '}
               {plural(shownJobs, 'job', 'jobs')} · {plural(shownPeople, 'person', 'people')}
             </span>

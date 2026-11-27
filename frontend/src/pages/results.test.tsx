@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -166,16 +166,22 @@ describe('results layout', () => {
     expect(panelToggle('Acme')).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('hides the sidebar and remembers it', async () => {
+  it('hides, resizes and remembers the sidebar', async () => {
     stubFetch()
     localStorage.removeItem('na-results-rail')
+    localStorage.removeItem('na-results-rail-width')
     const user = userEvent.setup()
     const { unmount } = render(<Harness />)
-    await user.click(screen.getByRole('button', { name: 'Hide' }))
+    const handle = screen.getByRole('separator', { name: 'Resize filters' })
+    fireEvent.keyDown(handle, { key: 'ArrowRight' })
+    expect(handle).toHaveAttribute('aria-valuenow', '236')
+    expect(localStorage.getItem('na-results-rail-width')).toBe('236')
+    await user.click(screen.getByRole('button', { name: 'Hide filters' }))
+    expect(screen.queryByRole('separator', { name: 'Resize filters' })).toBeNull()
     expect(screen.queryByRole('toolbar', { name: 'View options' })).toBeNull()
     unmount()
     render(<Harness />)
-    await user.click(screen.getByRole('button', { name: /show filters/i }))
+    await user.click(screen.getByRole('button', { name: 'Show filters' }))
     expect(screen.getByRole('toolbar', { name: 'View options' })).toBeInTheDocument()
     expect(localStorage.getItem('na-results-rail')).toBe('open')
   })

@@ -1,38 +1,60 @@
 import { useCallback, useState } from 'react'
 
+/** Width limits (px) and the `localStorage` key a resizable panel saves its width under. */
+export interface PanelWidthSpec {
+  key: string
+  initial: number
+  min: number
+  max: number
+}
+
 /** `localStorage` key for the Previous Searches sidebar width (px). */
 export const SIDEBAR_WIDTH_KEY = 'na-sidebar-width'
 export const SIDEBAR_DEFAULT = 272
 export const SIDEBAR_MIN = 200
 export const SIDEBAR_MAX = 520
+export const SIDEBAR_SPEC: PanelWidthSpec = {
+  key: SIDEBAR_WIDTH_KEY,
+  initial: SIDEBAR_DEFAULT,
+  min: SIDEBAR_MIN,
+  max: SIDEBAR_MAX,
+}
 
-export const clampSidebarWidth = (width: number) =>
-  Math.round(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, width)))
+const clamp = (spec: PanelWidthSpec, width: number) =>
+  Math.round(Math.min(spec.max, Math.max(spec.min, width)))
 
-function readStored(): number {
+export const clampSidebarWidth = (width: number) => clamp(SIDEBAR_SPEC, width)
+
+function readStored(spec: PanelWidthSpec): number {
   try {
-    const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY))
-    return stored ? clampSidebarWidth(stored) : SIDEBAR_DEFAULT
+    const stored = Number(localStorage.getItem(spec.key))
+    return stored ? clamp(spec, stored) : spec.initial
   } catch {
-    return SIDEBAR_DEFAULT
+    return spec.initial
   }
 }
 
 /**
- * The sidebar width: `setWidth` changes it live (e.g. while dragging), `commit` also saves it
- * so it survives a reload.
+ * A resizable panel's width: `setWidth` changes it live (e.g. while dragging), `commit` also
+ * saves it so it survives a reload.
  */
-export function useSidebarWidth() {
-  const [width, setRaw] = useState(readStored)
-  const setWidth = useCallback((next: number) => setRaw(clampSidebarWidth(next)), [])
-  const commit = useCallback((next: number) => {
-    const clamped = clampSidebarWidth(next)
-    setRaw(clamped)
-    try {
-      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(clamped))
-    } catch {
-      // Storage unavailable (private mode): the width still applies for this visit.
-    }
-  }, [])
+export function usePanelWidth(spec: PanelWidthSpec) {
+  const [width, setRaw] = useState(() => readStored(spec))
+  const setWidth = useCallback((next: number) => setRaw(clamp(spec, next)), [spec])
+  const commit = useCallback(
+    (next: number) => {
+      const clamped = clamp(spec, next)
+      setRaw(clamped)
+      try {
+        localStorage.setItem(spec.key, String(clamped))
+      } catch {
+        // Storage unavailable (private mode): the width still applies for this visit.
+      }
+    },
+    [spec],
+  )
   return { width, setWidth, commit }
 }
+
+/** The Previous Searches sidebar width. */
+export const useSidebarWidth = () => usePanelWidth(SIDEBAR_SPEC)
