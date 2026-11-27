@@ -205,6 +205,22 @@ def test_a_slow_read_times_out_and_the_job_is_kept(monkeypatch: pytest.MonkeyPat
     assert any(t.error.startswith("Timeout") for t in trace)
 
 
+def test_a_timed_out_read_names_the_reader_that_was_waiting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "READ_BUDGET_S", 0.5)
+
+    def slow(url: str) -> fetch_mod.Fetched:
+        time.sleep(1.5)
+        return fetch_mod.Fetched(url, url, 200, BUILTIN_HTML.encode())
+
+    monkeypatch.setattr(fetch_mod, "fetch", slow)
+    [posting], trace = steps.complete_jobs([job(BUILTIN_URL)], max_reads=5)
+    assert posting.text_source == "none"
+    timeout = next(t for t in trace if t.error.startswith("Timeout"))
+    assert timeout.source == "builtin_parser"
+
+
 def test_only_max_reads_jobs_are_read(monkeypatch: pytest.MonkeyPatch) -> None:
     read: list[str] = []
 

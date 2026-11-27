@@ -154,10 +154,11 @@ def complete_jobs(
             completed.append(_posting(job, None, "none"))
         elif not future.done():
             future.cancel()  # Not started: never runs. Running: its result is ignored.
+            known = postings.reader_for(job.url)
             trace.append(
                 TraceStep(
                     step=step,
-                    source="read_page",
+                    source=known[0] if known else "read_page",
                     args={"url": job.url},
                     error=f"Timeout: not read within {config.READ_BUDGET_S:g} s",
                     duration_ms=round(config.READ_BUDGET_S * 1000),
