@@ -337,3 +337,52 @@ about $0.32.
 
 - `fix(read)`: timed-out reads name the waiting reader in the trace.
 - `test(research)`: per-read errors in `run.py`, `seniority_check.py`.
+
+## Verification 2: seniority with full posting text, retry fix (2026-11-27)
+
+### Retry fix (`fix(read)`)
+
+A 429 retry no longer sleeps inside a page-pool worker: the retry is a new pool task started
+by a timer after `READ_RETRY_BACKOFF_S`. Once a host answers 429, the batch sends it no new
+first reads; they fall back to the card text at once (`text_source` "none", trace
+`args.outcome` "rate_limited"). Each read trace step records `args.outcome` (ok, error,
+rate_limited, timeout). `READ_BUDGET_S` stays the overall deadline. Tests: host A always 429,
+host B fine (all B reads complete, A falls back, no timeouts, outcomes recorded), and more
+429s than workers with a long backoff (B reads finish well before the backoff ends).
+
+### Seniority check with full text
+
+Run after more than 10 minutes without a BuiltIn request. `seniority_check.py` now takes its
+too-senior postings from Greenhouse, Lever and Ashby boards (text from their APIs, no 429)
+and only tops up from BuiltInNYC when short; `--score-all --senior 10`, user_years 1.
+First attempt (4 Greenhouse boards plus BuiltIn top-up) gave only 4 of 10 with text, because
+the pipeline's own filter reads had already rate-limited BuiltIn; hence the change.
+
+| Company | Title | text_source | years_required | Score |
+|---|---|---|---|---|
+| Cloudflare | Customer Engineering Manager | api | 1+ year | 8 |
+| Cloudflare | Customer Engineering Manager | api | 1+ year | 6 |
+| Twilio | Principal Engineer, Cloud Security | api | 12+ years | 4 |
+| Twilio | Principal Engineer (L5) | api | 12+ years | 3 |
+| Robinhood | Engineering Manager, AI Platform & Agentic Apps | api | 10+ years | 10 |
+| Robinhood | Senior AI Operations Engineer, Enterprise Tech | api | 5+ years | 20 |
+| Palantir | Senior Backend Software Engineer - Application Development | api | 6+ years | 22 |
+| Palantir | Senior Backend Software Engineer - Application Development | api | 6+ years | 12 |
+| Ramp | Senior Engineer, Backend, Vendor Management | api | - | 30 |
+| Ramp | Senior Software Engineer, Product Foundations | api | - | 27 |
+
+Level-appropriate jobs in the same run: Two Sigma Quant SWE (1+ year, parser) 86, Palantir
+SWE Applied AI (entry level, parser) 90, three Google-result Ashby pages (page) 15-45.
+**Pass**: 10 of 10 too-senior jobs have text (all `api`), scores 3-30 (max 30, limit 40).
+Earlier run with the same code and 4 BuiltIn title-only jobs: scores 2-40, also pass. No
+prompt change needed. Cost $0.030 and $0.037.
+
+### run.py after the fix
+
+BuiltIn was still rate limited from the checks above (the IP had no 10-minute rest), which
+shows the new behaviour: 71.2 s wall, $0.0428 (plan 0.0007, rank 0.0389, compile 0.0033);
+filter 6.4 s. text_source: api 7, page 1, none 20. Per host outcomes: www.builtinnyc.com
+20 rate_limited (6 real 429 reads, about 1.0-1.3 s each, and 14 skipped in 0 ms); all other
+hosts ok. No timeouts: before, a 429 burst held all 6 workers and non-BuiltIn reads timed
+out at 20 s. The text-read gain on BuiltIn itself could not be measured while the IP was
+limited.

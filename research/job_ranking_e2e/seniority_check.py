@@ -27,7 +27,19 @@ sys.path.insert(0, str(ROOT / "backend" / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 SENIOR_QUERIES = ("senior software engineer", "staff engineer", "engineering manager")
-GREENHOUSE_BOARDS = ("cloudflare", "twilio", "coinbase", "robinhood", "okta")
+ATS_BOARDS = (
+    ("greenhouse", "cloudflare"),
+    ("greenhouse", "twilio"),
+    ("greenhouse", "coinbase"),
+    ("greenhouse", "robinhood"),
+    ("greenhouse", "okta"),
+    ("greenhouse", "datadog"),
+    ("greenhouse", "stripe"),
+    ("greenhouse", "airbnb"),
+    ("lever", "palantir"),
+    ("ashby", "ramp"),
+    ("ashby", "notion"),
+)
 """Greenhouse boards searched for too-senior engineering postings: their API gives the full
 text without the HTTP 429 that builtinnyc.com answers a burst of page reads with."""
 SENIOR_TITLE = re.compile(r"\b(senior|sr\.?|staff|principal|lead|manager|director)\b", re.I)
@@ -99,12 +111,11 @@ def main() -> None:
 
         seen = {p.url for p in normal}
         senior_jobs = []
-        greenhouse = ats.get_provider("greenhouse")
-        for board in GREENHOUSE_BOARDS:
+        for provider, board in ATS_BOARDS:
             try:
-                listed = greenhouse.list_jobs(board)
+                listed = ats.get_provider(provider).list_jobs(board)
             except Exception as exc:  # a board that fails is skipped
-                print(f"greenhouse/{board}: {exc}", file=sys.stderr)
+                print(f"{provider}/{board}: {exc}", file=sys.stderr)
                 continue
             for j in listed:
                 if (
@@ -112,7 +123,7 @@ def main() -> None:
                     and SENIOR_TITLE.search(j.title)
                     and postings.reader_for(j.url)
                     and sum(x.company == j.company for x in senior_jobs) < 2
-                    and len(senior_jobs) < args.senior - 3
+                    and len(senior_jobs) < args.senior
                 ):
                     senior_jobs.append(
                         Job(
@@ -124,7 +135,8 @@ def main() -> None:
                             location=j.location,
                         )
                     )
-        for query in SENIOR_QUERIES:
+        # BuiltInNYC only tops up: its pages are 429-limited after a burst of reads.
+        for query in SENIOR_QUERIES if len(senior_jobs) < args.senior else ():
             for raw in tools.builtin_jobs(JobFilter(search=query), 15):
                 if raw["url"] not in seen and SENIOR_TITLE.search(raw["title"]):
                     seen.add(raw["url"])
