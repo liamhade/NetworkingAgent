@@ -95,6 +95,14 @@ Sonnet judged eligibility rules and partial experience better, and it spent the 
 or less. It costs about 17× as much for this step. Running it only for this step would
 make the whole search about 5× as expensive, though still about 3 cents per search.
 
+## Follow-up (done)
+
+- `RESCORE_MODEL` (default `anthropic:claude-sonnet-5-5`) picks the model for this step
+  only. Every other step still uses `LLM_MODEL`.
+- `READ_TIMEOUT_S` (default 8 s) caps each batch of posting reads, for both `rescore_jobs`
+  and `read_postings`, which now also reads in parallel. A page not read by then is skipped
+  and recorded in the trace as a timeout.
+
 ## Possible next steps
 
 - Turn it on with `RESCORE_POSTINGS=2`. The time cost is small next to compile's 40 s.

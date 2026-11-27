@@ -28,9 +28,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--per-company", type=int, default=2)
     parser.add_argument("--max-chars", type=int, default=2500)
-    parser.add_argument(
-        "--usage-log", default=str(Path(tempfile.gettempdir()) / "rescore.csv")
-    )
+    parser.add_argument("--usage-log", default=str(Path(tempfile.gettempdir()) / "rescore.csv"))
     args = parser.parse_args()
 
     os.environ["LLM_USAGE_LOG"] = args.usage_log
@@ -46,7 +44,9 @@ def main() -> None:
 
     log = Path(args.usage_log)
     log.unlink(missing_ok=True)
-    llm = get_llm()
+    import config
+
+    llm = get_llm(config.RESCORE_MODEL)  # LLM_MODEL-independent; set RESCORE_MODEL to compare
     users = ROOT / "database" / "users"
     for user_dir in sorted(p for p in users.iterdir() if p.is_dir()):
         for record in history.load_searches(user_dir.name, only_done=True):
@@ -56,9 +56,7 @@ def main() -> None:
                 jobs, scores = [], {}
                 for job in company.jobs:
                     n += 1
-                    jobs.append(
-                        Job(id=f"j{n}", source="saved", title=job.title, url=job.url)
-                    )
+                    jobs.append(Job(id=f"j{n}", source="saved", title=job.title, url=job.url))
                     scores[f"j{n}"] = job.score or 0
                 chosen.append(
                     ChosenCompany(
@@ -70,9 +68,7 @@ def main() -> None:
                 )
             read_page.clear_cache()
             started = time.perf_counter()
-            out = steps.rescore_jobs_node(
-                {"request": record.request, "chosen": chosen}, llm
-            )
+            out = steps.rescore_jobs_node({"request": record.request, "chosen": chosen}, llm)
             total = time.perf_counter() - started
             reads = [s for s in out.get("trace", []) if s.source == "read_page"]
             llm_steps = [s for s in out.get("trace", []) if s.source == "llm"]
@@ -88,9 +84,7 @@ def main() -> None:
                 if s.error:
                     print(f"  read failed: {s.args['url']} ({s.error[:80]})")
             if llm_steps:
-                print(
-                    f"llm: {llm_steps[0].duration_ms / 1000:.1f}s {llm_steps[0].error or ''}"
-                )
+                print(f"llm: {llm_steps[0].duration_ms / 1000:.1f}s {llm_steps[0].error or ''}")
             print(f"step total: {total:.1f}s")
             before = {c.name: c for c in chosen}
             for c in out.get("chosen", []):

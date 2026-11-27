@@ -16,6 +16,7 @@ from collections.abc import Callable, Iterator
 from langchain_core.language_models import BaseChatModel
 from langgraph.graph import END, START, StateGraph
 
+import config
 from llm import get_llm
 from pipeline import steps
 from pipeline.state import PipelineState
@@ -28,12 +29,14 @@ def _next_unless_error(target: str) -> Callable[[PipelineState], str]:
     return lambda state: END if state.get("error") else target
 
 
-def build_graph(llm: BaseChatModel):
+def build_graph(llm: BaseChatModel, rescore_llm: BaseChatModel | None = None):
+    """The graph; `rescore_llm` (default: `llm`) runs the `rescore_jobs` step."""
+    rescore = rescore_llm or llm
     graph = StateGraph(PipelineState)
     graph.add_node("plan", lambda state: steps.plan_node(state, llm))
     graph.add_node("find_jobs", steps.find_jobs_node)
     graph.add_node("rank_companies", lambda state: steps.rank_companies_node(state, llm))
-    graph.add_node("rescore_jobs", lambda state: steps.rescore_jobs_node(state, llm))
+    graph.add_node("rescore_jobs", lambda state: steps.rescore_jobs_node(state, rescore))
     graph.add_node("find_people", steps.find_people_node)
     graph.add_node("read_postings", steps.read_postings_node)
     graph.add_node("compile", lambda state: steps.compile_node(state, llm))
@@ -59,7 +62,12 @@ def run_search(request: SearchRequest, llm: BaseChatModel | None = None) -> Iter
     Yields `StatusEvent`s while it runs, then `TraceEvent` + `ResultEvent`, or a single
     `ErrorEvent` if nothing usable was found.
     """
-    graph = build_graph(llm or get_llm())
+    # An injected `llm` (tests) runs every step; otherwise rescoring uses `RESCORE_MODEL`.
+    if llm is None:
+        rescore_llm = get_llm(config.RESCORE_MODEL) if config.RESCORE_POSTINGS else None
+        graph = build_graph(get_llm(), rescore_llm)
+    else:
+        graph = build_graph(llm)
     yield StatusEvent(message="Reading your profile")
     final: dict = {}
     try:

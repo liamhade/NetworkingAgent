@@ -96,3 +96,62 @@ def test_posting_excerpt_jumps_to_requirements() -> None:
     assert len(excerpt) <= 600
     assert "4+ years of Go" in excerpt
     assert excerpt.startswith("About us.")
+
+
+def test_read_pages_skips_pages_slower_than_the_timeout(monkeypatch) -> None:
+    import threading
+
+    from read_page import PageResult
+
+    release = threading.Event()
+
+    def fake_read(url: str, max_chars: int = 0) -> PageResult:
+        if "slow" in url:
+            release.wait(5)
+        return PageResult(url=url, final_url=url, method="static", markdown=f"Text {url}")
+
+    monkeypatch.setattr(config, "READ_TIMEOUT_S", 0.3)
+    monkeypatch.setattr(steps.tools, "read_page", fake_read)
+    try:
+        pages, trace = steps.read_pages("rescore_jobs", ["https://a/fast", "https://a/slow"], 100)
+    finally:
+        release.set()
+    assert pages == {"https://a/fast": "Text https://a/fast"}
+    slow = next(t for t in trace if t.args["url"] == "https://a/slow")
+    assert slow.error.startswith("Timeout")
+
+
+def test_rescore_uses_its_own_model(scripted_model, sources, monkeypatch) -> None:
+    monkeypatch.setattr(config, "RESCORE_POSTINGS", 1)
+    found = {c: sources.found(c, "data manager") for c in COMPANIES[:3]}
+    main = scripted_model(
+        structured={
+            SearchPlan: plan(),
+            CompanyRanking: DEFAULT_RANKING,
+            SearchResults: compiled(found),
+        }
+    )
+    rescorer = scripted_model(structured={Rescoring: rescoring(("Plaid", 99, [("j5", 99, "")]))})
+    graph = pipeline.graph.build_graph(main, rescorer)
+    final = graph.invoke({"request": REQUEST, "trace": []})
+    assert final["chosen"][0].name == "Plaid"
+
+
+def test_run_search_picks_the_rescore_model(monkeypatch) -> None:
+    built: list[str | None] = []
+    graphs: list[tuple] = []
+
+    class Stop(Exception):
+        pass
+
+    def fake_build_graph(*models):
+        graphs.append(models)
+        raise Stop
+
+    monkeypatch.setattr(config, "RESCORE_POSTINGS", 2)
+    monkeypatch.setattr(config, "RESCORE_MODEL", "anthropic:claude-sonnet-5-5")
+    monkeypatch.setattr(pipeline.graph, "get_llm", lambda model=None: built.append(model) or model)
+    monkeypatch.setattr(pipeline.graph, "build_graph", fake_build_graph)
+    with pytest.raises(Stop):
+        list(pipeline.run_search(REQUEST))
+    assert graphs == [(None, "anthropic:claude-sonnet-5-5")]

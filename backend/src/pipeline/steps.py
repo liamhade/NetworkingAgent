@@ -11,7 +11,7 @@ import math
 import re
 import time
 from collections.abc import Callable, Iterable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Any, TypeVar
 
 from langchain_core.language_models import BaseChatModel
@@ -703,8 +703,51 @@ def rank_companies_node(state: PipelineState, llm: BaseChatModel) -> dict:
 
 # ---------------------------------------------------------------------- rescore_jobs
 
-RESCORE_READERS = 6
-"""Postings read at once by `rescore_jobs` (plain HTTP, so they can run side by side)."""
+PAGE_READERS = 6
+"""Postings read at once (plain HTTP for most boards, so they can run side by side)."""
+_page_pool = ThreadPoolExecutor(max_workers=PAGE_READERS, thread_name_prefix="read-page")
+
+
+def read_pages(
+    step: str, urls: list[str], max_chars: int
+) -> tuple[dict[str, str], list[TraceStep]]:
+    """`read_page` on every URL in parallel, waiting at most `config.READ_TIMEOUT_S` in all.
+
+    Returns the Markdown of the pages read in time and one trace step per URL; a page still
+    loading at the deadline is recorded as timed out and left to finish in the background."""
+
+    def read(url: str) -> tuple[Any, TraceStep]:
+        page, trace = call(
+            step, "read_page", {"url": url}, lambda: tools.read_page(url, max_chars=max_chars)
+        )
+        if page is not None:
+            trace.count = len(page.markdown)
+            trace.note = "count = characters"
+        return page, trace
+
+    futures = {url: _page_pool.submit(read, url) for url in dict.fromkeys(urls)}
+    wait(futures.values(), timeout=config.READ_TIMEOUT_S)
+    pages: dict[str, str] = {}
+    trace: list[TraceStep] = []
+    for url, future in futures.items():
+        if not future.done():
+            future.cancel()  # Not started yet: never runs. Running: its result is ignored.
+            trace.append(
+                TraceStep(
+                    step=step,
+                    source="read_page",
+                    args={"url": url},
+                    error=f"Timeout: not read within {config.READ_TIMEOUT_S:g} s",
+                    duration_ms=round(config.READ_TIMEOUT_S * 1000),
+                )
+            )
+            continue
+        page, read_trace = future.result()
+        trace.append(read_trace)
+        if page is not None:
+            pages[url] = page.markdown
+    return pages, trace
+
 
 _REQUIREMENTS = re.compile(
     r"^#*\s*\**\s*(?:requirements|qualifications|what you(?:'|’)ll need|what we(?:'|’)re "
@@ -769,22 +812,7 @@ def rescore_jobs_node(state: PipelineState, llm: BaseChatModel) -> dict:
     status(f"Reading {_plural(len(targets), 'posting')} to check requirements")
     max_chars = max(config.RESCORE_POSTING_MAX_CHARS, config.READ_POSTING_MAX_CHARS)
 
-    def read(job: Job) -> tuple[Job, Any, TraceStep]:
-        page, step = call(
-            "rescore_jobs",
-            "read_page",
-            {"url": job.url},
-            lambda: tools.read_page(job.url, max_chars=max_chars),
-        )
-        if page is not None:
-            step.count = len(page.markdown)
-            step.note = "count = characters"
-        return job, page, step
-
-    with ThreadPoolExecutor(max_workers=RESCORE_READERS) as pool:
-        reads = list(pool.map(read, targets))
-    trace = [step for _, _, step in reads]
-    postings = {job.url: page.markdown for job, page, _ in reads if page is not None}
+    postings, trace = read_pages("rescore_jobs", [j.url for j in targets], max_chars)
     if not postings:
         return {"trace": trace}
 
@@ -1050,19 +1078,12 @@ def read_postings_node(state: PipelineState) -> dict:
     for url in urls:
         if url in already:
             postings[url] = already[url][: config.READ_POSTING_MAX_CHARS]
-            continue
-        status(f"Reading {_short(url.split('://', 1)[-1].removeprefix('www.'))}")
-        page, step = call(
-            "read_postings",
-            "read_page",
-            {"url": url},
-            lambda u=url: tools.read_page(u, max_chars=config.READ_POSTING_MAX_CHARS),
-        )
-        trace.append(step)
-        if page is not None:
-            postings[url] = page.markdown
-            step.count = len(page.markdown)
-            step.note = "count = characters"
+    missing = [url for url in urls if url not in postings]
+    if missing:
+        for url in missing:
+            status(f"Reading {_short(url.split('://', 1)[-1].removeprefix('www.'))}")
+        read, trace = read_pages("read_postings", missing, config.READ_POSTING_MAX_CHARS)
+        postings.update(read)
     return {"postings": postings, "trace": trace}
 
 

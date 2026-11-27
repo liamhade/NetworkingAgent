@@ -67,6 +67,14 @@ RESCORE_POSTINGS = max(0, int(os.environ.get("RESCORE_POSTINGS", "0")))
 the `rescore_jobs` step can score them again against their requirements (0 turns it off).
 See `docs/experience-fit/experiment.md`."""
 
+RESCORE_MODEL = os.environ.get("RESCORE_MODEL", "anthropic:claude-sonnet-5-5")
+"""Model for the `rescore_jobs` step (`<provider>:<model>`); it judges eligibility and partial
+experience better than the default model, at ~17x the cost of Haiku for that one call."""
+
+READ_TIMEOUT_S = max(1.0, float(os.environ.get("READ_TIMEOUT_S", "8")))
+"""Seconds a batch of posting reads may take; pages not read by then are skipped, so one slow
+page (e.g. a JS-only board that needs the browser) cannot hold up the search."""
+
 RESCORE_POSTING_MAX_CHARS = max(500, int(os.environ.get("RESCORE_POSTING_MAX_CHARS", "2500")))
 """Characters of each posting passed to the `rescore_jobs` step (requirements come first)."""
 
