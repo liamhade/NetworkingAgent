@@ -11,6 +11,6 @@ Plan: `docs/langgraph-pipeline/plan.md`.
 """
 
 from pipeline.graph import build_graph, run_search
-from pipeline.on_demand import NotFound, find_people
+from pipeline.on_demand import NoSchool, NotFound, find_people
 
-__all__ = ["NotFound", "build_graph", "find_people", "run_search"]
+__all__ = ["NoSchool", "NotFound", "build_graph", "find_people", "run_search"]

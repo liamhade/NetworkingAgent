@@ -18,7 +18,7 @@ The search is a fixed LangGraph `StateGraph`, not a free-form tool-calling agent
 
 - Prompts live in `backend/src/prompts.py`, not here.
 - Every LLM step uses `run_config("<purpose>")` so token usage is logged (purposes: `plan`,
-  `rank_companies`, `compile_results`, `find_people_on_demand`, `find_people_by_query`).
+  `rank_companies`, `compile_results`, `find_people_on_demand`).
 - Sources are called through the plain functions in `tools.py`. Google calls all queue in the
   one shared Chrome worker; never start a second browser for parallelism.
 - Code, not the LLM, enforces what reaches the results: only gathered companies, jobs and

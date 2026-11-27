@@ -342,8 +342,8 @@ export async function findPeople(
   searchId: string,
   companyKey: string,
   jobKey?: string,
-  /** Typed criteria from the people pane ("people who went to my school"). */
-  query?: string,
+  /** Only people from the user's school (the people pane's checkbox). */
+  sameSchool = false,
 ): Promise<CompanyResult> {
   const response = await apiFetch(`/api/searches/${encodeURIComponent(searchId)}/people`, {
     method: 'POST',
@@ -351,7 +351,7 @@ export async function findPeople(
     body: JSON.stringify({
       company_key: companyKey,
       job_key: jobKey ?? null,
-      query: query?.trim() || null,
+      same_school: sameSchool,
     }),
   })
   if (!response.ok) throw new Error(await errorMessage(response))

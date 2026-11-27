@@ -256,10 +256,9 @@ class FindPeopleRequest(BaseModel):
 
     company_key: str = Field(min_length=1, max_length=1000)
     job_key: str | None = Field(default=None, max_length=1000)
-    query: str | None = Field(
-        default=None,
-        max_length=300,
-        description="Typed criteria from the people pane, e.g. 'people who went to my school'.",
+    same_school: bool = Field(
+        default=False,
+        description="Only people from the user's (first) school: the pane's checkbox.",
     )
 
 

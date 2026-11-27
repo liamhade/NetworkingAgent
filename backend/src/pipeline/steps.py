@@ -827,7 +827,7 @@ def search_people(
 
 
 QUERY_MAX_SEARCHES = 3
-"""Most Google searches for one typed people query (`search_people_by_query`)."""
+"""Most Google searches for one `search_people_by_query` call."""
 
 
 def search_people_by_query(
@@ -838,7 +838,8 @@ def search_people_by_query(
     step: str,
     known_urls: Iterable[str] = (),
 ) -> tuple[list[Person], list[TraceStep]]:
-    """People at `company` matching typed criteria (already turned into search terms).
+    """People at `company` for given search terms (the people pane's "only people from my
+    school" search).
 
     One search per keyword phrase (or one with no keywords), then, while fewer than
     `PEOPLE_PER_COMPANY` current employees were found, the first one again without the

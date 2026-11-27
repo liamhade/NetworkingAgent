@@ -130,8 +130,8 @@ export function Hero({
   return (
     <div className="wrap">
       <PageHeader
-        title="Find the people behind the job"
-        subtitle="Tell the agent what you want. It returns companies, the jobs open there, and the people to message first."
+        title="New search"
+        subtitle="Get companies, their open jobs and the people to message first."
       />
 
       <div className="sgrid">

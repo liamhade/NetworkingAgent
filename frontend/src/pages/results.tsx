@@ -775,9 +775,7 @@ function CompanyPanel({
                       searchId={ctx.searchId}
                       companyKey={company.key}
                       target={company.name}
-                      label={
-                        company.people.length > 0 ? 'Find more people' : 'Find people to connect with'
-                      }
+                      label="Find more people"
                       onFound={ctx.onCompanyFound}
                     />
                   )}

@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useState } from 'react'
 import type { CompanyResult } from '@/api'
 import { Icon } from '@/components/icon'
 import { useFindPeople } from '@/utils/use-find-people'
@@ -50,8 +50,7 @@ export function FindPeopleButton({
 }
 
 /**
- * The people pane's footer search: type criteria ("people who went to my school",
- * "recruiters in Boston") and search, or leave it empty for the usual search.
+ * The people pane's footer: Find more people, optionally only people from the user's school.
  */
 export function FindPeopleSearch({
   searchId,
@@ -60,49 +59,34 @@ export function FindPeopleSearch({
   label,
   onFound,
 }: Omit<FindPeopleButtonProps, 'jobKey' | 'variant'>) {
-  const [query, setQuery] = useState('')
-  const inputId = useId()
+  const [sameSchool, setSameSchool] = useState(false)
   const { loading, error, run, retry } = useFindPeople({ searchId, companyKey, onFound })
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    if (!searchId || loading) return
-    void run(query)
-  }
   return (
-    <form
-      className="find-people"
-      role="search"
-      aria-label={`Find people at ${target}`}
-      onSubmit={submit}
-    >
-      <label className="sr" htmlFor={inputId}>
-        Who to look for at {target}
-      </label>
-      <input
-        id={inputId}
-        type="search"
-        value={query}
-        maxLength={300}
-        placeholder="e.g. went to my school, recruiters"
-        disabled={!searchId || loading}
-        onChange={(event) => setQuery(event.target.value)}
-      />
+    <div className="find-people">
       <FindButton
-        type="submit"
         loading={loading}
         disabled={!searchId}
         variant="button"
         label={label}
         target={target}
+        onClick={() => run(sameSchool)}
       />
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={sameSchool}
+          disabled={!searchId || loading}
+          onChange={(event) => setSameSchool(event.target.checked)}
+        />
+        Only people from my school
+      </label>
       {loading && <span className="find-hint">Usually 1 to 2 minutes</span>}
       {error && <FindError message={error} onRetry={retry} />}
-    </form>
+    </div>
   )
 }
 
 function FindButton({
-  type = 'button',
   loading,
   disabled,
   variant,
@@ -110,7 +94,6 @@ function FindButton({
   target,
   onClick,
 }: {
-  type?: 'button' | 'submit'
   loading: boolean
   disabled: boolean
   variant: 'button' | 'link'
@@ -120,7 +103,7 @@ function FindButton({
 }) {
   return (
     <button
-      type={type}
+      type="button"
       className={variant === 'link' ? 'xlink per' : 'btn sm'}
       disabled={disabled || loading}
       aria-busy={loading}

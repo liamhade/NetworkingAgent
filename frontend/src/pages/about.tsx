@@ -37,8 +37,8 @@ export function AboutPage() {
             </li>
             <li>
               Open a company on the results page to see its jobs and people. Use{' '}
-              <b>Find more people</b>, or type who you want (for example "people who went to my
-              school"), to search for more contacts.
+              <b>Find more people</b> to search for more contacts; tick{' '}
+              <b>Only people from my school</b> to look for fellow alumni.
             </li>
             <li>
               Pin companies, jobs and people, and mark jobs applied and people connected. The{' '}

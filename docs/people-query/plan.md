@@ -1,5 +1,13 @@
 # Find people by typed criteria
 
+> **Revised (2026-11-27):** the owner replaced the search box with a single checkbox,
+> **Only people from my school**. The request now takes `same_school: bool` instead of
+> `query`; with it, `steps.search_people_by_query` searches the user's first school (job
+> title as keywords when the search is for a job), with no interpretation LLM call. A
+> profile without a school gets a 400 asking to add one. `PEOPLE_QUERY_PROMPT`,
+> `PeopleQuery` and the `find_people_by_query` purpose were removed. The original plan
+> follows for the record.
+
 ## Goal
 
 The people pane's footer gets a text box next to **Find more people**. The user types what

@@ -269,7 +269,7 @@ describe('Find people', () => {
     const user = userEvent.setup()
     render(<Harness />)
     await expand(user, 'Acme')
-    expect(companyButton('Find people to connect with', 'Acme')).toBeEnabled()
+    expect(companyButton('Find more people', 'Acme')).toBeEnabled()
     expect(jobButton('Acme')).toBeEnabled()
     await expand(user, 'Globex')
     expect(jobButton('Globex')).toBeEnabled()
@@ -280,12 +280,12 @@ describe('Find people', () => {
     const user = userEvent.setup()
     render(<Harness />)
     await expand(user, 'Acme')
-    await user.click(companyButton('Find people to connect with', 'Acme'))
+    await user.click(companyButton('Find more people', 'Acme'))
     await expand(user, 'Globex')
     await user.click(jobButton('Globex'))
     expect(pending.map((p) => [p.url, p.body])).toEqual([
-      ['/api/searches/s1/people', { company_key: 'company:acme', job_key: null, query: null }],
-      ['/api/searches/s1/people', { company_key: 'company:globex', job_key: 'job:globex', query: null }],
+      ['/api/searches/s1/people', { company_key: 'company:acme', job_key: null, same_school: false }],
+      ['/api/searches/s1/people', { company_key: 'company:globex', job_key: 'job:globex', same_school: false }],
     ])
   })
 
@@ -296,10 +296,10 @@ describe('Find people', () => {
     await expand(user, 'Acme')
     await expand(user, 'Globex')
 
-    await user.click(companyButton('Find people to connect with', 'Acme'))
-    await user.click(companyButton('Find people to connect with', 'Globex'))
+    await user.click(companyButton('Find more people', 'Acme'))
+    await user.click(companyButton('Find more people', 'Globex'))
     expect(pending).toHaveLength(2)
-    expect(companyButton('Find people to connect with', 'Acme')).toHaveAttribute(
+    expect(companyButton('Find more people', 'Acme')).toHaveAttribute(
       'aria-busy',
       'true',
     )
@@ -315,7 +315,7 @@ describe('Find people', () => {
       within(card('Globex')).getByRole('button', { name: 'Mark connected: Gina' }),
     ).toHaveAttribute('aria-pressed', 'false')
     expect(within(card('Globex')).getByRole('button', { name: 'Pin Gina' })).toBeInTheDocument()
-    expect(companyButton('Find people to connect with', 'Acme')).toHaveAttribute(
+    expect(companyButton('Find more people', 'Acme')).toHaveAttribute(
       'aria-busy',
       'true',
     )
@@ -333,7 +333,7 @@ describe('Find people', () => {
     const user = userEvent.setup()
     render(<Harness />)
     await expand(user, 'Acme')
-    await user.click(companyButton('Find people to connect with', 'Acme'))
+    await user.click(companyButton('Find more people', 'Acme'))
     pending[0].resolve(json(company('Acme', { score: 90, people_searched: true })))
     await within(card('Acme')).findByText('No current employees found yet.')
   })
@@ -344,7 +344,7 @@ describe('Find people', () => {
     render(<Harness />)
     await expand(user, 'Acme')
     await expand(user, 'Globex')
-    await user.click(companyButton('Find people to connect with', 'Acme'))
+    await user.click(companyButton('Find more people', 'Acme'))
     pending[0].resolve(json({ detail: 'Google is unavailable.' }, 500))
 
     const alert = await within(card('Acme')).findByRole('alert')
@@ -358,17 +358,15 @@ describe('Find people', () => {
     await within(card('Acme')).findByText('Ann')
   })
 
-  it('sends what was typed into the people search box', async () => {
+  it('asks for only people from my school when the box is ticked', async () => {
     const pending = stubFetch()
     const user = userEvent.setup()
     render(<Harness />)
     await expand(user, 'Acme')
-    await user.type(
-      screen.getByRole('searchbox', { name: 'Who to look for at Acme' }),
-      'people who went to my school{Enter}',
-    )
+    await user.click(within(card('Acme')).getByRole('checkbox', { name: 'Only people from my school' }))
+    await user.click(companyButton('Find more people', 'Acme'))
     expect(pending.map((p) => p.body)).toEqual([
-      { company_key: 'company:acme', job_key: null, query: 'people who went to my school' },
+      { company_key: 'company:acme', job_key: null, same_school: true },
     ])
   })
 
@@ -377,6 +375,6 @@ describe('Find people', () => {
     const user = userEvent.setup()
     render(<Harness searchId={null} />)
     await expand(user, 'Acme')
-    expect(companyButton('Find people to connect with', 'Acme')).toBeDisabled()
+    expect(companyButton('Find more people', 'Acme')).toBeDisabled()
   })
 })

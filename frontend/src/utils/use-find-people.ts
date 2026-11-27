@@ -3,7 +3,7 @@ import { type CompanyResult, findPeople } from '@/api'
 
 /**
  * One on-demand LinkedIn people search with its own loading and error state, so several
- * can run at once. `run(query)` searches; `retry()` repeats the last one.
+ * can run at once. `run(sameSchool)` searches; `retry()` repeats the last one.
  */
 export function useFindPeople({
   searchId,
@@ -18,15 +18,15 @@ export function useFindPeople({
 }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [lastQuery, setLastQuery] = useState<string | undefined>()
+  const [lastSameSchool, setLastSameSchool] = useState(false)
 
-  const run = async (query?: string) => {
+  const run = async (sameSchool = false) => {
     if (!searchId) return
     setLoading(true)
     setError(null)
-    setLastQuery(query)
+    setLastSameSchool(sameSchool)
     try {
-      onFound(await findPeople(searchId, companyKey, jobKey, query))
+      onFound(await findPeople(searchId, companyKey, jobKey, sameSchool))
     } catch (caught) {
       setError((caught as Error).message || 'Could not find people.')
     } finally {
@@ -34,5 +34,5 @@ export function useFindPeople({
     }
   }
 
-  return { loading, error, run, retry: () => run(lastQuery) }
+  return { loading, error, run, retry: () => run(lastSameSchool) }
 }

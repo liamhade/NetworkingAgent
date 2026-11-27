@@ -660,9 +660,10 @@ body.resizing{cursor:col-resize;user-select:none}
 .user-menu button{border:0;background:transparent;text-align:left;padding:9px 12px;border-radius:8px;font:600 14px var(--ui);color:var(--text)}
 .user-menu button:hover,.user-menu button:focus-visible{background:var(--alt)}
 
-/* ---------- people pane: typed people search ---------- */
-.find-people{display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1 1 320px;min-width:0}
-.find-people input{flex:1 1 200px;min-width:0;width:auto;min-height:36px;padding-top:6px;padding-bottom:6px;font-size:14px}
+/* ---------- people pane: Find more people (+ only my school) ---------- */
+.find-people{display:flex;gap:8px 14px;align-items:center;flex-wrap:wrap}
+.find-people .check{display:inline-flex;align-items:center;gap:7px;font-size:14px;color:var(--text);cursor:pointer}
+.find-people .check input{width:16px;height:16px;margin:0;accent-color:var(--accent)}
 
 /* ---------- About page ---------- */
 .about-intro{display:flex;gap:18px;align-items:flex-start;padding:20px 22px;margin-top:14px}
