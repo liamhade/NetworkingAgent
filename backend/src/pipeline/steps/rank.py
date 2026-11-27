@@ -24,7 +24,6 @@ from pipeline.steps.common import (
     name_key,
     plural,
     scored,
-    short,
     status,
     structured,
 )
@@ -37,6 +36,15 @@ CARD_REQUIREMENTS_CHARS = 700
 """Characters of a posting's requirements excerpt on its card (about 250 tokens per card)."""
 
 
+def _excerpt(text: str, limit: int) -> str:
+    """At most `limit` characters, cut at a word boundary with an ellipsis."""
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    cut = text[: limit - 1]
+    return (cut.rsplit(" ", 1)[0] if " " in cut[limit // 2 :] else cut).rstrip(" ,;:-") + "…"
+
+
 def job_card(job: JobPosting) -> str:
     """One compact JSON line per job: what the ranker judges it by."""
     card = {
@@ -47,7 +55,7 @@ def job_card(job: JobPosting) -> str:
         "salary": job.salary,
         "years_required": job.years_required,
         "level": job.level,
-        "requirements": short(job.requirements or job.summary, CARD_REQUIREMENTS_CHARS),
+        "requirements": _excerpt(job.requirements or job.summary, CARD_REQUIREMENTS_CHARS),
         "url": job.url if not job.company else "",
     }
     return json.dumps({k: v for k, v in card.items() if v}, ensure_ascii=False)
@@ -94,7 +102,7 @@ def validate_ranking(
                 rank=len(ranked) + 1,
                 score=score,
                 reason=entry.reason.strip(),
-                alignment=entry.alignment.strip(),
+                alignment=entry.alignment.strip() or entry.reason.strip(),
                 years_required=updates.get("years_required", job.years_required),
             )
         )

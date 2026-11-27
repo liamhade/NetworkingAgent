@@ -107,9 +107,12 @@ degrees, clearances, licenses, skills or locations the user lacks.
 named in its title, site or URL.
 - years_required: the least experience the posting asks for (e.g. "3+ years"), or "" if it \
 does not say.
-- reason: one short sentence on the score.
-- alignment: 1-3 sentences speaking to the user ("You ..."), pointing to concrete overlaps \
-and gaps between their background and this job: skills, industry, seniority, location.
+- reason: one short sentence on the score, at most 15 words. Every job returned has one.
+- alignment: written ONLY for the {max_jobs} jobs you score highest; "" for every other \
+job you return (it is never shown). For those, 1-3 sentences speaking to the user \
+("You ..."), pointing to concrete overlaps and gaps between their background and this \
+job: skills, industry, seniority, location.
+- Leave out jobs that clearly do not fit instead of returning them with a low score.
 - companies: for every company in `jobs`, 1-2 short keyword sets describing people the user \
 should contact there: someone on the team they would join (e.g. "data science manager", \
 "engineering manager") and/or "recruiter". Describe the person, not the job posting (no \

@@ -1,5 +1,7 @@
 """The `rank_jobs` step and the graph around it. Fake LLM, no network."""
 
+import json
+
 import pytest
 from pipeline_fakes import COMPANIES, REQUEST, FakeSources, compiled, job_url, plan, ranking
 
@@ -107,6 +109,42 @@ def test_job_cards_are_compact() -> None:
     assert '"id": "j1"' in card and '"salary": "100K"' in card
     assert len(card) < 1000  # requirements truncated (about 250 tokens)
     assert '"url"' not in card  # the company is known
+
+
+def test_a_job_without_alignment_falls_back_to_its_reason() -> None:
+    jobs = [posting(1), posting(2)]
+    ranking_ = JobRanking(
+        jobs=[rank("j1", 90, reason="Strong SQL match."), rank("j2", 70, alignment="")],
+        companies=[],
+    )
+    ranked, _, _ = steps.validate_ranking(ranking_, jobs, 5)
+    assert ranked[0].alignment == "You fit."  # the ranker's own
+    assert ranked[1].alignment == "Fits."  # empty alignment: its reason
+
+
+def test_the_prompt_asks_for_alignment_only_on_the_top_jobs() -> None:
+    import prompts
+
+    text = prompts.rank_jobs_prompt(7)
+    assert "ONLY for the 7 jobs you score highest" in text and "at most 15 words" in text
+
+
+def test_card_excerpts_are_cut_at_a_word_and_stay_small() -> None:
+    long_text = "Requirements: " + "experience with distributed systems and SQL. " * 100
+    card = steps.job_card(posting(1, requirements=long_text))
+    assert len(card) < 1000
+    requirements = json.loads(card)["requirements"]
+    assert requirements.endswith("…") and not requirements.endswith(" …")
+    assert requirements[:-1].split()[-1] in {
+        "SQL.",
+        "SQL",
+        "and",
+        "systems",
+        "with",
+        "of",
+        "experience",
+        "distributed",
+    }
 
 
 # --- the graph -----------------------------------------------------------------------

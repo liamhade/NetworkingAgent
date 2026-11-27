@@ -171,9 +171,10 @@ class Person(BaseModel):
 class JobRank(BaseModel):
     id: str = Field(description='Job id from the cards, e.g. "j3".')
     score: int = Field(description="Fit with the user's profile, 0-100.")
-    reason: str = Field(description="One short sentence on the score.")
+    reason: str = Field(description="One short sentence (at most 15 words) on the score.")
     alignment: str = Field(
-        description='1-3 sentences on why it fits, addressed to the user: "You ...".'
+        description="For your top jobs only: 1-3 sentences on why it fits, addressed to the "
+        'user: "You ...". "" for every other job.'
     )
     years_required: str = Field(
         description='Experience the posting asks for, e.g. "3+ years", or "" if it does not say.'
