@@ -92,6 +92,18 @@ const scoreClass = (score: number) => (score >= 80 ? 's1' : score >= 70 ? 's2' :
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
+const RAIL_OPEN_KEY = 'na-results-rail'
+
+/** Whether the results sidebar (view options + jump list) is shown; remembered across visits. */
+function useRailOpen(): [boolean, (open: boolean) => void] {
+  const [open, setOpen] = useState(() => localStorage.getItem(RAIL_OPEN_KEY) !== 'closed')
+  const update = (next: boolean) => {
+    setOpen(next)
+    localStorage.setItem(RAIL_OPEN_KEY, next ? 'open' : 'closed')
+  }
+  return [open, update]
+}
+
 function bestJob(company: CompanyResult): JobResult | undefined {
   return company.jobs.toSorted((a, b) => (b.score ?? -1) - (a.score ?? -1))[0]
 }
@@ -138,7 +150,7 @@ export function Results({
   const [filters, setFilters] = useState<Set<Filter>>(new Set())
   const [sort, setSort] = useState<SortId>('fit')
   const [active, setActive] = useState<string | null>(ranked[0]?.id ?? null)
-  const [summaryOpen, setSummaryOpen] = useState(false)
+  const [railOpen, setRailOpen] = useRailOpen()
   const [drawer, setDrawer] = useState<{ person: PersonResult; company: CompanyResult } | null>(
     null,
   )
@@ -326,24 +338,33 @@ export function Results({
           />
           <Stat kind="pin" value={pinnedCount} label="Pinned" />
         </div>
-        {results.summary && (
-          <div className="sumline">
-            <Icon name="sparkle" size="sm" />
-            <p className={cx(!summaryOpen && 'clamp')}>{results.summary}</p>
-            <button
-              type="button"
-              className="more"
-              aria-expanded={summaryOpen}
-              onClick={() => setSummaryOpen((current) => !current)}
-            >
-              {summaryOpen ? 'Show less' : 'Read full summary'}
-            </button>
-          </div>
-        )}
       </section>
 
-      <div className="cols">
-        <div className="rail">
+      <div className={cx('cols', !railOpen && 'rail-off')}>
+        {!railOpen ? (
+          <button
+            type="button"
+            className="btn sm rail-show"
+            aria-expanded={false}
+            aria-controls="results-rail"
+            onClick={() => setRailOpen(true)}
+          >
+            <Icon name="filter" /> Show filters
+          </button>
+        ) : (
+          <div className="rail" id="results-rail">
+            <div className="rail-head">
+              <span className="tb-lab">View</span>
+              <button
+                type="button"
+                className="rail-hide"
+                aria-expanded={true}
+                aria-controls="results-rail"
+                onClick={() => setRailOpen(false)}
+              >
+                Hide
+              </button>
+            </div>
           <div className="toolbar" role="toolbar" aria-label="View options">
             <span className="tb-lab" id="group-by">
               Group by
@@ -456,7 +477,8 @@ export function Results({
             </>
           )}
         </nav>
-        </div>
+          </div>
+        )}
 
         <section aria-label="Results">
           <h2 className="sr">{group === 'company' ? 'Companies' : 'Results by type'}</h2>

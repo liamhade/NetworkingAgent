@@ -107,7 +107,7 @@ describe('App restores the saved search page state', () => {
     const user = userEvent.setup()
     render(<App />)
     await user.click(await screen.findByText('Past search'))
-    await screen.findByText('All done')
+    await screen.findByRole('list', { name: 'Search totals' })
     resolveParams({ background: 'Late', location: '', looking_for: 'Late goal' })
     await user.click(screen.getAllByRole('button', { name: /new search/i })[0])
     expect(await screen.findByDisplayValue('Past bg')).toBeInTheDocument()
@@ -150,7 +150,7 @@ describe('App background searches', () => {
     expect(m.streamSearchEvents).toHaveBeenCalledWith('run', expect.any(Function), expect.anything())
 
     finish()
-    expect(await screen.findByText('Found them')).toBeInTheDocument()
+    expect(await screen.findByRole('list', { name: 'Search totals' })).toBeInTheDocument()
     expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
   })
 
@@ -284,7 +284,7 @@ describe('App background searches', () => {
     expect(signal?.aborted).toBe(false)
     finish()
     await user.click(screen.getByRole('link', { name: 'Search' }))
-    expect(await screen.findByText('Done while away')).toBeInTheDocument()
+    expect(await screen.findByRole('list', { name: 'Search totals' })).toBeInTheDocument()
     expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
   })
 })

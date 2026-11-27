@@ -158,12 +158,26 @@ describe('results layout', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Analyst roles')
     const totals = screen.getByRole('list', { name: 'Search totals' })
     expect(within(totals).getByText('1 applied')).toBeInTheDocument()
-    expect(screen.getByText('Ranked companies.')).toBeInTheDocument()
+    expect(screen.queryByText('Ranked companies.')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Expand all' }))
     expect(panelToggle('Globex')).toHaveAttribute('aria-expanded', 'true')
     await user.click(screen.getByRole('button', { name: 'Collapse all' }))
     expect(panelToggle('Acme')).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('hides the sidebar and remembers it', async () => {
+    stubFetch()
+    localStorage.removeItem('na-results-rail')
+    const user = userEvent.setup()
+    const { unmount } = render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Hide' }))
+    expect(screen.queryByRole('toolbar', { name: 'View options' })).toBeNull()
+    unmount()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: /show filters/i }))
+    expect(screen.getByRole('toolbar', { name: 'View options' })).toBeInTheDocument()
+    expect(localStorage.getItem('na-results-rail')).toBe('open')
   })
 
   it('filters companies, and offers to clear filters when none match', async () => {
