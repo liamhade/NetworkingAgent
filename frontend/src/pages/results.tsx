@@ -17,6 +17,7 @@ import { PinToggle } from '@/components/pin-toggle'
 import { StatusToggle } from '@/components/status-toggle'
 import { useToast } from '@/utils/use-toast'
 import { cx } from '@/utils/cx'
+import { uiZoom } from '@/utils/ui-zoom'
 import { formatRelativeDate, fullDateFormat } from '@/utils/format-date'
 import { initials } from '@/utils/initials'
 
@@ -185,7 +186,7 @@ export function Results({
     const onScroll = () => {
       let current: string | null = null
       document.querySelectorAll<HTMLElement>('.co-panel[id]').forEach((panel) => {
-        if (panel.getBoundingClientRect().top < 220) current = panel.id
+        if (panel.getBoundingClientRect().top < 220 * uiZoom()) current = panel.id
       })
       if (current) setActive(current)
     }

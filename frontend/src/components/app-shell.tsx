@@ -4,6 +4,7 @@ import { ChangePasswordDialog } from '@/components/change-password'
 import { Icon, type IconName } from '@/components/icon'
 import { initials } from '@/utils/initials'
 import { useAuth } from '@/utils/auth-context'
+import { uiZoom } from '@/utils/ui-zoom'
 import {
   SIDEBAR_DEFAULT,
   SIDEBAR_MAX,
@@ -167,18 +168,19 @@ function SidebarResizer({
   setWidth: (width: number) => void
   commit: (width: number) => void
 }) {
-  const drag = useRef<{ startX: number; startWidth: number; last: number } | null>(null)
+  const drag = useRef<{ startX: number; startWidth: number; last: number; zoom: number } | null>(null)
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
-    drag.current = { startX: event.clientX, startWidth: width, last: width }
+    drag.current = { startX: event.clientX, startWidth: width, last: width, zoom: uiZoom() }
     document.body.classList.add('resizing')
   }
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!drag.current) return
-    drag.current.last = drag.current.startWidth + event.clientX - drag.current.startX
+    const { startX, startWidth, zoom } = drag.current
+    drag.current.last = startWidth + (event.clientX - startX) / zoom
     setWidth(drag.current.last)
   }
   const endDrag = () => {
