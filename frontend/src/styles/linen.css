@@ -451,7 +451,7 @@ details.boards[open] summary .i:last-child{transform:rotate(180deg)}
 .theme-tog button[aria-pressed=true]{background:var(--surface);color:var(--accent);box-shadow:0 1px 3px rgba(60,40,20,.25)}
 .theme-tog .i{width:16px;height:16px}
 @media (max-width:720px){.strip .start{margin-left:0}.theme-tog button{width:30px}}
-@media (max-width:720px){.user{display:none}.topbar .theme-tog{margin-left:auto}}
+@media (max-width:720px){.user .nm{display:none}.topbar .theme-tog{margin-left:auto}}
 
 /* ---------- app additions (states the static mockups did not need) ---------- */
 .hist .h{width:100%;text-align:left;background:transparent;font:inherit;cursor:pointer}
@@ -535,7 +535,6 @@ select.auto{width:auto}
 .auth-submit{width:100%;margin-top:4px}
 .auth-switch{margin:0;font-size:14px;color:var(--text2);text-align:center}
 .link-btn{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--accent-h);text-decoration:underline;cursor:pointer}
-.signout{margin-left:6px}
 .related{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
 .rel-lab{font-weight:700;font-size:12.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em}
 .rel-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
@@ -650,3 +649,12 @@ body.resizing{cursor:col-resize;user-select:none}
   .rail .toolbar{flex-direction:row;flex-wrap:wrap;align-items:center}
   .rail .toolbar select{width:auto}
 }
+
+/* ---------- account menu (top bar) ---------- */
+.user{position:relative}
+.user-btn{display:flex;align-items:center;gap:8px;border:0;background:transparent;color:inherit;font:inherit;padding:4px 6px 4px 10px;border-radius:999px;min-height:40px}
+.user-btn:hover,.user-btn[aria-expanded=true]{background:var(--alt)}
+.user-btn .i{width:14px;height:14px;color:var(--text2)}
+.user-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;display:flex;flex-direction:column;z-index:80}
+.user-menu button{border:0;background:transparent;text-align:left;padding:9px 12px;border-radius:8px;font:600 14px var(--ui);color:var(--text)}
+.user-menu button:hover,.user-menu button:focus-visible{background:var(--alt)}

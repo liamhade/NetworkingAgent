@@ -114,28 +114,13 @@ export function AppShell({
           ))}
         </div>
         {name && (
-          <div className="user">
-            <span className="nm">{name}</span>
-            <span className="avatar" aria-hidden="true">
-              {initials(name)}
-            </span>
-            {auth.enabled && (
-              <>
-                {!auth.localDev && (
-                  <button
-                    type="button"
-                    className="btn xs ghost signout"
-                    onClick={() => setChangingPassword(true)}
-                  >
-                    Change password
-                  </button>
-                )}
-                <button type="button" className="btn xs ghost signout" onClick={auth.signOut}>
-                  Sign out
-                </button>
-              </>
-            )}
-          </div>
+          <UserMenu
+            name={name}
+            onChangePassword={
+              auth.enabled && !auth.localDev ? () => setChangingPassword(true) : undefined
+            }
+            onSignOut={auth.enabled ? auth.signOut : undefined}
+          />
         )}
       </header>
       <div className="shell" style={{ '--side-w': `${sidebarWidth.width}px` } as React.CSSProperties}>
@@ -225,5 +210,84 @@ function SidebarResizer({
       onKeyDown={onKeyDown}
       onDoubleClick={() => commit(SIDEBAR_DEFAULT)}
     />
+  )
+}
+
+/**
+ * The avatar and name in the top bar. When accounts are on, clicking them opens a menu with
+ * Change password (not in LOCAL_DEV_MODE) and Sign out.
+ */
+function UserMenu({
+  name,
+  onChangePassword,
+  onSignOut,
+}: {
+  name: string
+  onChangePassword?: () => void
+  onSignOut?: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (event: PointerEvent) =>
+      root.current?.contains(event.target as Node) || setOpen(false)
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      root.current?.querySelector<HTMLButtonElement>('.user-btn')?.focus()
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const identity = (
+    <>
+      <span className="nm">{name}</span>
+      <span className="avatar" aria-hidden="true">
+        {initials(name)}
+      </span>
+    </>
+  )
+  if (!onChangePassword && !onSignOut) return <div className="user">{identity}</div>
+
+  const choose = (action: () => void) => () => {
+    setOpen(false)
+    action()
+  }
+  return (
+    <div className="user" ref={root}>
+      <button
+        type="button"
+        className="user-btn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls="user-menu"
+        aria-label={`Account menu: ${name}`}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {identity}
+        <Icon name="chevron" size="sm" />
+      </button>
+      {open && (
+        <div className="user-menu" id="user-menu" role="menu" aria-label="Account">
+          {onChangePassword && (
+            <button type="button" role="menuitem" onClick={choose(onChangePassword)}>
+              Change password
+            </button>
+          )}
+          {onSignOut && (
+            <button type="button" role="menuitem" onClick={choose(onSignOut)}>
+              Sign out
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
