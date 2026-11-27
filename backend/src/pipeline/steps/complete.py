@@ -13,14 +13,14 @@ Where the text comes from, in order:
 3. the generic `read_page` (`page`).
 
 A read that fails, times out or is rate limited (builtinnyc.com answers a repeat burst with
-HTTP 429) keeps the job with its card text and `text_source="none"`.
+HTTP 429) keeps the job with its card text and `text_source="none"`. Each read trace step has
+`args["outcome"]`: ok, error, rate_limited or timeout.
 """
 
 import threading
 import time
-from collections.abc import Callable
-from concurrent.futures import Future, wait
-from typing import TypeVar, cast
+from concurrent.futures import Future, InvalidStateError, wait
+from typing import cast
 from urllib.parse import urlsplit
 
 import requests
@@ -34,7 +34,6 @@ from pipeline.steps.common import call
 from pipeline.steps.reading import page_pool, posting_excerpt
 from schemas import TraceStep
 
-T = TypeVar("T")
 REQUIREMENTS_CHARS = 1200
 """Length of `JobPosting.requirements`, the part of the text the ranking card carries."""
 PAGE_MAX_CHARS = 12_000
@@ -51,27 +50,35 @@ def _slot(url: str) -> threading.Semaphore:
         return _host_slots.setdefault(host, threading.Semaphore(config.READ_HOST_CONCURRENCY))
 
 
-def _retry_once_on_429(fetch: Callable[[], T], deadline: float) -> Callable[[], T]:
-    """`fetch`, repeated once after `config.READ_RETRY_BACKOFF_S` when the site answers 429,
-    if the batch budget still has room for the wait."""
+class _Batch:
+    """What the reads of one `complete_jobs` call share: the hosts that answered 429."""
 
-    def attempt() -> T:
-        try:
-            return fetch()
-        except requests.HTTPError as exc:
-            status = getattr(exc.response, "status_code", None)
-            if status != RETRY_STATUS or time.monotonic() + config.READ_RETRY_BACKOFF_S >= deadline:
-                raise
-        time.sleep(config.READ_RETRY_BACKOFF_S)
-        return fetch()
+    def __init__(self) -> None:
+        self.limited: set[str] = set()
+        self.lock = threading.Lock()
 
-    return attempt
+    def is_limited(self, host: str) -> bool:
+        with self.lock:
+            return host in self.limited
+
+    def mark(self, host: str) -> None:
+        with self.lock:
+            self.limited.add(host)
+
+
+_Outcome = tuple[postings.ParsedPosting | None, TextSource, TraceStep]
 
 
 def _read(
-    job: Job, step: str, deadline: float
-) -> tuple[postings.ParsedPosting | None, TextSource, TraceStep]:
-    """One read: (what was found, text_source, trace step)."""
+    job: Job, step: str, deadline: float, batch: _Batch, first: bool = True
+) -> _Outcome | None:
+    """One read: (what was found, text_source, trace step).
+
+    Returns None when the site answered 429 and a retry should be scheduled (the caller does
+    that after `config.READ_RETRY_BACKOFF_S`, without holding a worker). Once a host has
+    answered 429, the batch sends it no new first reads: they fall back to the card text
+    at once with outcome "rate_limited"."""
+    host = urlsplit(job.url).netloc.lower()
     known = postings.reader_for(job.url)
     if known is not None:
         source, kind, reader = known
@@ -87,14 +94,74 @@ def _read(
             page = tools.read_page(job.url, max_chars=PAGE_MAX_CHARS)
             return postings.ParsedPosting(description=page.markdown.strip())
 
+    if first and batch.is_limited(host):
+        trace = TraceStep(
+            step=step,
+            source=source,
+            args={"url": job.url, "outcome": "rate_limited"},
+            error=f"HTTP {RETRY_STATUS}: {host} rate limited this batch; not read",
+        )
+        return None, text_source, trace
+
+    limited: list[bool] = []
+
+    def guarded() -> postings.ParsedPosting | None:
+        try:
+            return fetch()
+        except requests.HTTPError as exc:
+            if getattr(exc.response, "status_code", None) == RETRY_STATUS:
+                limited.append(True)
+            raise
+
     with _slot(job.url):
-        parsed, trace = call(step, source, {"url": job.url}, _retry_once_on_429(fetch, deadline))
-    if parsed is not None and parsed.description:
+        parsed, trace = call(step, source, {"url": job.url}, guarded)
+    if limited:
+        batch.mark(host)
+        if first and time.monotonic() + config.READ_RETRY_BACKOFF_S < deadline:
+            return None
+        trace.args["outcome"] = "rate_limited"
+    elif parsed is not None and parsed.description:
         trace.count = len(parsed.description)
         trace.note = f"text_source={text_source}; count = characters"
-    elif not trace.error:
-        trace.error = "No posting text found on the page"
+        trace.args["outcome"] = "ok"
+    else:
+        trace.args["outcome"] = "error"
+        if not trace.error:
+            trace.error = "No posting text found on the page"
     return parsed, text_source, trace
+
+
+def _submit(job: Job, step: str, deadline: float, batch: _Batch) -> Future[_Outcome]:
+    """Run the read on the page pool. A 429 schedules the one retry on a timer, as a new pool
+    task, so no worker sleeps through the backoff."""
+    result: Future[_Outcome] = Future()
+
+    def finish(outcome: _Outcome | None = None, error: BaseException | None = None) -> None:
+        try:
+            if error is not None:
+                result.set_exception(error)
+            elif outcome is not None:
+                result.set_result(outcome)
+        except InvalidStateError:  # the batch timed out and cancelled it
+            pass
+
+    def run(first: bool) -> None:
+        if result.done():
+            return
+        try:
+            outcome = _read(job, step, deadline, batch, first)
+        except BaseException as exc:  # noqa: BLE001
+            finish(error=exc)
+            return
+        if outcome is not None:
+            finish(outcome)
+            return
+        timer = threading.Timer(config.READ_RETRY_BACKOFF_S, lambda: page_pool.submit(run, False))
+        timer.daemon = True
+        timer.start()
+
+    page_pool.submit(run, True)
+    return result
 
 
 def _posting(
@@ -129,7 +196,8 @@ def complete_jobs(
 
     Jobs whose board API gave the text are completed without a read. Of the others, the first
     `max_reads` are read in parallel (the shared page pool, each site at most
-    `config.READ_HOST_CONCURRENCY` at a time; a 429 is retried once after a short backoff) and the
+    `config.READ_HOST_CONCURRENCY` at a time; a 429 is retried once after a short backoff on a
+    timer, not in a worker, and a host that answered 429 gets no new reads this batch) and the
     whole batch waits at most `config.READ_BUDGET_S`. Jobs beyond the cap, and
     reads that fail, time out or get HTTP 429, keep the card text with `text_source="none"`.
 
@@ -137,9 +205,8 @@ def complete_jobs(
     """
     to_read = [j for j in jobs if not j.description][: max(0, max_reads)]
     deadline = time.monotonic() + config.READ_BUDGET_S
-    futures: dict[int, Future] = {
-        id(j): page_pool.submit(_read, j, step, deadline) for j in to_read
-    }
+    batch = _Batch()
+    futures = {id(j): _submit(j, step, deadline, batch) for j in to_read}
     wait(futures.values(), timeout=config.READ_BUDGET_S)
 
     completed: list[JobPosting] = []
@@ -159,7 +226,7 @@ def complete_jobs(
                 TraceStep(
                     step=step,
                     source=known[0] if known else "read_page",
-                    args={"url": job.url},
+                    args={"url": job.url, "outcome": "timeout"},
                     error=f"Timeout: not read within {config.READ_BUDGET_S:g} s",
                     duration_ms=round(config.READ_BUDGET_S * 1000),
                 )

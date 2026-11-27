@@ -256,3 +256,86 @@ def test_parsed_fields_fill_only_blanks(monkeypatch: pytest.MonkeyPatch) -> None
     )
     [posting], _ = steps.complete_jobs([job(PAGE_URL, location="Boston")], max_reads=1)
     assert (posting.location, posting.salary) == ("Boston", "$1")
+
+
+def _too_many(url: str) -> Any:
+    response = requests.Response()
+    response.status_code = 429
+    raise requests.HTTPError("429 Too Many Requests", response=response)
+
+
+def test_a_rate_limited_host_does_not_starve_other_hosts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Host A always answers 429, host B is fine: every B read completes, A falls back to the
+    card text, and no pool worker sleeps through a backoff."""
+    monkeypatch.setattr(config, "READ_RETRY_BACKOFF_S", 0.3)
+    monkeypatch.setattr(config, "READ_BUDGET_S", 5.0)
+    monkeypatch.setattr(config, "READ_HOST_CONCURRENCY", 1)
+    a_url, b_url = "https://a.example.test/jobs/{n}", "https://b.example.test/jobs/{n}"
+
+    def read(url: str, max_chars: int = 0) -> PageResult:
+        time.sleep(0.05)
+        if "a.example" in url:
+            _too_many(url)
+        return fake_page(url)
+
+    monkeypatch.setattr(tools, "read_page", read)
+    jobs = [job(a_url, n) for n in range(1, 13)] + [
+        job(
+            b_url,
+            n,
+        )
+        for n in range(13, 25)
+    ]
+    start = time.monotonic()
+    result, trace = steps.complete_jobs(jobs, max_reads=24)
+    elapsed = time.monotonic() - start
+
+    by_host = {"a": [p for p in result if "a.example" in p.url], "b": []}
+    by_host["b"] = [p for p in result if "b.example" in p.url]
+    assert {p.text_source for p in by_host["b"]} == {"page"}
+    assert len(by_host["b"]) == 12
+    assert {p.text_source for p in by_host["a"]} == {"none"}
+    assert all(p.requirements == "card text" for p in by_host["a"])
+    # Sleeping workers would push this past budget; B's 12 reads at 6 workers need ~0.1 s.
+    assert elapsed < 2.0
+    reads = [t for t in trace if t.source == "read_page"]
+    outcomes = {
+        host: {t.args["outcome"] for t in reads if host in t.args["url"]}
+        for host in ("a.example", "b.example")
+    }
+    assert outcomes == {"a.example": {"rate_limited"}, "b.example": {"ok"}}
+    assert len(reads) == 24
+    assert not any(t.error.startswith("Timeout") for t in trace)
+
+
+def test_a_retry_does_not_hold_a_worker_while_it_waits(monkeypatch: pytest.MonkeyPatch) -> None:
+    """More 429s than workers, long backoff: the pool stays free for other reads."""
+    monkeypatch.setattr(config, "READ_RETRY_BACKOFF_S", 1.0)
+    monkeypatch.setattr(config, "READ_BUDGET_S", 5.0)
+    monkeypatch.setattr(config, "READ_HOST_CONCURRENCY", 8)
+
+    def read(url: str, max_chars: int = 0) -> PageResult:
+        if "a.example" in url:
+            _too_many(url)
+        return fake_page(url)
+
+    monkeypatch.setattr(tools, "read_page", read)
+    jobs = [job("https://a.example.test/{n}", n) for n in range(1, 9)]
+    jobs += [job("https://b.example.test/{n}", n) for n in range(9, 15)]
+    done_at: dict[str, float] = {}
+    start = time.monotonic()
+    original = fake_page
+
+    def stamped(url: str, max_chars: int = 0) -> PageResult:
+        if "b.example" in url:
+            done_at[url] = time.monotonic() - start
+        return original(url)
+
+    monkeypatch.setattr(
+        tools, "read_page", lambda u, max_chars=0: read(u) if "a." in u else stamped(u)
+    )
+    result, _ = steps.complete_jobs(jobs, max_reads=14)
+    assert len(done_at) == 6 and max(done_at.values()) < 0.5  # not queued behind the backoff
+    assert [p.text_source for p in result if "b.example" in p.url] == ["page"] * 6
