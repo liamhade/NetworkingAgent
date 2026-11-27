@@ -118,7 +118,8 @@ def test_filter_node_reads_only_the_survivors_and_records_counts(
 
     assert ids(update["postings"]) == ["j1", "j3"]
     assert all(isinstance(p, JobPosting) for p in update["postings"])
-    assert [u for k, u in sources.calls if k == "read_page"] == [
+    # The reads run in parallel pool threads, so their order is not defined: compare sorted.
+    assert sorted(u for k, u in sources.calls if k == "read_page") == [
         "https://example.com/job/1",
         "https://example.com/job/3",
     ]
