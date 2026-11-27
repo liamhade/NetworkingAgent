@@ -31,6 +31,7 @@ from pipeline.steps.compile import (
     research_data,
     restrict_results,
 )
+from pipeline.steps.complete import HOST_READS, PAGE_MAX_CHARS, REQUIREMENTS_CHARS, complete_jobs
 from pipeline.steps.find_jobs import (
     BUILTIN_PER_QUERY,
     GOOGLE_PER_QUERY,
@@ -77,7 +78,7 @@ from pipeline.steps.rank import (
 from pipeline.steps.reading import (
     _REQUIREMENTS,
     PAGE_READERS,
-    _page_pool,
+    page_pool,
     posting_excerpt,
     read_pages,
 )
@@ -123,7 +124,7 @@ __all__ = [
     "default_ranking",
     "rank_companies_node",
     "PAGE_READERS",
-    "_page_pool",
+    "page_pool",
     "read_pages",
     "_REQUIREMENTS",
     "posting_excerpt",
@@ -145,5 +146,9 @@ __all__ = [
     "_fallback_company",
     "restrict_results",
     "compile_node",
+    "HOST_READS",
+    "PAGE_MAX_CHARS",
+    "REQUIREMENTS_CHARS",
+    "complete_jobs",
     "tools",
 ]

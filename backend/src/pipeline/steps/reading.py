@@ -23,7 +23,7 @@ T = TypeVar("T", bound=BaseModel)
 
 PAGE_READERS = 6
 """Postings read at once (plain HTTP for most boards, so they can run side by side)."""
-_page_pool = ThreadPoolExecutor(max_workers=PAGE_READERS, thread_name_prefix="read-page")
+page_pool = ThreadPoolExecutor(max_workers=PAGE_READERS, thread_name_prefix="read-page")
 
 
 def read_pages(
@@ -43,7 +43,7 @@ def read_pages(
             trace.note = "count = characters"
         return page, trace
 
-    futures = {url: _page_pool.submit(read, url) for url in dict.fromkeys(urls)}
+    futures = {url: page_pool.submit(read, url) for url in dict.fromkeys(urls)}
     wait(futures.values(), timeout=config.READ_TIMEOUT_S)
     pages: dict[str, str] = {}
     trace: list[TraceStep] = []

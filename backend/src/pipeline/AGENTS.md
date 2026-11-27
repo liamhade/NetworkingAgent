@@ -12,6 +12,7 @@ The search is a fixed LangGraph `StateGraph`, not a free-form tool-calling agent
 
 - `graph.py`: builds the graph; `run_search()` yields the status/result/error event stream
 - `steps/`: one module per node (`plan`, `find_jobs`, `rank`, `rescore`, `people`, `postings`, `compile`), `common` (shared helpers) and `reading` (parallel page reads); `steps/__init__.py` re-exports everything as `steps.<name>`
+- `steps/complete.py`: `complete_jobs(jobs, max_reads)` turns `Job`s into `JobPosting`s (full text, `text_source`); not in the graph yet (docs/job-ranking/plan.md, phase 2). Site readers live in `backend/src/postings/`
 - `state.py`: typed graph state and the structured-output models of the LLM steps
 - `on_demand.py`: the "Find People To Connect With" flow behind
   `POST /api/searches/{search_id}/people`

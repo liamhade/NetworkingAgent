@@ -58,6 +58,8 @@ def _job_from(source: str, raw: dict[str, Any]) -> Job:
         summary=" · ".join(str(d) for d in details if d),
         level=raw.get("experience_level") or "",
         years_required=raw.get("years_required") or "",
+        description=raw.get("description") or "",
+        posted_at=raw.get("posted_at") or "",
     )
 
 

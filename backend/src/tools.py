@@ -137,6 +137,8 @@ def usajobs_jobs(job_filter: UsajobsFilter, n: int | None = None) -> list[dict[s
             "salary": j.salary,
             "deadline": f"closes {j.closes}" if j.closes else None,
             "posted": j.posted,
+            "posted_at": j.posted,
+            "description": j.summary,
             "summary": _clip(j.summary),
             **_years(j.summary),
         }

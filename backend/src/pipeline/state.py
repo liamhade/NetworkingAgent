@@ -6,7 +6,7 @@ put limits in descriptions, not JSON-schema constraints, so they work with
 """
 
 import operator
-from typing import Annotated, TypedDict
+from typing import Annotated, Literal, TypedDict
 
 from pydantic import BaseModel, Field
 
@@ -115,6 +115,29 @@ class Job(BaseModel):
     """Seniority label from the source (BuiltInNYC's "entry-level", ...), if it has one."""
     years_required: str = ""
     """Experience the posting asks for ("3+ years"; see `experience`), or "" if unknown."""
+    description: str = ""
+    """Full posting text when the board's search API already returns it (Lever, Ashby, the
+    USAJOBS qualification summary); "" otherwise. `complete_jobs` fills the rest."""
+    posted_at: str = ""
+    """Publication date (YYYY-MM-DD) when the board gives it."""
+
+
+TextSource = Literal["api", "parser", "page", "none"]
+
+
+class JobPosting(Job):
+    """A `Job` completed with the posting's text, by `steps.complete.complete_jobs`.
+
+    Extends `Job` rather than duplicating it: every field the plan lists is already on `Job`
+    (or added to it above), so `Job` stays the card from the board search and `JobPosting`
+    adds what completion produces. `description` is kept for the record and never sent to
+    the LLM whole; `requirements` is its excerpt for the ranking card."""
+
+    requirements: str = ""
+    """`posting_excerpt(description)`; the card's summary when no text could be read."""
+    text_source: TextSource = "none"
+    """Where `description` came from: the board `api`, a site `parser`, the generic `page`
+    reader, or `none` (read failed or skipped: only the listing's card text is known)."""
 
 
 class ListedCompany(BaseModel):
