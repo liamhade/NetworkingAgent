@@ -73,3 +73,36 @@ def test_filter_uses_the_dated_background_to_drop_far_too_senior_jobs() -> None:
 @pytest.mark.parametrize("text", [" ", "Worked 2019", "from 2024 to"])
 def test_odd_text_does_not_crash(text: str) -> None:
     assert years(text) is None
+
+
+@pytest.mark.parametrize(
+    "background",
+    [
+        "Software Engineer since November 2025",
+        "Software Engineer since Nov 2025",
+        "I am a Software Engineer at Acme since November 2025, where I build APIs.",
+        "Software Engineer, Nov 2025 - present",
+    ],
+)
+def test_open_ended_ranges_count_up_to_today(background: str) -> None:
+    assert years(f"{background}\nGraduated June 2025 from the University of Somewhere.") == 1
+
+
+def test_a_year_only_open_range_counts_from_mid_year() -> None:
+    assert years("Software Engineer, 2025–Present") == 1  # Jul 2025 -> Nov 2026
+
+
+def test_since_counts_whole_years_from_the_given_month() -> None:
+    assert years("Backend Engineer since March 2023") == 3
+    assert years("Backend Engineer since 2023") == 3  # a bare year counts from July
+    assert years("Backend Engineer since December 2026") is None  # not started yet
+
+
+def test_since_a_student_clause_is_not_work() -> None:
+    assert years("Student at Cornell University since Aug 2022") == 0
+    assert years("Computer science undergraduate since 2023, graduating 2027") == 0
+
+
+def test_since_does_not_double_count_a_listed_range() -> None:
+    background = "Engineer, Nov 2025 - present\nAnalyst at Beta since January 2025"
+    assert years(background) == 1  # Jan 2025 -> Nov 2026 is 22 months, overlap counted once

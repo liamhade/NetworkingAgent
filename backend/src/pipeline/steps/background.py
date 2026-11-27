@@ -4,7 +4,8 @@
 direct first:
 
 1. a stated amount ("3 years of SQL"): the largest, up to 40;
-2. work date ranges ("Software Engineer, Nov 2025 - present"): the months covered by roles
+2. work date ranges ("Software Engineer, Nov 2025 - present", "Software Engineer since
+   Nov 2025"): the months covered by roles
    that are not student roles (internships, assistantships, degrees, volunteering), overlaps
    counted once, up to today, in whole years;
 3. only student date ranges, or student / new-grad wording ("recent graduate", "graduated
@@ -30,8 +31,11 @@ _RANGE = re.compile(
     + r"|(?P<now>present|current|now|today|ongoing|date))",
     re.IGNORECASE,
 )
+_SINCE = re.compile(r"\bsince\s+" + _DATE.format(n="s"), re.IGNORECASE)
+"""An open-ended range written as "Software Engineer since November 2025"."""
 _NOT_WORK = re.compile(
-    r"\b(intern(?:ship)?s?|student|teaching assistant|research assistant|co-?op|volunteer|"
+    r"\b(intern(?:ship)?s?|student|undergrad\w*|teaching assistant|research assistant|"
+    r"co-?op|volunteer|"
     r"university|college|school|bachelor'?s?|master'?s?|b\.?[sa]\.?|m\.?[sa]\.?|ph\.?d|"
     r"degree|gpa|coursework|bootcamp|certificat\w*|expected|class of)\b",
     re.IGNORECASE,
@@ -80,6 +84,16 @@ def _work_intervals(text: str, today: date) -> tuple[list[tuple[int, int]], bool
                 end = min(ey * 12 + em, now)
             if end > start:
                 found.append((start, end))
+    for line in lines:
+        for match in _SINCE.finditer(line):
+            clause = re.split(r"[.;!?]", line[: match.start()])[-1]  # words before "since"
+            if _NOT_WORK.search(clause):
+                student = True
+                continue
+            start = _point(match, "s")
+            start_index = start[0] * 12 + start[1]
+            if now > start_index:
+                found.append((start_index, now))
     return found, student
 
 
