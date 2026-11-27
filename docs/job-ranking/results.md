@@ -199,3 +199,73 @@ plan 3.5, find_jobs 9.4, filter 8.1, rank_jobs 13.9, find_people 7.6, compile 23
   A prompt rule (title seniority vs. the user's experience applies even without years) is the
   likely fix. Not changed here.
 - `user_years` stays None for backgrounds with no dated work range or "N years".
+
+## Run 3: after read/years fixes (2026-11-27)
+
+The same script and account as Run 2, real boards and models, usage in a scratch CSV, nothing
+saved to `database/`. Two fixes went in first:
+
+- **Reads** (`fix(read)`): `complete_jobs` waited `READ_TIMEOUT_S` = 8 s for the whole batch
+  with 3 reads per host, so about 9 BuiltInNYC reads (2.4 s each) fit. The batch now has its
+  own budget, `READ_BUDGET_S` = 20 s (all reads start at once; the old 8 s stays for
+  `read_pages`), with `READ_HOST_CONCURRENCY` = 5 reads per host (the shared page pool has 6
+  workers, so it is not the bottleneck; BuiltIn/Workable parsers and the board APIs are plain
+  `requests` calls, with no lock or Playwright involved) and one retry after
+  `READ_RETRY_BACKOFF_S` = 1.5 s on HTTP 429 when the budget has room. Failures still keep the
+  card text. 5 per host rather than 6+ because measure.md's 6-parallel burst was the one that
+  later drew 429s; 30 reads at 5-parallel and about 2.4 s each is about 14 s.
+- **Years** (`fix(background)`): "Software Engineer since November 2025" (and "since Nov
+  2025") is an open-ended range counted up to today unless the words before "since" are
+  student wording. `user_years` for the TEST_USER background is now **1** (was None).
+
+### LLM cost per step
+
+| Step | Calls | Input tok | Output tok | Cost | Latency |
+|---|---|---|---|---|---|
+| plan | 1 | 4,920 | 970 | $0.0010 | 6.2 s |
+| rank_jobs (Sonnet 5.5) | 1 | 7,849 | 2,062 | $0.0363 | 14.5 s |
+| compile | 1 | 4,841 | 5,696 | $0.0033 | 21.7 s |
+| **Total** | 3 | 17,610 | 8,728 | **$0.0406** | |
+
+### Wall time per node (seconds)
+
+plan 6.4, find_jobs 11.6, filter 20.3, rank_jobs 14.5, find_people 17.9, compile 21.7.
+**Total 140.3 s.**
+
+### Job counts
+
+- Found: 23. After `filter`: 20 (3 duplicates, 0 far away, 0 over the limit).
+- `user_years` = 1. **Years filter dropped 0** (`too_senior` 0 before and after the read): no
+  found job asked for far more than one year.
+- `text_source`: **17 parser, 3 none** (Run 2: 3 parser, 27 none). Postings read: 17 of 20.
+- Ranked and returned: 12. The `filter` node took 20.3 s (it ran into the 20 s budget; the
+  3 unread jobs kept card text), about 12 s more than Run 2.
+
+### Seniority check
+
+- No "Lead" or "Senior" title in the top 12. Jobs asking for more than about 1 year: DeepIntent
+  Applied AI Engineer (2+ years) rank 5, **74**; Cloudflare SWE Data Primitives (2+ years) rank
+  10, 55; T-Mobile T-Ads SWE React (2+ years) rank 11, 50; Snap SWE Full Stack Level 4 (1+
+  year) rank 12, 48. Two Sigma (1+ year) rank 4, 80.
+- Verdict: no "Lead"/"Senior" violation, but the 2+ years DeepIntent job at 74 is the one to
+  watch (a 2-year ask for a user with 1 year is a stretch, not clearly senior). The title-only
+  "Lead" case of Run 2's first run was not exercised, because no such title was found.
+
+### Comparison
+
+| | Baseline | Plan target | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|---|---|
+| LLM cost per search | $0.0063 | $0.04-0.05 | $0.0653 | $0.0410 | **$0.0406** |
+| rank_jobs | 3.5-8.4k in (Haiku) | 8-10k in (Sonnet) | 12.1k in / 3.4k out, $0.0586 | 7.7k in / 2.1k out, $0.0366 | 7.8k in / 2.1k out, $0.0363 |
+| compile | $0.0043, ~40 s | smaller | $0.0061, 33.4 s | $0.0038, 23.0 s | $0.0033, 21.7 s |
+| Added read time (filter node) | 0-25 s | 10-20 s | 7.8 s | 8.1 s | 20.3 s |
+| Total time | 80-100 s | | 88.0 s | 110.1 s | 140.3 s |
+| Postings read | | | 29 of 30 | 3 of 30 | 17 of 20 |
+| Years filter dropped | | | 0 (user_years None) | 0 (user_years None) | 0 (user_years 1) |
+
+### Gate
+
+- Cost <= $0.08: **pass** ($0.0406).
+- Time <= ~200 s: **pass** (140 s). The added read time (20 s) is at the top of the plan's
+  10-20 s range, the cost of reading nearly every posting.
+- No HTTP 429 problems showed in the trace (3 unread jobs; cause not separated here).
