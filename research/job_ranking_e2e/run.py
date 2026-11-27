@@ -27,6 +27,7 @@ import tempfile
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend" / "src"))
@@ -131,6 +132,21 @@ def report(state: dict, times: list[tuple[str, float]], usage: dict, wall: float
     out.append(f"- Sent to the ranker: {len(postings)}")
     out.append(f"- text_source: {dict(Counter(p.text_source for p in postings))}")
     out.append(f"- Ranked and returned: {len(ranked)}\n")
+
+    unread = [p for p in postings if p.text_source == "none"]
+    if unread:
+        out.append("## Unread postings (text_source none)\n")
+        out.append("| Host | Company | Title | Read outcome |")
+        out.append("|---|---|---|---|")
+        reads = {s.args.get("url"): s for s in state.get("trace", []) if s.source != "complete"}
+        for p in unread:
+            step = reads.get(p.url)
+            outcome = "no read attempted (over max_reads)"
+            if step is not None:
+                outcome = f"{step.error or 'ok'} ({step.source}, {step.duration_ms} ms)"
+            where = urlsplit(p.url)
+            out.append(f"| {where.netloc}{where.path[:60]} | {p.company} | {p.title} | {outcome} |")
+        out.append("")
 
     user_years = next((s.args.get("user_years") for s in filt if "user_years" in s.args), None)
     out.append(f"## Seniority check (user_years used by the filter: {user_years})\n")

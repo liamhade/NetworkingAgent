@@ -268,4 +268,72 @@ plan 6.4, find_jobs 11.6, filter 20.3, rank_jobs 14.5, find_people 17.9, compile
 - Cost <= $0.08: **pass** ($0.0406).
 - Time <= ~200 s: **pass** (140 s). The added read time (20 s) is at the top of the plan's
   10-20 s range, the cost of reading nearly every posting.
-- The 3 unread jobs were not traced to a cause (budget, 429 or other); the script prints no per-read errors.
+- The 3 unread jobs: see "Verification: unread postings and seniority" below.
+
+## Verification: unread postings and seniority (2026-11-27)
+
+Two gaps left by Run 3: why 3 postings stayed unread, and whether the "much more experience
+than the user has scores at most 40" rule holds on real too-senior jobs. Real boards and
+models, TEST_USER, usage in scratch CSVs, nothing saved to `database/`.
+`research/job_ranking_e2e/run.py` now prints, for every `text_source` "none" posting, its URL
+and the read outcome from the trace; `research/job_ranking_e2e/seniority_check.py` is new.
+
+### A. Unread postings
+
+Four full runs back to back (one every few minutes) gave 20, 18, 17 and 17 unread postings of
+23-29, against 3 of 20 in Run 3, which ran cold. Causes, by count:
+
+| Host | Cause | Fixed? |
+|---|---|---|
+| www.builtinnyc.com (12-14 per run) | HTTP 429 from Cloudflare on `builtin_parser`, on the first try and on the retry (about 2.5 s per read). Cloudflare keeps the IP limited for some minutes after a burst of about 20-30 page reads: a single plain GET returned 429 right after a run and 200 about 5-8 min later. No `Retry-After`. Even 2 reads per host (seniority_check) were refused while limited. | No: external rate limit. Run 3's 17 of 20 was a cold start. Repeated runs within minutes are not representative; wait several minutes between runs. |
+| www.builtinnyc.com, jobs.ashbyhq.com (Google results), 3-6 per run | "Timeout: not read within 20 s": the read pool has 6 workers, and BuiltIn reads that sleep on a 429 retry hold them, so later jobs never started. The trace said `read_page` even for BuiltIn URLs. | Trace label fixed (`fix(read)`, test added); the starvation is a symptom of the rate limit above. |
+| indeed.com, ziprecruiter.com, agentic-engineering-jobs.com (Google results) | The URL is a search or listing page, not a posting: 403, 403, 404. | No: external (Google returns aggregator pages); the ranker only sees the card. |
+| jobs.technyc.org (Google result) | Timeout, page read still loading at the 20 s budget. | No: slow external site. |
+
+No parser was missing a page variant and no URL pattern was unrouted. When reads succeed, the
+Ashby board pages Google returns (Ultralytics, Mercura, EverAI) come back as `page` text.
+Possible follow-up, not done: a lower `READ_HOST_CONCURRENCY` or a per-host pace for
+builtinnyc.com; it would trade time against 429s, and cannot be measured while the IP is
+still limited.
+
+### B. Seniority rule, live
+
+`seniority_check.py`: TEST_USER request (`user_years` = 1), plan and `filter` as in the
+pipeline for the level-appropriate jobs, plus real senior postings (Greenhouse API boards
+for text, and BuiltInNYC searches for "senior software engineer", "staff engineer",
+"engineering manager", whose page reads were 429-limited so those are title/level only),
+mixed and ranked with `rank_jobs_node` and the real `RANK_MODEL` (Sonnet 5.5). **No prompt
+change was needed.** Final run with `--score-all` (asks the ranker to return and score every
+job; without it the ranker simply left every too-senior job out in two of the four runs,
+which also satisfies the rule):
+
+| Job | years_required | Score |
+|---|---|---|
+| Cloudflare, Customer Engineering Manager (x2) | 1+ year | 8, 6 |
+| Twilio, Principal Engineer, Cloud Security | 12+ years | 4 |
+| Twilio, Principal Engineer (L5) | 12+ years | 3 |
+| Robinhood, Engineering Manager, AI Platform & Agentic Apps | 10+ years | 15 |
+| MongoDB, Senior Software Engineer (title only, text 429) | - | 32 |
+| CrowdStrike, Sr. Software Engineer - SDMF (title only) | - | 30 |
+| T-Mobile, T-Ads Senior Software Engineer, Platform (title only) | - | 30 |
+
+Across the four runs (different mixes), every Senior/Staff/Principal/Manager job scored
+between 3 and 40 (Zocdoc Senior SWE was 40 in the first run) or was left out. **Pass**: all
+flagged jobs scored <= 40. Level-appropriate jobs scored 42-90 (Entry level / "I" titles
+72-90), so the rule does not flatten the range.
+
+2+ years jobs (partial credit): Toast SWE II (2+ years) 60, Cloudflare SWE Data Primitives
+(2+ years) 72, Clark SWE AI (2-5 years) 66, Aegis AI (2-10 years) 68. The Run 3 DeepIntent
+2+ years job at 74 is in line with these; most land at 60-72, a little above the 50-65 hoped
+for but consistent with the prompt's "2-5 years suits someone with 2 years". Not changed:
+tightening it risks the near-level partial credit.
+
+### Cost of the checks
+
+A: four runs at $0.049-0.051 each, $0.20. B: four runs at $0.023-0.035 each, $0.12. Total
+about $0.32.
+
+### Commits
+
+- `fix(read)`: timed-out reads name the waiting reader in the trace.
+- `test(research)`: per-read errors in `run.py`, `seniority_check.py`.
