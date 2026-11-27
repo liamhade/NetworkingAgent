@@ -181,6 +181,14 @@ class PeopleNotes(BaseModel):
     people: list[PersonResult]
 
 
+class PeopleQuery(BaseModel):
+    """The people pane's typed criteria as LinkedIn search terms (`PEOPLE_QUERY_PROMPT`)."""
+
+    keywords: list[str] = []
+    school: str = ""
+    location: str = ""
+
+
 # ------------------------------------------------------------------------ the graph
 
 

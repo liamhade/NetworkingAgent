@@ -284,8 +284,8 @@ describe('Find people', () => {
     await expand(user, 'Globex')
     await user.click(jobButton('Globex'))
     expect(pending.map((p) => [p.url, p.body])).toEqual([
-      ['/api/searches/s1/people', { company_key: 'company:acme', job_key: null }],
-      ['/api/searches/s1/people', { company_key: 'company:globex', job_key: 'job:globex' }],
+      ['/api/searches/s1/people', { company_key: 'company:acme', job_key: null, query: null }],
+      ['/api/searches/s1/people', { company_key: 'company:globex', job_key: 'job:globex', query: null }],
     ])
   })
 
@@ -356,6 +356,20 @@ describe('Find people', () => {
     await waitFor(() => expect(within(card('Acme')).queryByRole('alert')).not.toBeInTheDocument())
     pending[1].resolve(json(company('Acme', { people: [person('Ann')], people_searched: true })))
     await within(card('Acme')).findByText('Ann')
+  })
+
+  it('sends what was typed into the people search box', async () => {
+    const pending = stubFetch()
+    const user = userEvent.setup()
+    render(<Harness />)
+    await expand(user, 'Acme')
+    await user.type(
+      screen.getByRole('searchbox', { name: 'Who to look for at Acme' }),
+      'people who went to my school{Enter}',
+    )
+    expect(pending.map((p) => p.body)).toEqual([
+      { company_key: 'company:acme', job_key: null, query: 'people who went to my school' },
+    ])
   })
 
   it('is disabled until the search is saved', async () => {

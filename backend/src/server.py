@@ -543,7 +543,8 @@ def get_search(search_id: str, user: CurrentUser) -> SavedSearch:
 @app.post("/api/searches/{search_id}/people")
 def find_people(search_id: str, body: FindPeopleRequest, user: CurrentUser) -> CompanyResult:
     """Find people to connect with at one company of a saved search (optionally for one of
-    its jobs), save them into the search and return the updated company.
+    its jobs, or matching the typed `query`), save them into the search and return the
+    updated company.
 
     A plain `def`, so FastAPI runs it in its threadpool: several requests (other companies,
     or the same one twice) run at once. Their Google searches queue in the one shared
@@ -551,7 +552,9 @@ def find_people(search_id: str, body: FindPeopleRequest, user: CurrentUser) -> C
     """
     try:
         with usage_context(user_id=user.id, request_id=uuid.uuid4().hex, search_id=search_id):
-            return pipeline.find_people(user.id, search_id, body.company_key, body.job_key)
+            return pipeline.find_people(
+                user.id, search_id, body.company_key, body.job_key, query=body.query
+            )
     except pipeline.NotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

@@ -12,6 +12,8 @@ outputs, and code runs every search. One prompt per LLM step:
 - `COMPILE_PROMPT`: `compile` node. Gathered data -> `SearchResults` with alignment notes.
 - `PEOPLE_NOTES_PROMPT`: on-demand people search ("Find People To Connect With"). People
   found at one company -> their alignment and connection notes.
+- `PEOPLE_QUERY_PROMPT`: the people pane's search box. The user's typed criteria -> LinkedIn
+  search terms (`pipeline.state.PeopleQuery`).
 - `LINKEDIN_MESSAGE_PROMPT`: rules for each person's `connect_message`, the example LinkedIn
   connection note. It is appended to the compile and people-notes prompts (see
   `compile_prompt()` / `people_notes_prompt()`), so notes are written in the same call as
@@ -127,6 +129,23 @@ hiring leaders, recruiters. Skip people who clearly no longer work there \
 relevant people without one.
 - `alignment` speaks to the user ("You ...") in 1-3 sentences: why connect, and what they \
 have in common; mention a person's `shared_background` (e.g. the same school) when present."""
+
+PEOPLE_QUERY_PROMPT = """A job seeker wants to find more people to connect with at one \
+company, and typed what they are looking for. You get their profile, the company and what \
+they typed. Turn it into the terms of a LinkedIn people search at that company (code adds \
+the company name).
+
+Decide:
+- keywords: up to 3 short search phrases (1-3 words each) for roles, teams, seniority or \
+skills the user asked for, e.g. "data engineer", "recruiter", "product manager". Each one \
+is its own search, best first. Leave it empty when they only asked about school or place.
+- school: a school name only when they ask for one. "My school", "alumni" or "went to my \
+college" means the first school in their education; use the name exactly as it is written \
+there. Otherwise "".
+- location: a city when they name one ("in Boston" -> "Boston"); "" when they say anywhere \
+or remote; otherwise the user's city from their profile (city only, no state).
+
+Use only what they asked for; do not add filters they did not mention."""
 
 LINKEDIN_MESSAGE_PROMPT = """Each person's `connect_message` is a LinkedIn connection note \
 the user can send as-is:

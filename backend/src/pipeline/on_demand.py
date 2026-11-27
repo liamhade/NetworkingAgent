@@ -17,13 +17,14 @@ import prompts
 from entities import keys
 from llm import get_llm
 from pipeline import steps
-from pipeline.state import PeopleNotes, Person
+from pipeline.state import PeopleNotes, PeopleQuery, Person
 from schemas import CompanyResult, JobResult, PersonResult, SavedSearch, TraceStep
 from userdata import history
 
 log = logging.getLogger(__name__)
 
 STEP = "find_people_on_demand"
+QUERY_STEP = "find_people_by_query"
 
 
 class NotFound(LookupError):
@@ -49,6 +50,26 @@ def _job(company: CompanyResult, job_key: str | None) -> JobResult | None:
 def _city(location: str) -> str:
     """ "New York, NY" -> "New York" (people searches work best with just a city)."""
     return location.split(",")[0].strip()
+
+
+def _interpret(
+    llm: BaseChatModel, record: SavedSearch, company: CompanyResult, query: str
+) -> tuple[PeopleQuery, TraceStep]:
+    """The typed criteria as search terms. If the LLM call fails, the raw text is the only
+    keyword phrase and the search's city the location."""
+    human = (
+        f"{steps.format_profile(record.request)}\n\n"
+        f"<company>{company.name}</company>\n<typed>{query}</typed>"
+    )
+    terms, trace = steps.call(
+        QUERY_STEP,
+        "llm",
+        {"query": query},
+        lambda: steps.structured(llm, PeopleQuery, prompts.PEOPLE_QUERY_PROMPT, human, QUERY_STEP),
+    )
+    if terms is None:
+        terms = PeopleQuery(keywords=[query], location=_city(record.request.location))
+    return terms, trace
 
 
 def _notes(
@@ -122,28 +143,43 @@ def find_people(
     company_key: str,
     job_key: str | None = None,
     llm: BaseChatModel | None = None,
+    query: str | None = None,
 ) -> CompanyResult:
-    """Find people at one company of a saved search, save them, return the updated company."""
+    """Find people at one company of a saved search, save them, return the updated company.
+
+    With `query` (the people pane's search box), the LLM turns the typed criteria into
+    search terms (`_interpret`) and `steps.search_people_by_query` runs them instead of the
+    usual ladder.
+    """
     record = history.get_search(user_id, search_id)
     if record is None:
         raise NotFound("Search not found.")
     company = _company(record, company_key)
     job = _job(company, job_key)
 
-    keywords = [job.title] if job else []
-    keywords += company.people_keywords
     known_urls = [p.profile_url for p in company.people]
-    found, trace = steps.search_people(
-        company.name,
-        keywords,
-        _city(record.request.location),
-        STEP,
-        known_urls,
-        education=record.request.education,
-    )
+    query = (query or "").strip()
+    model = llm or (get_llm() if query else None)  # without a query, only if people are found
+    if query:
+        terms, interpret_trace = _interpret(model, record, company, query)
+        found, trace = steps.search_people_by_query(
+            company.name, terms.keywords, terms.location, terms.school, QUERY_STEP, known_urls
+        )
+        trace.insert(0, interpret_trace)
+    else:
+        keywords = [job.title] if job else []
+        keywords += company.people_keywords
+        found, trace = steps.search_people(
+            company.name,
+            keywords,
+            _city(record.request.location),
+            STEP,
+            known_urls,
+            education=record.request.education,
+        )
     people: list[PersonResult] = []
     if found:
-        people, notes_trace = _notes(llm or get_llm(), record, company, job, found)
+        people, notes_trace = _notes(model or get_llm(), record, company, job, found)
         trace.append(notes_trace)
 
     updated = history.update_search(

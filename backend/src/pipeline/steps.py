@@ -826,6 +826,63 @@ def search_people(
     return people, trace
 
 
+QUERY_MAX_SEARCHES = 3
+"""Most Google searches for one typed people query (`search_people_by_query`)."""
+
+
+def search_people_by_query(
+    company: str,
+    keywords: Iterable[str],
+    location: str,
+    school: str,
+    step: str,
+    known_urls: Iterable[str] = (),
+) -> tuple[list[Person], list[TraceStep]]:
+    """People at `company` matching typed criteria (already turned into search terms).
+
+    One search per keyword phrase (or one with no keywords), then, while fewer than
+    `PEOPLE_PER_COMPANY` current employees were found, the first one again without the
+    location. At most `QUERY_MAX_SEARCHES` searches. With `school`, people whose result
+    shows it are marked `shared_background`. Profiles in `known_urls` are skipped.
+    """
+    phrases = [k.strip() for k in keywords if k.strip()] or [""]
+    rungs = [(words, location) for words in phrases]
+    if location:
+        rungs.append((phrases[0], ""))
+    rungs = list(dict.fromkeys(rungs))[:QUERY_MAX_SEARCHES]
+    label = f"Same school: {school}" if school else ""
+    seen = {_url_key(u) for u in known_urls}
+    people: list[Person] = []
+    trace: list[TraceStep] = []
+    for i, (words, where) in enumerate(rungs):
+        if i >= len(phrases) and sum(p.at_company for p in people) >= config.PEOPLE_PER_COMPANY:
+            break  # the relaxed (no location) rung only runs when too few were found
+        status(f"Looking for {words or 'people'}{f' from {school}' if school else ''} at {company}")
+        args = {"company": company, "keywords": words, "location": where}
+        if school:
+            args["school"] = school
+        found, rung = call(
+            step,
+            "linkedin_people",
+            args,
+            lambda w=words, loc=where: tools.linkedin_people(
+                company, w, loc, n=config.PEOPLE_SEARCH_N, school=school
+            ),
+        )
+        trace.append(rung)
+        for raw in found or []:
+            key = _url_key(raw.get("url") or "")
+            if not raw.get("url") or key in seen:
+                continue
+            seen.add(key)
+            person = Person.model_validate({**raw, "keywords": words})
+            if school and person.at_company and linkedin.mentions_school(raw, school):
+                person.shared_background = label
+            people.append(person)
+        rung.note = f"{sum(p.at_company for p in people)} current employees so far"
+    return people, trace
+
+
 def find_people_node(state: PipelineState) -> dict:
     """People search for every one of the top `PEOPLE_AUTO_COMPANIES` companies."""
     location = state["plan"].people_location

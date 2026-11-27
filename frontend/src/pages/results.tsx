@@ -10,7 +10,7 @@ import type {
   StatusMap,
 } from '@/api'
 import { ConnectDrawer, type DrawerPerson } from '@/components/connect-drawer'
-import { FindPeopleButton } from '@/components/find-people-button'
+import { FindPeopleButton, FindPeopleSearch } from '@/components/find-people-button'
 import { PageHeader } from '@/components/page-header'
 import { Icon } from '@/components/icon'
 import { PinToggle } from '@/components/pin-toggle'
@@ -771,7 +771,7 @@ function CompanyPanel({
                     </button>
                   )}
                   {company.key && (
-                    <FindPeopleButton
+                    <FindPeopleSearch
                       searchId={ctx.searchId}
                       companyKey={company.key}
                       target={company.name}

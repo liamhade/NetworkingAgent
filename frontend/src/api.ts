@@ -342,11 +342,17 @@ export async function findPeople(
   searchId: string,
   companyKey: string,
   jobKey?: string,
+  /** Typed criteria from the people pane ("people who went to my school"). */
+  query?: string,
 ): Promise<CompanyResult> {
   const response = await apiFetch(`/api/searches/${encodeURIComponent(searchId)}/people`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ company_key: companyKey, job_key: jobKey ?? null }),
+    body: JSON.stringify({
+      company_key: companyKey,
+      job_key: jobKey ?? null,
+      query: query?.trim() || null,
+    }),
   })
   if (!response.ok) throw new Error(await errorMessage(response))
   return response.json()

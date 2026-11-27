@@ -658,3 +658,7 @@ body.resizing{cursor:col-resize;user-select:none}
 .user-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;display:flex;flex-direction:column;z-index:80}
 .user-menu button{border:0;background:transparent;text-align:left;padding:9px 12px;border-radius:8px;font:600 14px var(--ui);color:var(--text)}
 .user-menu button:hover,.user-menu button:focus-visible{background:var(--alt)}
+
+/* ---------- people pane: typed people search ---------- */
+.find-people{display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex:1 1 320px;min-width:0}
+.find-people input{flex:1 1 200px;min-width:0;width:auto;min-height:36px;padding-top:6px;padding-bottom:6px;font-size:14px}
