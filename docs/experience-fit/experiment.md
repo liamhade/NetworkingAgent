@@ -68,6 +68,33 @@ That is under a cent per search, or about $1.50 per 1,000 searches at 2 per comp
 the bigger cost: one slow page (JS-only boards that need the browser) holds up the whole
 step, because every read must finish before the LLM call.
 
+## Sonnet 5.5 vs Haiku 5.5 (same postings, top 2 per company)
+
+| | Haiku 5.5 | Sonnet 5.5 |
+|---|---|---|
+| Tokens (A / B) | 9,010 in / 1,317 out; 8,922 / 1,304 | 9,010 / 665; 8,922 / 935 |
+| Cost (A / B) | $0.00156 / $0.00154 | $0.0247 / $0.0272 (≈17×) |
+| LLM time (A / B) | 9.3 s / 6.7 s | 6.2 s / 7.6 s |
+| Cost per search (baseline + rescore) | ≈$0.0078 | ≈$0.032 (≈5× today's) |
+
+Where they differed (the profile: a June 2025 graduate, a software engineer since November
+2025, so about one year of experience):
+
+- **Whatnot "Software Engineer, 2027 New Grad"** (asks for "graduated … by Summer 2027"):
+  Haiku 85 → 80, Sonnet 85 → **40**. Sonnet is right: the program is for 2027 graduates,
+  and this user graduated in 2025 and already works. The company fell from 2nd to 5th.
+- **Clark "Software Engineer, AI"** (asks for 2+ years): Haiku 78 → 35, Sonnet 78 → **52**.
+  Sonnet's score is the better fit for a user about a year short of the requirement. Haiku
+  treated the user as having no experience and applied the hard cap.
+- Ro's "Senior" roles, OpenAI and Palantir: both models gave nearly the same scores (within
+  4 points).
+- Neither model filled `years_required` reliably: Sonnet gave it once, and Haiku gave it
+  three times, once as the free text "0 years (new grad)".
+
+Sonnet judged eligibility rules and partial experience better, and it spent the same time
+or less. It costs about 17× as much for this step. Running it only for this step would
+make the whole search about 5× as expensive, though still about 3 cents per search.
+
 ## Possible next steps
 
 - Turn it on with `RESCORE_POSTINGS=2`. The time cost is small next to compile's 40 s.
