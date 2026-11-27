@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 
-# ---------------------------------------------------------------------- rescore_jobs
+# ---------------------------------------------------------------------- page reads
 
 PAGE_READERS = 6
 """Postings read at once (plain HTTP for most boards, so they can run side by side)."""

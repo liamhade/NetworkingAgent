@@ -1,8 +1,8 @@
 # Networking Agent
 
 Type in your background, where you live and what you're looking for (or upload a resume
-PDF), and the agent returns companies to research, open jobs, and people to network
-with, each with a note on how you align. Design: [docs/v1/plan.md](docs/v1/plan.md).
+PDF), and the agent returns a ranked list of open jobs (best fit first, each with a score,
+a reason and how you align), with the people to network with at each job's company. Design: [docs/v1/plan.md](docs/v1/plan.md).
 
 - `backend/`: FastAPI + a LangGraph search pipeline (Python 3.11, `backend/src/pipeline/`,
   plan: [docs/langgraph-pipeline/plan.md](docs/langgraph-pipeline/plan.md)). Its data
@@ -11,6 +11,10 @@ with, each with a note on how you align. Design: [docs/v1/plan.md](docs/v1/plan.
   used for LinkedIn people and non-NYC jobs). Per-user data
   (accounts, search history, APPLIED/CONNECTED statuses) lives in `backend/src/userdata/`;
   stable job/person/company keys in `backend/src/entities/keys.py`.
+- Pipeline: `plan → find_jobs → filter → rank_jobs → find_people → compile`. `filter` is code
+  (dedupe, location, years of experience, cap at `RANK_MAX_JOBS`) and reads each remaining
+  posting; `rank_jobs` scores them on `RANK_MODEL`; the results page is one ranked card per
+  job. Plan: [docs/job-ranking/plan.md](docs/job-ranking/plan.md).
 - `research/`: scripts used to reverse-engineer those two sites (not used at runtime).
 - `docs/`: plans, plus module docs (`docs/google_serp/`, `docs/builtin_nyc/`).
 - `frontend/`: Vite + React + TypeScript, styled with the Map · Linen theme (`src/styles/linen.css`).
@@ -70,12 +74,22 @@ npm run build
 |---|---|---|
 | `LLM_MODEL` | `anthropic:claude-haiku-5-5` | Model used by the agent and resume parser |
 | `ANTHROPIC_KEY` / `ANTHROPIC_API_KEY` | | API key (`<PROVIDER>_KEY` works for other providers) |
-| `MAX_JOBS` | `12` | Jobs a search returns, ranked by fit (0-100) |
+| `MAX_JOBS` | `12` | Jobs a search returns: the ranker's best, by fit score (0-100), with no per-company cap |
 | `RANK_MAX_JOBS` | `30` | Jobs that pass the filter, get their posting read and are ranked |
-| `RANK_MODEL` | `anthropic:claude-sonnet-5-5` | Model that ranks the jobs |
-| `PEOPLE_AUTO_COMPANIES` | `3` | Top-ranked companies that get a people search automatically |
+| `RANK_MODEL` | `anthropic:claude-sonnet-5-5` | Model for the `rank_jobs` step (one call per search; `LLM_MODEL` runs the rest) |
+| `PEOPLE_AUTO_COMPANIES` | `3` | First companies, in job rank order, that get a people search automatically; others use the button |
 | `PEOPLE_PER_COMPANY` | `3` | People-search ladder stops at this many current employees |
 | `PEOPLE_SEARCH_N` | `5` | Profiles asked for per people search |
+| `PEOPLE_SIMILAR_MAX_QUERIES` | `2` | Extra Google searches per company for people from the user's school (`0` turns it off) |
+| `PEOPLE_SIMILAR_PER_COMPANY` | `2` | That search stops once this many people with a shared school were found |
+| `ATS_MAX_BOARDS` | `6` | Most ATS boards (Greenhouse, Lever, Ashby, Workable) fetched per search (`0` turns ATS off) |
+| `ATS_JOBS_PER_BOARD` | `4` | Matching postings kept from each ATS board |
+| `ATS_RESOLVE_LINKS` | `3` | Google links resolved per ATS board search when the board isn't visible in the result |
+| `USAJOBS_API_KEY`, `USAJOBS_EMAIL` | | Free USAJOBS key and the email it was registered with; unset skips federal jobs |
+| `USAJOBS_MAX_QUERIES` | `2` | Most USAJOBS searches per run (`0` turns it off) |
+| `USAJOBS_RESULTS` | `10` | Jobs kept from each USAJOBS search |
+| `LINKEDIN_MESSAGE_MAX_CHARS` | `300` | Upper bound on each example LinkedIn connection note |
+| `MAX_CONCURRENT_SEARCHES` | `2` | Searches that may run at once; another is refused with HTTP 429 |
 | `READ_TIMEOUT_S` | `8` | Seconds a batch of posting reads may take; slower pages are skipped |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | | Accounts (email + password, for emails you approve). Unset: everyone is `TEST_USER` |
 | `ACCESS_REQUEST_EMAIL` | | Your inbox: people email it from their address to request access (`python -m auth.access approve <email>`) |
@@ -83,4 +97,7 @@ npm run build
 | `LOCAL_DEV_MODE` | `false` | `true`: the sign-in page stays, but any credentials sign in as TEST_USER (no Supabase). Localhost only; never on a host. See `docs/local-dev-mode/plan.md` |
 | `SERPER_API_KEY` / `SERPAPI_API_KEY` | | Google results from serper.dev / serpapi.com instead of Chrome (no CAPTCHAs, ~1-2 s) |
 | `GOOGLE_RESOLVE_URLS` | `true` | Follow Google redirects to real URLs (slower) |
+| `GOOGLE_CACHE_TTL_S` | `900` | Seconds a Google results page is reused for a repeated query (`0` turns the cache off) |
+| `DATABASE_DIR` | `./database` | Local JSON store (gitignored, personal data) |
+| `COOKIE_SECURE` | `auto` | Session cookies' `Secure` flag: `auto`, `true` or `false` |
 | `CORS_ORIGINS` | `http://localhost:3000,...` | Allowed browser origins |

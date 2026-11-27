@@ -1,5 +1,9 @@
 # Plan: the search agent as an enforced LangGraph pipeline (+ ranking, on-demand people)
 
+> Historical. The company ranking, `read_postings` and `MAX_COMPANIES` described here were
+> replaced by job ranking; the current graph is in
+> [../job-ranking/plan.md](../job-ranking/plan.md) and `backend/src/pipeline/AGENTS.md`.
+
 Requests:
 
 1. *"instead of leaving it up to the agent, make the agentic portion a LangGraph pipeline so

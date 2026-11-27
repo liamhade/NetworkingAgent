@@ -111,20 +111,33 @@ From `backend/logs/llm_usage.csv`, ranking sees about 40-60 listings today.
 
 ## Phases
 
-Each phase is its own commit and leaves the app working.
+Each phase is its own commit and leaves the app working. All six are done.
 
-1. **Measure.** Script in `research/`: for recent searches, jobs found per board, how many
-   have full text from the API, and read times for the rest. Confirms `RANK_MAX_JOBS` and
-   the cost estimate.
-2. **`JobPosting` and completion.** Model, board parsers (Greenhouse per-job content,
-   BuiltIn and Workable job pages), page-read fallback, `text_source` in the trace. Split
-   `pipeline/steps.py` (1,247 lines) into a `pipeline/steps/` package as part of this.
-3. **filter + rank_jobs.** New prompt and node, `RANK_MODEL`, `RANK_MAX_JOBS`, `MAX_JOBS`;
-   results built in job order; remove `rank_companies`, `rescore_jobs`, `read_postings`.
-4. **compile slimmed** to people notes, messages and company descriptions.
-5. **UI** (done): job cards, contacts on the card, company filter, new sorts and stats; old
-   searches still open.
-6. **Docs and settings**: README settings table, `.env.example`, `pipeline/AGENTS.md`.
+1. **Measure** (done, `c2842a2`). Script in `research/`: jobs found per board, how many have
+   full text from the API, read times for the rest. Results: [measure.md](measure.md).
+2. **`JobPosting` and completion** (done, `128db55`; steps split in `15fe03b`). Model, board
+   parsers, page-read fallback, `text_source` in the trace, `pipeline/steps/` package.
+3. **filter + rank_jobs** (done, `9a66ce2`; follow-ups `59a2608`, `53aa689`, `77667bb`).
+   New prompt and node, `RANK_MODEL`, `RANK_MAX_JOBS`, `MAX_JOBS`; `rank_companies`,
+   `rescore_jobs` and `read_postings` removed.
+4. **compile slimmed** (done, `6afb628`) to people notes, messages and company descriptions;
+   code builds the results.
+5. **UI** (done, `924aac6`): job cards, contacts on the card, company filter, new sorts and
+   stats; old searches still open. Follow-up `dc83d16`: one people search per company,
+   shared by its cards.
+6. **Docs and settings** (done): README settings table, `.env.example`, `pipeline/AGENTS.md`.
+
+### Deviations from the plan above
+
+- Lever and Ashby list responses reach the pipeline without the description, so their text
+  comes from a per-posting API read (`text_source=api`), like Greenhouse.
+- `filter`'s duplicate key is company + title + location, not company + title, so one role
+  posted in two cities is kept twice.
+- A search with only BuiltInNYC listed companies and no jobs ends early with empty results
+  and a summary naming the companies, not an error.
+- The ranker writes the alignment note only for the top `MAX_JOBS` jobs, not for all
+  `RANK_MAX_JOBS`, to cut output tokens.
+- The "Pinned" filter means the job itself is pinned (not its company).
 
 ## Decisions
 

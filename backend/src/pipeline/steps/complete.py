@@ -1,7 +1,7 @@
 """Completing found jobs into `JobPosting`s: the posting's full text, one read per job.
 
-Not wired into the graph yet; `filter` and `rank_jobs` call `complete_jobs` on the jobs worth
-ranking (at most `RANK_MAX_JOBS`), not on everything the boards returned.
+`filter` calls `complete_jobs` on the jobs worth ranking (at most `RANK_MAX_JOBS`), not on
+everything the boards returned.
 
 Where the text comes from, in order:
 

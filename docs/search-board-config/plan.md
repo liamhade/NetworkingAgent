@@ -22,7 +22,7 @@ and how many jobs to gather from each. The bot still decides how to rank and sor
   `ATS_MAX_BOARDS > 0`) is evaluated when the search runs (`boards.is_on` = enabled and
   available). An unavailable board never runs, and the panel shows it off and disabled with
   the reason ("Needs an API key (...)"). The frontend sends `enabled: false` for it.
-- **No user-controlled sorting.** Ranking and ordering stay with `rank_companies` and
+- **No user-controlled sorting.** Ranking and ordering stay with the ranker (`rank_jobs`) and
   `compile`; the panel only decides what is gathered.
 
 ## Boards
