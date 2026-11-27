@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { AccessError, signIn, signUp } from '@/api'
+import { BrandMark } from '@/components/brand-mark'
 import { ACCESS_REQUEST_SUBJECT, accessRequestMailto } from '@/utils/access-request'
 
 type Mode = 'sign-in' | 'request' | 'awaiting'
@@ -99,7 +100,10 @@ export function SignInPage({ onSignedIn, requestEmail, localDev = false }: SignI
   return (
     <main className="auth-page">
       <form className="card auth-card" onSubmit={submit} noValidate>
-        <h1>Networking Agent</h1>
+        <h1 className="auth-brand">
+          <BrandMark size={40} />
+          enishi
+        </h1>
         <p className="hint">
           {requesting
             ? 'Choose a password and request access. You’ll then email us from this address to confirm it.'

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { User } from '@/api'
+import { BrandMark } from '@/components/brand-mark'
 import { ChangePasswordDialog } from '@/components/change-password'
 import { Icon, type IconName } from '@/components/icon'
 import { initials } from '@/utils/initials'
@@ -80,10 +81,8 @@ export function AppShell({
           <Icon name="menu" size="lg" />
         </button>
         <a className="brand" href={viewHash('search')}>
-          <span className="brand-mark">
-            <Icon name="layers" />
-          </span>
-          <span className="tx">Networking Agent</span>
+          <BrandMark />
+          <span className="tx">enishi</span>
         </a>
         <nav className="nav" aria-label="Primary">
           {navItems.map((item) => (

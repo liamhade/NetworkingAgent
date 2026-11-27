@@ -76,7 +76,7 @@ async def lifespan(_: FastAPI):
     tools.shutdown()
 
 
-app = FastAPI(title="Networking Agent", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Enishi", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,

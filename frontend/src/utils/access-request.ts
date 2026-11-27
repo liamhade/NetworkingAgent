@@ -1,9 +1,9 @@
-export const ACCESS_REQUEST_SUBJECT = 'Networking Agent access request'
+export const ACCESS_REQUEST_SUBJECT = 'Enishi access request'
 
 /** The email someone sends the owner, from `email`, so the owner knows the address is theirs. */
 export function accessRequestBody(email: string): string {
   return (
-    `Hi,\n\nPlease approve ${email} for Networking Agent. I'm sending this from that ` +
+    `Hi,\n\nPlease approve ${email} for Enishi. I'm sending this from that ` +
     `address so you can confirm it's mine.\n\nThanks!`
   )
 }
