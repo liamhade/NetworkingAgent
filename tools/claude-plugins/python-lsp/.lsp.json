@@ -1,0 +1,9 @@
+{
+  "pyright": {
+    "command": "C:\\Users\\LIAMHA~1\\AppData\\Roaming\\Python\\Python314\\Scripts\\pyright-langserver.exe",
+    "args": ["--stdio"],
+    "extensionToLanguage": {
+      ".py": "python"
+    }
+  }
+}
