@@ -6,7 +6,7 @@
 - `find_people(user_id, search_id, company_key, job_key)`: the on-demand people search for
   one company of a saved search. See `on_demand.py`.
 
-Nodes and shared helpers are in `steps.py`, the typed state and LLM schemas in `state.py`.
+Nodes and shared helpers are in the `steps/` package, the typed state and LLM schemas in `state.py`.
 Plan: `docs/langgraph-pipeline/plan.md`.
 """
 

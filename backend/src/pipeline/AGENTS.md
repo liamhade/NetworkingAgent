@@ -11,7 +11,7 @@ The search is a fixed LangGraph `StateGraph`, not a free-form tool-calling agent
 ## Layout
 
 - `graph.py`: builds the graph; `run_search()` yields the status/result/error event stream
-- `steps.py`: one function per node, plus the people-search fallback ladder
+- `steps/`: one module per node (`plan`, `find_jobs`, `rank`, `rescore`, `people`, `postings`, `compile`), `common` (shared helpers) and `reading` (parallel page reads); `steps/__init__.py` re-exports everything as `steps.<name>`
 - `state.py`: typed graph state and the structured-output models of the LLM steps
 - `on_demand.py`: the "Find People To Connect With" flow behind
   `POST /api/searches/{search_id}/people`
