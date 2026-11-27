@@ -18,6 +18,12 @@ The app lives at the repo root: `backend/` (FastAPI), `frontend/` (Vite + React)
 
 Use a `Service Oriented` folder structure to group files in the `backend`.
 
+# Anti-Patterns
+
+Here are some coding patterns that must be strictly avoided, along with their solutions.
+
+*God Modules*: Grouping thousands of lines of code into a single file -> break large files into seperate, clearly defined files.
+
 # Documentation
 
 For any large change you are going to make, write up the plan for that change into `docs/` so that there is auditability of the development process.

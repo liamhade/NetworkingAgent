@@ -8,14 +8,9 @@
 
 ## In-Queue
 
-- [x] (**redirects to related entities from entity cards**) If a person is connected to a job, those jobs should be listed beneath their card. If a job also has a list of people to connect with, then those should be selectable beneath the job card. And if a company has jobs or people connected to, those should be selectable beneath the company card.
+- [ ] (*factor out linen.css*)
 
-- [x] Search for people that have similar background as the user (e.g. just education for now), as well as the current company search. If there aren't enough people, relax the search criteria and try again.
-
-- [x] (**people with a similar background**) Search for people that have similar background as the user (e.g. just education for now), as well as the current company search. If there aren't enough people, relax the search criteria and try again.
-
-- [x] (**refine UI**) It's a little confusiong at the moment, especially with the headers. The UI should be clear, modern, and easy to navigate.
-
+- [ ] (*grouping company page by company*)
 
 ## Postponed
 
@@ -27,6 +22,15 @@
     - [ ] Support username and password sign-in
 
 ## Done
+
+
+- [x] (**redirects to related entities from entity cards**) If a person is connected to a job, those jobs should be listed beneath their card. If a job also has a list of people to connect with, then those should be selectable beneath the job card. And if a company has jobs or people connected to, those should be selectable beneath the company card.
+
+- [x] Search for people that have similar background as the user (e.g. just education for now), as well as the current company search. If there aren't enough people, relax the search criteria and try again.
+
+- [x] (**people with a similar background**) Search for people that have similar background as the user (e.g. just education for now), as well as the current company search. If there aren't enough people, relax the search criteria and try again.
+
+- [x] (**refine UI**) It's a little confusiong at the moment, especially with the headers. The UI should be clear, modern, and easy to navigate.
 
 - [x] (**local dev mode**) `LOCAL_DEV_MODE` env var: the sign-in page stays, but any credentials sign in as TEST_USER (localhost only).
 
