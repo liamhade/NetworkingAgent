@@ -122,7 +122,7 @@ Each phase is its own commit and leaves the app working.
 3. **filter + rank_jobs.** New prompt and node, `RANK_MODEL`, `RANK_MAX_JOBS`, `MAX_JOBS`;
    results built in job order; remove `rank_companies`, `rescore_jobs`, `read_postings`.
 4. **compile slimmed** to people notes, messages and company descriptions.
-5. **UI**: job cards, contacts on the card, company filter, new sorts and stats; old
+5. **UI** (done): job cards, contacts on the card, company filter, new sorts and stats; old
    searches still open.
 6. **Docs and settings**: README settings table, `.env.example`, `pipeline/AGENTS.md`.
 
