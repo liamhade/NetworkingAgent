@@ -31,3 +31,6 @@ class AtsJob(BaseModel):
     location: str = ""
     departments: list[str] = []
     posted: str | None = Field(default=None, description="ISO date first published, if known.")
+    years_required: str = Field(
+        default="", description='Experience the description asks for, e.g. "3+ years".'
+    )

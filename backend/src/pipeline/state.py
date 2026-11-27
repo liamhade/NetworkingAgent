@@ -111,6 +111,10 @@ class Job(BaseModel):
     location: str = ""
     salary: str = ""
     summary: str = ""
+    level: str = ""
+    """Seniority label from the source (BuiltInNYC's "entry-level", ...), if it has one."""
+    years_required: str = ""
+    """Experience the posting asks for ("3+ years"; see `experience`), or "" if unknown."""
 
 
 class ListedCompany(BaseModel):

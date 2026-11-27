@@ -123,6 +123,7 @@ def test_list_jobs_normalizes_the_api_response(api: FakeApi) -> None:
         "location": "New York, NY (HQ) / Remote (Canada) / Remote (US) / Miami, FL",
         "departments": ["Engineering", "Backend"],
         "posted": "2026-04-07",
+        "years_required": "",
     }
     by_title = {j.title: j for j in jobs}
     # isRemote is true for most hybrid postings; only workplaceType "Remote" adds the tag.

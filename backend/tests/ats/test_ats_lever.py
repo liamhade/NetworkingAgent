@@ -137,6 +137,7 @@ def test_list_jobs_normalizes_the_api_response(api: FakeApi, lever: Lever) -> No
         "location": "New York, NY",
         "departments": ["Operations and Business Support", "Platform"],
         "posted": "2026-10-23",
+        "years_required": "",
     }
     by_title = {j.title: j for j in jobs}
     # Every location is kept, so a London search matches a Stockholm-first posting.

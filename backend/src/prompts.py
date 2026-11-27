@@ -88,6 +88,13 @@ Rules:
 - Choose up to {max_companies} companies that fit the user best, and score each one 0-100 \
 for overall fit (role, seniority, skills, industry, location, and how many relevant open \
 jobs it has). Use the whole range: 80+ is a strong fit, below 40 a weak one.
+- Seniority is a hard limit. Judge the user's experience from their background (a student \
+or new graduate has about none). Read each job's `years_required` and `level` when present, \
+and its title ("Senior", "Staff", "Principal", "Lead", "Manager", "II"/"III"). A job that \
+needs much more experience than the user has (e.g. 3+ years for someone with none, or 8+ \
+for someone with 3) scores at most 40, however well the role matches; a company whose \
+relevant jobs are all like that scores at most 50. Jobs at or near the user's level score \
+higher than better-known roles above it.
 - Only choose companies that appear in the data, with the name exactly as listed. For a \
 Google result without a company, name the employer shown in its title, site or URL.
 - jobs: that company's relevant postings by id, at most 4, each with its own 0-100 score.

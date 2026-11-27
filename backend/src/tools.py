@@ -30,6 +30,7 @@ from builtin_nyc import api as builtin_api
 from builtin_nyc.models import CompanyFilter, JobFilter
 from conservation_jobboard import api as conservation_api
 from conservation_jobboard.models import JobFilter as ConservationJobFilter
+from experience import years_required
 from usajobs import api as usajobs_api
 from usajobs.models import JobFilter as UsajobsFilter
 
@@ -43,6 +44,12 @@ def _clip(text: str | None, limit: int = MAX_TEXT) -> str | None:
     if not text:
         return text
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+def _years(*texts: str | None) -> dict[str, str]:
+    """`{"years_required": "3+ years"}` from the texts, or {} if they name no experience."""
+    years = years_required(*texts)
+    return {"years_required": years} if years else {}
 
 
 # ----------------------------------------------------------------------- BuiltInNYC
@@ -64,6 +71,7 @@ def builtin_jobs(job_filter: JobFilter, n: int = 15) -> list[dict[str, Any]]:
             "industries": j.industries,
             "skills": j.skills[:8],
             "summary": _clip(j.description),
+            **_years(j.title, j.description),
         }
         for j in builtin_api.get_jobs(job_filter, n)
     ]
@@ -100,6 +108,7 @@ def conservation_jobs(job_filter: ConservationJobFilter, n: int = 15) -> list[di
             "job_type": j.job_type,
             "salary": j.salary,
             "experience": j.experience,
+            **_years(j.experience),
             "deadline": j.deadline,
             "posted": j.posted,
         }
@@ -129,6 +138,7 @@ def usajobs_jobs(job_filter: UsajobsFilter, n: int | None = None) -> list[dict[s
             "deadline": f"closes {j.closes}" if j.closes else None,
             "posted": j.posted,
             "summary": _clip(j.summary),
+            **_years(j.summary),
         }
         for j in jobs
     ]
@@ -436,6 +446,7 @@ def ats_jobs(
             "summary": " · ".join(
                 [p.label, *j.departments[:2], *([f"posted {j.posted}"] if j.posted else [])]
             ),
+            **({"years_required": j.years_required} if j.years_required else {}),
         }
         for j in jobs
     ]

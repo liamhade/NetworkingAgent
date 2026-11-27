@@ -23,6 +23,8 @@ import re
 from typing import Any, ClassVar
 from urllib.parse import urlsplit
 
+from experience import years_required
+
 from .base import Provider, get_json
 from .lever import company_name
 from .models import AtsJob, BoardRef
@@ -76,6 +78,7 @@ class Ashby(Provider):
             location=_location(raw),
             departments=_unique_names(raw.get("department"), raw.get("team")),
             posted=_date(raw.get("publishedAt")),
+            years_required=years_required(_text(raw.get("descriptionPlain"))),
         )
 
 

@@ -116,6 +116,7 @@ def test_list_jobs_normalizes_the_api_response(api: FakeApi) -> None:
         "location": "San Francisco Bay Area or Remote (U.S.)",
         "departments": [],
         "posted": "2026-11-03",
+        "years_required": "",
     }
 
 

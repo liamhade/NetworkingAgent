@@ -131,6 +131,7 @@ def test_list_jobs_normalizes_the_api_response(api: FakeApi) -> None:
         "location": "Paris, Île-de-France, France (Remote)",
         "departments": ["Open Source", "Engineering"],
         "posted": "2026-05-29",
+        "years_required": "",
     }
     # A region equal to the city is not repeated.
     assert jobs[1].location == "New York, United States (Remote)"

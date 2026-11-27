@@ -26,6 +26,7 @@ from boards import BoardsConfig, effective_limit, is_on, on_boards
 from builtin_nyc.models import CompanyFilter, JobFilter
 from conservation_jobboard.models import JobFilter as ConservationJobFilter
 from entities.keys import normalize_company_name, normalize_text, normalize_url
+from experience import years_required
 from llm_usage import run_config
 from pipeline.state import (
     ChosenCompany,
@@ -253,6 +254,7 @@ def _job_from(source: str, raw: dict[str, Any]) -> Job:
             title=raw.get("title") or "",
             url=raw.get("url") or "",
             summary=f"{raw.get('site') or ''}: {raw.get('snippet') or ''}".strip(": "),
+            years_required=years_required(raw.get("title"), raw.get("snippet")),
         )
     details = [raw.get(k) for k in ("job_type", "experience", "deadline", "summary")]
     return Job(
@@ -265,6 +267,8 @@ def _job_from(source: str, raw: dict[str, Any]) -> Job:
         location=raw.get("location") or raw.get("work_arrangement") or "",
         salary=raw.get("salary") or "",
         summary=" · ".join(str(d) for d in details if d),
+        level=raw.get("experience_level") or "",
+        years_required=raw.get("years_required") or "",
     )
 
 
@@ -538,6 +542,8 @@ def _jobs_table(jobs: list[Job]) -> str:
             "company": j.company,
             "location": j.location,
             "salary": j.salary,
+            "level": j.level,
+            "years_required": j.years_required,
             "summary": _short(j.summary, 160),
             "url": j.url if not j.company else "",
         }

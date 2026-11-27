@@ -24,6 +24,8 @@ from urllib.parse import urlsplit
 
 import requests
 
+from experience import years_required
+
 from .base import Provider, get_json
 from .models import AtsJob, BoardRef
 
@@ -109,7 +111,20 @@ class Lever(Provider):
             location=_location(categories, raw.get("workplaceType")),
             departments=_unique_names(categories.get("department"), categories.get("team")),
             posted=_date(raw.get("createdAt")),
+            years_required=years_required(*_description(raw)),
         )
+
+
+def _description(raw: dict[str, Any]) -> list[str]:
+    """The posting's plain-text description, its lists (requirements, ...) and closing text."""
+    lists = raw.get("lists") if isinstance(raw.get("lists"), list) else []
+    items = [
+        re.sub(r"<[^>]+>", " ", item.get("content") or "")
+        for item in lists
+        if isinstance(item, dict) and isinstance(item.get("content"), str)
+    ]
+    plain = [raw.get(k) for k in ("descriptionPlain", "additionalPlain")]
+    return [t for t in (*plain, *items) if isinstance(t, str)]
 
 
 def _unique_names(*values: Any) -> list[str]:
