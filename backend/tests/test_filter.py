@@ -75,7 +75,7 @@ def test_a_remote_user_keeps_every_location() -> None:
 
 def test_user_years_come_from_the_background() -> None:
     assert steps.user_years(REQUEST) == 3
-    nothing = REQUEST.model_copy(update={"background": "Recent graduate in biology."})
+    nothing = REQUEST.model_copy(update={"background": "Biology and lab work."})
     assert steps.user_years(nothing) is None
 
 
@@ -90,7 +90,7 @@ def test_jobs_far_above_the_users_experience_are_dropped_when_it_is_known() -> N
     assert ids(out) == ["j2", "j4"]
     assert counts["too_senior"] == 2
 
-    unknown_user = REQUEST.model_copy(update={"background": "Recent graduate in biology."})
+    unknown_user = REQUEST.model_copy(update={"background": "Biology and lab work."})
     assert ids(run_filter(jobs, unknown_user)[0]) == ["j1", "j2", "j3", "j4"]
 
 

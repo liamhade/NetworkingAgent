@@ -13,6 +13,7 @@ import re
 import config
 from entities.keys import normalize_text
 from pipeline.state import Job, JobPosting, PipelineState
+from pipeline.steps.background import user_years
 from pipeline.steps.common import name_key, plural, status, url_key
 from pipeline.steps.complete import complete_jobs
 from schemas import SearchRequest, TraceStep
@@ -20,7 +21,6 @@ from schemas import SearchRequest, TraceStep
 FAR_YEARS = 4
 """A job is dropped when it asks for at least this many years more than the user has."""
 
-_YEARS = re.compile(r"\b(\d{1,2})\s*\+?\s*(?:years?|yrs?)\b", re.IGNORECASE)
 _STATE = re.compile(r",\s*([A-Z]{2})\b")
 _WORD = re.compile(r"[a-z]{2,}")
 _GENERIC = {
@@ -42,12 +42,6 @@ _STATES = {
     "west virginia": "wv", "wisconsin": "wi", "wyoming": "wy",
 }  # fmt: skip
 _NYC_AREA = {"nyc", "ny", "nj", "brooklyn", "manhattan", "queens", "bronx", "hoboken", "jersey"}
-
-
-def user_years(request: SearchRequest) -> int | None:
-    """The most years the user's background mentions ("3 years of SQL"), or None."""
-    found = [int(n) for n in _YEARS.findall(request.background) if int(n) <= 40]
-    return max(found) if found else None
 
 
 def _places(text: str) -> set[str]:
