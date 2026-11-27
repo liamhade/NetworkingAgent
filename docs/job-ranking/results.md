@@ -268,4 +268,4 @@ plan 6.4, find_jobs 11.6, filter 20.3, rank_jobs 14.5, find_people 17.9, compile
 - Cost <= $0.08: **pass** ($0.0406).
 - Time <= ~200 s: **pass** (140 s). The added read time (20 s) is at the top of the plan's
   10-20 s range, the cost of reading nearly every posting.
-- No HTTP 429 problems showed in the trace (3 unread jobs; cause not separated here).
+- The 3 unread jobs were not traced to a cause (budget, 429 or other); the script prints no per-read errors.
