@@ -126,8 +126,12 @@ Each phase is its own commit and leaves the app working.
    searches still open.
 6. **Docs and settings**: README settings table, `.env.example`, `pipeline/AGENTS.md`.
 
+## Decisions
+
+- No per-company cap: a company with many strong jobs shows all of them. The list is ordered
+  by job score only, and the company filter is how a user narrows to or away from one
+  employer.
+
 ## Open questions
 
 - `MAX_JOBS` default: 12 jobs is about the same reading as 6 companies × 2 jobs today.
-- Should a company with many strong jobs be capped (e.g. at most 3 cards per company), so one
-  employer doesn't fill the list?
