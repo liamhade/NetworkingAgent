@@ -627,3 +627,22 @@ select.auto{width:auto}
 .side-resize:hover::after,.side-resize:focus-visible::after,body.resizing .side-resize::after{background:var(--accent)}
 .side-resize:focus-visible{outline:none}
 body.resizing{cursor:col-resize;user-select:none}
+
+/* ---------- results: minimal summary strip, toolbar in the index column ---------- */
+.strip{margin:4px 0 12px;padding:0;gap:4px 16px;font-size:14px;color:var(--text2)}
+.strip .stat{padding-left:8px;border-left-width:2px;gap:5px}
+.strip .stat .n{font:700 14px/1.3 var(--ui);color:var(--text)}
+.strip .stat .l,.strip .stat .s{font-size:14px;font-weight:400;color:var(--text2)}
+.strip .sumline{font-size:14px;color:var(--text2);border-top:0;padding-top:0}
+.rail{position:sticky;top:76px;max-height:calc(100vh - 92px);overflow:auto;display:flex;flex-direction:column;gap:14px}
+.rail .index{position:static;max-height:none;overflow:visible}
+.rail .toolbar{position:static;margin:0;padding:0 0 14px;background:none;backdrop-filter:none;flex-direction:column;align-items:stretch;gap:8px}
+.rail .toolbar .sp{display:none}
+.rail .seg{align-self:flex-start}
+.rail .toolbar select{width:100%}
+.rail .tb-lab{font:700 12px/1.3 var(--ui);letter-spacing:.07em;text-transform:uppercase;color:var(--text2);padding:0 2px}
+@media (max-width:1180px){
+  .rail{position:static;max-height:none;overflow:visible}
+  .rail .toolbar{flex-direction:row;flex-wrap:wrap;align-items:center}
+  .rail .toolbar select{width:auto}
+}

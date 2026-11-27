@@ -133,7 +133,7 @@ export function Results({
   )
 
   const [group, setGroup] = useState<'company' | 'type'>('company')
-  const [open, setOpen] = useState<Set<string>>(() => new Set(ranked[0] ? [ranked[0].id] : []))
+  const [open, setOpen] = useState<Set<string>>(() => new Set())
   const [filters, setFilters] = useState<Set<Filter>>(new Set())
   const [sort, setSort] = useState<SortId>('fit')
   const [active, setActive] = useState<string | null>(ranked[0]?.id ?? null)
@@ -313,7 +313,7 @@ export function Results({
       {statusError && <ErrorBanner message={statusError} />}
       {pinError && <ErrorBanner message={pinError} />}
 
-      <section className="card strip" aria-label="Summary">
+      <section className="strip" aria-label="Summary">
         <div className="stats" role="list" aria-label="Search totals">
           <Stat kind="co" value={results.companies.length} label="Companies" />
           <Stat kind="job" value={allJobs.length} label="Jobs" sub={`${applied} applied`} />
@@ -325,7 +325,6 @@ export function Results({
           />
           <Stat kind="pin" value={pinnedCount} label="Pinned" />
         </div>
-        <StartHere ranked={ranked} onMessage={ctx.message} />
         {results.summary && (
           <div className="sumline">
             <Icon name="sparkle" size="sm" />
@@ -342,64 +341,64 @@ export function Results({
         )}
       </section>
 
-      <div className="toolbar" role="toolbar" aria-label="View options">
-        <span className="tb-lab" id="group-by">
-          Group by
-        </span>
-        <div className="seg" role="group" aria-labelledby="group-by">
-          {(['company', 'type'] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={group === option}
-              onClick={() => {
-                setGroup(option)
-                window.scrollTo?.({ top: 0 })
-              }}
-            >
-              <Icon name={option === 'company' ? 'building' : 'list'} size="sm" />
-              {option === 'company' ? 'Company' : 'Type'}
-            </button>
-          ))}
-        </div>
-        <div className="chips" role="group" aria-label="Filters">
-          {FILTERS.map((filter) => (
-            <button
-              key={filter.id}
-              type="button"
-              className="chip"
-              aria-pressed={filters.has(filter.id)}
-              onClick={() =>
-                setFilters((current) => {
-                  const next = new Set(current)
-                  if (!next.delete(filter.id)) next.add(filter.id)
-                  return next
-                })
-              }
-            >
-              {filter.icon && <Icon name={filter.icon} />}
-              {filter.label}
-            </button>
-          ))}
-        </div>
-        <span className="sp" />
-        <label className="tb-lab" htmlFor="results-sort">
-          Sort
-        </label>
-        <select
-          id="results-sort"
-          value={sort}
-          onChange={(event) => setSort(event.target.value as SortId)}
-        >
-          {SORTS.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
       <div className="cols">
+        <div className="rail">
+          <div className="toolbar" role="toolbar" aria-label="View options">
+            <span className="tb-lab" id="group-by">
+              Group by
+            </span>
+            <div className="seg" role="group" aria-labelledby="group-by">
+              {(['company', 'type'] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={group === option}
+                  onClick={() => {
+                    setGroup(option)
+                    window.scrollTo?.({ top: 0 })
+                  }}
+                >
+                  <Icon name={option === 'company' ? 'building' : 'list'} size="sm" />
+                  {option === 'company' ? 'Company' : 'Type'}
+                </button>
+              ))}
+            </div>
+            <div className="chips" role="group" aria-label="Filters">
+              {FILTERS.map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  className="chip"
+                  aria-pressed={filters.has(filter.id)}
+                  onClick={() =>
+                    setFilters((current) => {
+                      const next = new Set(current)
+                      if (!next.delete(filter.id)) next.add(filter.id)
+                      return next
+                    })
+                  }
+                >
+                  {filter.icon && <Icon name={filter.icon} />}
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+            <span className="sp" />
+            <label className="tb-lab" htmlFor="results-sort">
+              Sort
+            </label>
+            <select
+              id="results-sort"
+              value={sort}
+              onChange={(event) => setSort(event.target.value as SortId)}
+            >
+              {SORTS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         <nav className="index" aria-label={group === 'company' ? 'Jump to company' : 'Jump to'}>
           {group === 'company' ? (
             <>
@@ -424,15 +423,6 @@ export function Results({
                   </li>
                 ))}
               </ol>
-              <div className="legend">
-                <span>
-                  <b className="num">82</b> fit score out of 100
-                </span>
-                <span>
-                  <i className="pill job tight">jobs</i>
-                  <i className="pill per tight">people</i>
-                </span>
-              </div>
             </>
           ) : (
             <>
@@ -465,6 +455,7 @@ export function Results({
             </>
           )}
         </nav>
+        </div>
 
         <section aria-label="Results">
           <h2 className="sr">{group === 'company' ? 'Companies' : 'Results by type'}</h2>
@@ -567,58 +558,6 @@ function Stat({
       <span className="n num">{value}</span>
       <span className="l">{label}</span>
       {sub && <span className="s num">{sub}</span>}
-    </div>
-  )
-}
-
-/** The single best next step: message the top contact, or else apply to the top job. */
-function StartHere({
-  ranked,
-  onMessage,
-}: {
-  ranked: Ranked[]
-  onMessage: (person: PersonResult, company: CompanyResult) => void
-}) {
-  const withPeople = ranked.find(({ company }) => company.people.length > 0)?.company
-  if (withPeople) {
-    const person = withPeople.people[0]
-    const job = bestJob(withPeople)
-    return (
-      <div className="start">
-        <span>
-          <b>Start here:</b> message <b>{person.name}</b>
-          {job ? (
-            <>
-              {' '}
-              about <b>{job.title}</b> at {withPeople.name}
-            </>
-          ) : (
-            <> at {withPeople.name}</>
-          )}
-        </span>
-        <button
-          type="button"
-          className="btn pri xs"
-          onClick={() => onMessage(person, withPeople)}
-        >
-          Draft message
-        </button>
-      </div>
-    )
-  }
-  const top = ranked[0]?.company
-  const job = top && bestJob(top)
-  if (!top || !job) return null
-  return (
-    <div className="start">
-      <span>
-        <b>Start here:</b> apply to <b>{job.title}</b> at {top.name}
-      </span>
-      {job.url && (
-        <a className="btn pri xs" href={job.url} target="_blank" rel="noreferrer">
-          Open posting
-        </a>
-      )}
     </div>
   )
 }
