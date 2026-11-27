@@ -9,6 +9,8 @@ outputs, and code runs every search. One prompt per LLM step:
   the search turned on (and, for USAJOBS, only when `config.usajobs_configured()`).
 - `RANK_PROMPT`: `rank_companies` node. Jobs found -> companies scored 0-100 for fit, with
   their best postings and people-search keywords (`pipeline.state.CompanyRanking`).
+- `RESCORE_PROMPT`: `rescore_jobs` node (experimental, `config.RESCORE_POSTINGS`). The top
+  postings read in full -> new job and company scores (`pipeline.state.Rescoring`).
 - `COMPILE_PROMPT`: `compile` node. Gathered data -> `SearchResults` with alignment notes.
 - `PEOPLE_NOTES_PROMPT`: on-demand people search ("Find People To Connect With"). People
   found at one company -> their alignment and connection notes.
@@ -102,6 +104,21 @@ Google result without a company, name the employer shown in its title, site or U
 someone on the team they would join (e.g. "data science manager", "engineering manager") \
 and/or "recruiter". Describe the person, not the job posting (no "jobs", "hiring").
 - reason: one short sentence on the score."""
+
+RESCORE_PROMPT = """You re-check job fit scores for a job seeker. Each company below was \
+already scored from short job listings; you now get the full text of its top postings.
+
+Rules:
+- For every posting given, read its requirements and return years_required (the least \
+experience it asks for, e.g. "3+ years", or "" if it does not say) and a new 0-100 score.
+- Seniority is a hard limit. Judge the user's experience from their background (a student \
+or new graduate has about none). A posting that needs much more experience than the user \
+has (e.g. 3+ years for someone with none) scores at most 40, however well the role \
+matches. Also lower the score for required skills, degrees, clearances or locations the \
+user lacks.
+- Return each company's overall 0-100 score, given its postings: at most 50 when none of \
+them suits the user's level.
+- Use the company names and job ids exactly as given. Do not add jobs."""
 
 COMPILE_PROMPT = """You turn gathered job-search research data into the final results.
 

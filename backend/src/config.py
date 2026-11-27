@@ -62,6 +62,14 @@ READ_POSTINGS = max(0, int(os.environ.get("READ_POSTINGS", "2")))
 READ_POSTING_MAX_CHARS = max(1_000, int(os.environ.get("READ_POSTING_MAX_CHARS", "4000")))
 """Characters of each read posting passed to the compile step."""
 
+RESCORE_POSTINGS = max(0, int(os.environ.get("RESCORE_POSTINGS", "0")))
+"""Experimental: the top postings per chosen company read in full right after ranking, so
+the `rescore_jobs` step can score them again against their requirements (0 turns it off).
+See `docs/experience-fit/experiment.md`."""
+
+RESCORE_POSTING_MAX_CHARS = max(500, int(os.environ.get("RESCORE_POSTING_MAX_CHARS", "2500")))
+"""Characters of each posting passed to the `rescore_jobs` step (requirements come first)."""
+
 ATS_MAX_BOARDS = max(0, int(os.environ.get("ATS_MAX_BOARDS", "6")))
 """Most ATS boards (any provider) fetched per search (0 turns ATS off)."""
 

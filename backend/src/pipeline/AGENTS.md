@@ -1,7 +1,9 @@
 # pipeline
 
 The search is a fixed LangGraph `StateGraph`, not a free-form tool-calling agent:
-`plan → find_jobs → rank_companies → find_people → read_postings → compile`. The LLM decides
+`plan → find_jobs → rank_companies → rescore_jobs → find_people → read_postings → compile`
+(`rescore_jobs` is experimental and off unless `RESCORE_POSTINGS` > 0; see
+`docs/experience-fit/experiment.md`). The LLM decides
 *what* to search for, *how well* companies fit (0-100 score) and writes the text; code decides
 *that* every step runs. Design, trace format and tradeoffs:
 `docs/langgraph-pipeline/plan.md`.
@@ -25,7 +27,7 @@ The search is a fixed LangGraph `StateGraph`, not a free-form tool-calling agent
   people, with URLs copied from the gathered data.
 - Every source call and validation is recorded in the search's `trace` (saved with the search,
   not streamed). Check it first when a result list is unexpectedly empty.
-- Knobs are in `config.py`: `MAX_COMPANIES`, `PEOPLE_AUTO_COMPANIES`, `READ_POSTINGS`,
+- Knobs are in `config.py`: `MAX_COMPANIES`, `PEOPLE_AUTO_COMPANIES`, `READ_POSTINGS`, `RESCORE_POSTINGS`,
   `PEOPLE_PER_COMPANY`, and for the shared-school people search `PEOPLE_SIMILAR_MAX_QUERIES`
   (extra Google searches per company; 0 turns it off) and `PEOPLE_SIMILAR_PER_COMPANY`.
 - Tests use mocked LLMs and sources only (`backend/tests/pipeline_fakes.py`).

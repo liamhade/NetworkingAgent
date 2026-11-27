@@ -1,6 +1,9 @@
 """The search as a fixed LangGraph graph, and `run_search()`, which streams its events.
 
-    plan -> find_jobs -> rank_companies -> find_people -> read_postings -> compile
+    plan -> find_jobs -> rank_companies -> rescore_jobs -> find_people -> read_postings
+         -> compile
+
+`rescore_jobs` is experimental and does nothing unless `config.RESCORE_POSTINGS` > 0.
 
 `plan`, `rank_companies` and `compile` are structured-output LLM calls; the rest is code,
 so every step runs. A node that finds nothing usable sets `error` and the graph ends.
@@ -30,6 +33,7 @@ def build_graph(llm: BaseChatModel):
     graph.add_node("plan", lambda state: steps.plan_node(state, llm))
     graph.add_node("find_jobs", steps.find_jobs_node)
     graph.add_node("rank_companies", lambda state: steps.rank_companies_node(state, llm))
+    graph.add_node("rescore_jobs", lambda state: steps.rescore_jobs_node(state, llm))
     graph.add_node("find_people", steps.find_people_node)
     graph.add_node("read_postings", steps.read_postings_node)
     graph.add_node("compile", lambda state: steps.compile_node(state, llm))
@@ -40,8 +44,9 @@ def build_graph(llm: BaseChatModel):
         "find_jobs", _next_unless_error("rank_companies"), ["rank_companies", END]
     )
     graph.add_conditional_edges(
-        "rank_companies", _next_unless_error("find_people"), ["find_people", END]
+        "rank_companies", _next_unless_error("rescore_jobs"), ["rescore_jobs", END]
     )
+    graph.add_edge("rescore_jobs", "find_people")
     graph.add_edge("find_people", "read_postings")
     graph.add_edge("read_postings", "compile")
     graph.add_edge("compile", END)

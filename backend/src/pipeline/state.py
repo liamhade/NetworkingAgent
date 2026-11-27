@@ -165,6 +165,24 @@ class CompanyRanking(BaseModel):
     companies: list[RankedCompany]
 
 
+class JobRescore(BaseModel):
+    id: str = Field(description='Job id, e.g. "j3".')
+    years_required: str = Field(
+        description='Experience the posting asks for, e.g. "3+ years", or "" if it does not say.'
+    )
+    score: int = Field(description="Fit with the user's profile, 0-100, given the posting.")
+
+
+class CompanyRescore(BaseModel):
+    name: str = Field(description="Company name exactly as given.")
+    score: int = Field(description="Overall fit with the user's profile, 0-100.")
+    jobs: list[JobRescore]
+
+
+class Rescoring(BaseModel):
+    companies: list[CompanyRescore]
+
+
 class ChosenCompany(BaseModel):
     """A validated, scored company: what the rest of the pipeline works on."""
 

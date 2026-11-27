@@ -8,8 +8,10 @@ sets `error` when nothing usable is left.
 import json
 import logging
 import math
+import re
 import time
 from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
 
 from langchain_core.language_models import BaseChatModel
@@ -35,6 +37,7 @@ from pipeline.state import (
     ListedCompany,
     Person,
     PipelineState,
+    Rescoring,
     SearchPlan,
     UsajobsQuery,
 )
@@ -698,6 +701,128 @@ def rank_companies_node(state: PipelineState, llm: BaseChatModel) -> dict:
     return {"chosen": chosen, "trace": steps}
 
 
+# ---------------------------------------------------------------------- rescore_jobs
+
+RESCORE_READERS = 6
+"""Postings read at once by `rescore_jobs` (plain HTTP, so they can run side by side)."""
+
+_REQUIREMENTS = re.compile(
+    r"^#*\s*\**\s*(?:requirements|qualifications|what you(?:'|’)ll need|what we(?:'|’)re "
+    r"looking for|who you are|about you|you have|minimum qualifications|must have)",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def posting_excerpt(text: str, limit: int) -> str:
+    """At most `limit` characters of a posting, starting at its requirements section when it
+    has a recognizable one (that is where experience and must-haves are listed)."""
+    match = _REQUIREMENTS.search(text)
+    if match and match.start() > limit // 4:
+        head = text[: limit // 4].rstrip()
+        return _short(f"{head}\n…\n{text[match.start() :]}", limit)
+    return _short(text, limit)
+
+
+def _rescore_targets(chosen: list[ChosenCompany], per_company: int) -> list[Job]:
+    return [job for c in chosen for job in c.jobs[:per_company] if job.url]
+
+
+def apply_rescoring(chosen: list[ChosenCompany], rescoring: Rescoring) -> list[ChosenCompany]:
+    """New job and company scores from `rescoring`, for the companies and job ids that exist;
+    jobs re-sorted within each company and companies re-sorted by score."""
+    by_name = {_name_key(c.name): c for c in rescoring.companies}
+    out = []
+    for company in chosen:
+        new = by_name.get(_name_key(company.name))
+        if new is None:
+            out.append(company)
+            continue
+        known = {j.id for j in company.jobs}
+        scores = dict(company.job_scores)
+        years = {}
+        for js in new.jobs:
+            if js.id in known:
+                scores[js.id] = _scored(js.score)
+                years[js.id] = js.years_required.strip()
+        jobs = [
+            j.model_copy(update={"years_required": years[j.id]}) if years.get(j.id) else j
+            for j in company.jobs
+        ]
+        jobs.sort(key=lambda j: -scores.get(j.id, 0))
+        out.append(
+            company.model_copy(
+                update={"score": _scored(new.score), "jobs": jobs, "job_scores": scores}
+            )
+        )
+    out.sort(key=lambda c: (-c.score, -len(c.jobs)))
+    return out
+
+
+def rescore_jobs_node(state: PipelineState, llm: BaseChatModel) -> dict:
+    """Experimental (`config.RESCORE_POSTINGS` > 0): read the top postings of every chosen
+    company in full, then score them again with their requirements in view."""
+    per_company = config.RESCORE_POSTINGS
+    chosen = state["chosen"]
+    targets = _rescore_targets(chosen, per_company) if per_company else []
+    if not targets:
+        return {}
+    status(f"Reading {_plural(len(targets), 'posting')} to check requirements")
+    max_chars = max(config.RESCORE_POSTING_MAX_CHARS, config.READ_POSTING_MAX_CHARS)
+
+    def read(job: Job) -> tuple[Job, Any, TraceStep]:
+        page, step = call(
+            "rescore_jobs",
+            "read_page",
+            {"url": job.url},
+            lambda: tools.read_page(job.url, max_chars=max_chars),
+        )
+        if page is not None:
+            step.count = len(page.markdown)
+            step.note = "count = characters"
+        return job, page, step
+
+    with ThreadPoolExecutor(max_workers=RESCORE_READERS) as pool:
+        reads = list(pool.map(read, targets))
+    trace = [step for _, _, step in reads]
+    postings = {job.url: page.markdown for job, page, _ in reads if page is not None}
+    if not postings:
+        return {"trace": trace}
+
+    blocks = []
+    for company in chosen:
+        jobs = [
+            {
+                "id": j.id,
+                "title": j.title,
+                "current_score": company.job_scores.get(j.id),
+                "posting": posting_excerpt(postings[j.url], config.RESCORE_POSTING_MAX_CHARS),
+            }
+            for j in company.jobs[:per_company]
+            if j.url in postings
+        ]
+        if jobs:
+            head = {"name": company.name, "current_score": company.score}
+            blocks.append(dump({**head, "jobs": jobs}))
+    human = (
+        f"{format_profile(state['request'])}\n\n<companies>\n"
+        + "\n".join(blocks)
+        + "\n</companies>"
+    )
+    status("Re-checking fit against the full postings")
+    rescoring, step = call(
+        "rescore_jobs",
+        "llm",
+        {"postings": len(postings)},
+        lambda: structured(llm, Rescoring, prompts.RESCORE_PROMPT, human, "rescore_jobs"),
+    )
+    trace.append(step)
+    if rescoring is None:
+        return {"postings": postings, "trace": trace}
+    rescored = apply_rescoring(chosen, rescoring)
+    status("Top companies: " + ", ".join(f"{c.name} ({c.score})" for c in rescored))
+    return {"chosen": rescored, "postings": postings, "trace": trace}
+
+
 # ----------------------------------------------------------------------- find_people
 
 
@@ -915,11 +1040,17 @@ def find_people_node(state: PipelineState) -> dict:
 
 
 def read_postings_node(state: PipelineState) -> dict:
-    """read_page on the best posting of the top companies (`READ_POSTINGS` of them)."""
+    """read_page on the best posting of the top companies (`READ_POSTINGS` of them).
+
+    Postings `rescore_jobs` already read are reused; only these few go on to compile."""
+    already: dict[str, str] = state.get("postings") or {}
     postings: dict[str, str] = {}
     trace: list[TraceStep] = []
     urls = [c.jobs[0].url for c in state["chosen"] if c.jobs][: config.READ_POSTINGS]
     for url in urls:
+        if url in already:
+            postings[url] = already[url][: config.READ_POSTING_MAX_CHARS]
+            continue
         status(f"Reading {_short(url.split('://', 1)[-1].removeprefix('www.'))}")
         page, step = call(
             "read_postings",
