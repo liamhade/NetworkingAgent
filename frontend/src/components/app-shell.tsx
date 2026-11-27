@@ -20,9 +20,10 @@ const NAV_ITEMS: { view: View; label: string; icon: IconName }[] = [
   { view: 'companies', label: 'Companies', icon: 'building' },
   { view: 'jobs', label: 'Jobs', icon: 'briefcase' },
   { view: 'people', label: 'People', icon: 'users' },
+  { view: 'about', label: 'About', icon: 'info' },
 ]
 
-/** Only for the owner (`user.is_admin`). */
+/** Only for the owner (`user.is_admin`); after About. */
 const ADMIN_ITEM: (typeof NAV_ITEMS)[number] = { view: 'admin', label: 'Admin', icon: 'shield' }
 
 interface AppShellProps {

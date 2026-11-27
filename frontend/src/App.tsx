@@ -36,6 +36,7 @@ import { AppShell } from '@/components/app-shell'
 import { SearchConfigs } from '@/components/search-configs'
 import { SearchHistory } from '@/components/search-history'
 import { ToastProvider } from '@/components/toast'
+import { AboutPage } from '@/pages/about'
 import { AdminPage } from '@/pages/admin'
 import { CompaniesPage, JobsPage, PeoplePage } from '@/pages/entities'
 import { Hero } from '@/pages/hero'
@@ -552,6 +553,8 @@ export default function App() {
       >
         {view === 'admin' && user?.is_admin ? (
           <AdminPage />
+        ) : view === 'about' ? (
+          <AboutPage />
         ) : view === 'companies' ? (
           <CompaniesPage
             refreshKey={entitiesVersion}
