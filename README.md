@@ -92,6 +92,7 @@ npm run build
 | `MAX_CONCURRENT_SEARCHES` | `2` | Searches that may run at once; another is refused with HTTP 429 |
 | `READ_TIMEOUT_S` | `8` | Seconds a batch of page reads may take; slower pages are skipped |
 | `READ_BUDGET_S` | `20` | Seconds all posting reads of the `filter` step may take; unread jobs keep their card text |
+| `READ_PAGE_BROWSER` | `false` | `true` renders JS-only pages in headless Chromium (needs Playwright's Chromium) |
 | `READ_HOST_CONCURRENCY` | `5` | Posting reads of one site at once |
 | `READ_RETRY_BACKOFF_S` | `1.5` | Wait before the one retry of a read that got HTTP 429 |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | | Accounts (email + password, for emails you approve). Unset: everyone is `TEST_USER` |

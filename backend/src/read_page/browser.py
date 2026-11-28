@@ -21,11 +21,11 @@ IDLE_TIMEOUT_MS = 8_000
 
 
 def enabled() -> bool:
-    """True unless `READ_PAGE_BROWSER=false` or Playwright isn't installed.
+    """True only with `READ_PAGE_BROWSER=true` and Playwright installed (off by default).
 
     Without it, pages that need JavaScript are read from their static HTML only.
     """
-    if os.environ.get("READ_PAGE_BROWSER", "true").strip().lower() == "false":
+    if os.environ.get("READ_PAGE_BROWSER", "false").strip().lower() == "false":
         return False
     return importlib.util.find_spec("playwright") is not None
 

@@ -100,13 +100,28 @@ def test_js_shell_uses_jsonld_without_browser(web: FakeWeb) -> None:
     assert not any(kind == "browser" for kind, _ in web.calls)
 
 
+def test_browser_off_by_default(web: FakeWeb, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("READ_PAGE_BROWSER", raising=False)
+    url = "https://spa.example.com/job"
+    web.page(url, fixture_bytes("js_shell.html"))
+    web.rendered[url] = fixture_bytes("rendered.html").decode()
+    try:
+        read_page.read_page(url)
+    except ReadPageError:
+        pass
+    assert not any(kind == "browser" for kind, _ in web.calls)
+
+
 def test_ashby_api_preferred_when_job_listed(web: FakeWeb) -> None:
     web.json["https://api.ashbyhq.com/posting-api/job-board/notion"] = ASHBY_JSON
     result = read_page.read_page(f"https://jobs.ashbyhq.com/notion/{ASHBY_ID}")
     assert result.method == "ashby_api"
 
 
-def test_js_shell_without_jsonld_renders_in_browser(web: FakeWeb) -> None:
+def test_js_shell_without_jsonld_renders_in_browser(
+    web: FakeWeb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("READ_PAGE_BROWSER", "true")
     url = "https://spa.example.com/job"
     web.page(url, fixture_bytes("js_shell.html"))
     web.rendered[url] = fixture_bytes("rendered.html").decode()
@@ -129,7 +144,8 @@ def test_browser_switched_off_never_renders(web: FakeWeb, monkeypatch: pytest.Mo
     assert not any(kind == "browser" for kind, _ in web.calls)
 
 
-def test_empty_everywhere_raises(web: FakeWeb) -> None:
+def test_empty_everywhere_raises(web: FakeWeb, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("READ_PAGE_BROWSER", "true")
     url = "https://spa.example.com/empty"
     web.page(url, fixture_bytes("js_shell.html"))
     web.rendered[url] = "<html><body></body></html>"
